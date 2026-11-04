@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace ReBuji\Tests\Support;
 
+use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use ReBuji\Auth\AdminRepository;
 use ReBuji\Config\Config;
 use ReBuji\Config\ConfigFile;
 use ReBuji\Container;
+use ReBuji\Database\Database;
+use ReBuji\Database\Migrator;
 use ReBuji\Http\AppFactory;
 use ReBuji\Http\ArraySession;
 use ReBuji\Http\Session;
@@ -46,6 +51,48 @@ final class TestApp
         $container = Container::build($paths, $overrides + [Session::class => new ArraySession(), ClientInterface::class => new FakeHttpClient()]);
 
         return [AppFactory::create($container), $container, $root];
+    }
+
+    public const string ADMIN_EMAIL = 'admin@example.com';
+
+    public const string ADMIN_PASSWORD = 'correct-horse-battery';
+
+    /**
+     * An installed copy: SQLite migrated and one admin (ADMIN_EMAIL / ADMIN_PASSWORD).
+     *
+     * @param array<string, mixed> $overrides
+     *
+     * @return array{App<ContainerInterface>, ContainerInterface, string}
+     */
+    public static function installed(array $overrides = []): array
+    {
+        [$app, $container, $root] = self::create($overrides, self::installedConfig());
+        $migrator = $container->get(Migrator::class);
+        $db = $container->get(Database::class);
+        $clock = $container->get(ClockInterface::class);
+        assert($migrator instanceof Migrator && $db instanceof Database && $clock instanceof ClockInterface);
+        $migrator->migrate();
+        (new AdminRepository($db, $clock))->create('安否 太郎', self::ADMIN_EMAIL, self::ADMIN_PASSWORD);
+
+        return [$app, $container, $root];
+    }
+
+    /**
+     * Logs in through the form and returns the response.
+     *
+     * @param App<ContainerInterface> $app
+     */
+    public static function logIn(App $app, ContainerInterface $container, string $password = self::ADMIN_PASSWORD, string $email = self::ADMIN_EMAIL): ResponseInterface
+    {
+        return $app->handle(self::request('POST', '/login', ['email' => $email, 'password' => $password] + self::csrf($container)));
+    }
+
+    public static function session(ContainerInterface $container): ArraySession
+    {
+        $session = $container->get(Session::class);
+        assert($session instanceof ArraySession);
+
+        return $session;
     }
 
     /**

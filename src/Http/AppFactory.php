@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace ReBuji\Http;
 
 use Psr\Container\ContainerInterface;
-use Psr\Http\Message\ResponseFactoryInterface;
-use Psr\Http\Message\ResponseInterface;
+use ReBuji\Auth\AuthMiddleware;
+use ReBuji\Auth\LoginController;
+use ReBuji\HomeController;
 use ReBuji\Install\InstallController;
 use Slim\App;
 use Slim\Factory\AppFactory as SlimAppFactory;
+use Slim\Interfaces\RouteCollectorProxyInterface;
 
 /**
  * @author shimomo
@@ -47,13 +49,14 @@ final class AppFactory
      */
     public static function routes(App $app, ContainerInterface $container): void
     {
-        $responses = $container->get(ResponseFactoryInterface::class);
-        $url = $container->get(Url::class);
-        assert($responses instanceof ResponseFactoryInterface && $url instanceof Url);
+        $app->get('/login', [LoginController::class, 'show']);
+        $app->post('/login', [LoginController::class, 'login']);
+        $app->post('/logout', [LoginController::class, 'logout']);
 
-        // Route closures are not static: Slim binds them to the container.
-        // Replaced by the login-protected home page (Task 6).
-        $app->get('/', fn(): ResponseInterface => $responses->createResponse(302)->withHeader('Location', $url->to('/login')));
+        // Added by class name, so it is built (and touches the database) only when a protected route runs.
+        $app->group('', function (RouteCollectorProxyInterface $group): void {
+            $group->get('/', [HomeController::class, 'show']);
+        })->add(AuthMiddleware::class);
 
         $app->get('/install', [InstallController::class, 'index']);
         $app->get('/install/{step}', [InstallController::class, 'show']);
