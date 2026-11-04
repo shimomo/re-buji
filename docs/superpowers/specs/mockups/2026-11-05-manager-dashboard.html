@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Re:無事 責任者の画面（例）</title>
+<style>
+:root{--text-primary:#1f1f1d;--text-secondary:#6b6a66;--border:rgba(0,0,0,.12);--surface-1:#f5f4f0;--bg-danger:#fcebeb;--text-danger:#a32d2d;--bg-warning:#faeeda;--text-warning:#854f0b;--radius:8px}
+body{font-family:system-ui,sans-serif;color:var(--text-primary);max-width:720px;margin:2rem auto;padding:0 16px;line-height:1.6;background:#fff}
+.row{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.3fr) minmax(0,1.2fr);gap:12px;align-items:center;padding:10px 0;border-top:0.5px solid var(--border);font-size:14px}
+.badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:var(--radius)}
+.sec{margin:1.5rem 0 .25rem;font-size:15px;font-weight:500}
+.muted{color:var(--text-secondary);font-size:13px}
+.card{border-radius:var(--radius);padding:12px 16px}
+.big{font-size:24px;font-weight:500}
+button{font:inherit;font-size:13px;padding:4px 10px;border:.5px solid rgba(0,0,0,.3);border-radius:var(--radius);background:#fff}
+</style>
+</head>
+<body>
+<!-- 2026-11-05 の brainstorming で作者が確かめた、責任者の画面の例。内容と並び順が要件で、見た目は例。 -->
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
+  <div>
+    <div style="font-size:18px;font-weight:500">11月5日 3:12 頃　宮城県沖（M6.8）最大震度 6弱</div>
+    <div class="muted">震源・震度に関する情報（3:17 発表）をもとに判定　｜　対象：震度5弱以上の市町村に登録した人</div>
+  </div>
+  <span class="badge" style="background:var(--bg-danger);color:var(--text-danger)">通常（訓練ではない）</span>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-top:1rem">
+  <div class="card" style="background:var(--surface-1)"><div class="muted">対象</div><div class="big">42 人</div></div>
+  <div class="card" style="background:var(--bg-danger)"><div style="font-size:13px;color:var(--text-danger)">返信なし</div><div class="big" style="color:var(--text-danger)">9 人</div></div>
+  <div class="card" style="background:var(--bg-warning)"><div style="font-size:13px;color:var(--text-warning)">要確認（本文あり）</div><div class="big" style="color:var(--text-warning)">5 人</div></div>
+  <div class="card" style="background:var(--surface-1)"><div class="muted">無事（空の返信）</div><div class="big">28 人</div></div>
+</div>
+
+<div class="sec">返信なし（9 人）</div>
+<div class="row"><div><div>佐藤 健</div><div class="muted">営業部</div></div><div>仙台青葉区 <span class="muted">震度 6弱</span></div><div><span class="badge" style="background:var(--bg-danger);color:var(--text-danger)">届かなかった（宛先不明）</span></div></div>
+<div class="row"><div><div>鈴木 美咲</div><div class="muted">総務部</div></div><div>石巻市 <span class="muted">震度 6弱</span></div><div><span class="badge" style="background:var(--bg-warning);color:var(--text-warning)">不在の自動応答だけ</span></div></div>
+<div class="row"><div><div>高橋 誠</div><div class="muted">工場</div></div><div>名取市 <span class="muted">震度 5強</span></div><div class="muted">3:21 に送信、3:51 に再送</div></div>
+<div class="row"><div><div>田中 陽子</div><div class="muted">営業部</div></div><div>宮城野区 <span class="muted">震度 5強</span></div><div class="muted">送信待ち（上限のため 3:35 予定）</div></div>
+<div class="muted" style="padding:6px 0;border-top:0.5px solid var(--border)">ほか 5 人を表示</div>
+
+<div class="sec">要確認（5 人）</div>
+<div class="row"><div><div>伊藤 大輔</div><div class="muted">工場　3:28 返信</div></div><div>「足を怪我しました。歩けますが今日は出社できません」</div><div><button>確認済みにする</button></div></div>
+<div class="row"><div><div>渡辺 恵</div><div class="muted">総務部　3:30 返信</div></div><div>「家族は無事。自宅の水道が止まっています」</div><div><button>確認済みにする</button></div></div>
+<div class="muted" style="padding:6px 0;border-top:0.5px solid var(--border)">ほか 3 人を表示</div>
+
+<div class="sec">無事（28 人）</div>
+<div class="muted" style="padding:6px 0;border-top:0.5px solid var(--border)">空の返信があった人。一覧を開く</div>
+</body>
+</html>
