@@ -39,19 +39,41 @@ final class TestApp
      */
     public static function create(array $overrides = [], ?Config $config = null): array
     {
+        $root = self::root($config);
+        [$app, $container] = self::build($root, $overrides);
+
+        return [$app, $container, $root];
+    }
+
+    /**
+     * A throwaway root with storage/ and the repository's templates, for tests that build the app themselves.
+     */
+    public static function root(?Config $config = null): string
+    {
         $root = TemporaryDirectory::create();
         mkdir($root . '/storage');
         symlink(dirname(__DIR__, 2) . '/templates', $root . '/templates');
-        $paths = new Paths($root);
 
         if ($config !== null) {
-            (new ConfigFile($paths->storage('config.php')))->save($config);
+            (new ConfigFile((new Paths($root))->storage('config.php')))->save($config);
         }
 
-        // Tests never reach the network: by default every self-check request is answered with 403 (protected).
-        $container = Container::build($paths, $overrides + [Session::class => new ArraySession(), ClientInterface::class => new FakeHttpClient()]);
+        return $root;
+    }
 
-        return [AppFactory::create($container), $container, $root];
+    /**
+     * The app on an existing root. Each call is a new container, as each request on the server is.
+     *
+     * @param array<string, mixed> $overrides
+     *
+     * @return array{App<ContainerInterface>, ContainerInterface}
+     */
+    public static function build(string $root, array $overrides = []): array
+    {
+        // Tests never reach the network: by default every self-check request is answered with 403 (protected).
+        $container = Container::build(new Paths($root), $overrides + [Session::class => new ArraySession(), ClientInterface::class => new FakeHttpClient()]);
+
+        return [AppFactory::create($container), $container];
     }
 
     public const string ADMIN_EMAIL = 'admin@example.com';

@@ -14,6 +14,7 @@ use ReBuji\Database\Database;
 use ReBuji\Paths;
 use ReBuji\Tests\Support\FakeHttpClient;
 use ReBuji\Tests\Support\FakeNetworkException;
+use ReBuji\Tests\Support\LoopbackHttpClient;
 use ReBuji\Tests\Support\TemporaryDirectory;
 use ReBuji\Tests\Support\TestApp;
 use Slim\App;
@@ -51,6 +52,23 @@ final class InstallFlowTest extends TestCase
             $this->assertSame(1, (int) $db->fetchValue('SELECT COUNT(*) FROM admins'));
             $this->assertFileDoesNotExist($root . '/storage/install-key.txt');
             $this->assertSame(404, $app->handle(TestApp::request('GET', '/install'))->getStatusCode());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function completesSetupWhenOnlyPublicIsServed(): void
+    {
+        // Every probe reaches index.php, which must answer with the app's 404 rather than a redirect to the installer.
+        $root = TestApp::root();
+        [$app, $container] = TestApp::build($root, [ClientInterface::class => new LoopbackHttpClient($root)]);
+
+        try {
+            $this->reachExposure($app, $container, $root);
+            $response = $this->post($app, $container, '/install/exposure', ['base_url' => 'https://example.com']);
+
+            $this->assertSame('/install/finish', $response->getHeaderLine('Location'), (string) $response->getBody());
         } finally {
             TemporaryDirectory::remove($root);
         }

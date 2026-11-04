@@ -31,6 +31,20 @@ final class InstalledGateTest extends TestCase
     }
 
     #[Test]
+    public function answersUnknownPathsWithNotFoundBeforeSetup(): void
+    {
+        [$app, , $root] = TestApp::create();
+
+        try {
+            // The exposure check requests storage/ and vendor/ paths, which reach index.php when only public/ is served.
+            $this->assertSame(404, $app->handle(TestApp::request('GET', '/storage/config.php'))->getStatusCode());
+            $this->assertSame(404, $app->handle(TestApp::request('GET', '/vendor/composer/installed.json'))->getStatusCode());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function hidesTheInstallerAfterSetup(): void
     {
         [$app, , $root] = TestApp::create([], TestApp::installedConfig());
