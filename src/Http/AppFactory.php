@@ -9,6 +9,8 @@ use ReBuji\Auth\AuthMiddleware;
 use ReBuji\Auth\LoginController;
 use ReBuji\HomeController;
 use ReBuji\Install\InstallController;
+use ReBuji\Monitor\StatusController;
+use ReBuji\Monitor\StatusTokenController;
 use Slim\App;
 use Slim\Factory\AppFactory as SlimAppFactory;
 use Slim\Interfaces\RouteCollectorProxyInterface;
@@ -56,7 +58,10 @@ final class AppFactory
         // Added by class name, so it is built (and touches the database) only when a protected route runs.
         $app->group('', function (RouteCollectorProxyInterface $group): void {
             $group->get('/', [HomeController::class, 'show']);
+            $group->post('/settings/status-token', [StatusTokenController::class, 'regenerate']);
         })->add(AuthMiddleware::class);
+
+        $app->get('/status/{token}', [StatusController::class, 'show']);
 
         $app->get('/install', [InstallController::class, 'index']);
         $app->get('/install/{step}', [InstallController::class, 'show']);
