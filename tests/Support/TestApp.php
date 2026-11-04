@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ReBuji\Tests\Support;
 
 use Psr\Container\ContainerInterface;
+use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ReBuji\Config\Config;
 use ReBuji\Config\ConfigFile;
@@ -41,7 +42,8 @@ final class TestApp
             (new ConfigFile($paths->storage('config.php')))->save($config);
         }
 
-        $container = Container::build($paths, $overrides + [Session::class => new ArraySession()]);
+        // Tests never reach the network: by default every self-check request is answered with 403 (protected).
+        $container = Container::build($paths, $overrides + [Session::class => new ArraySession(), ClientInterface::class => new FakeHttpClient()]);
 
         return [AppFactory::create($container), $container, $root];
     }
