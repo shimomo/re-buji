@@ -6,8 +6,10 @@ namespace ReBuji\Tests\Auth;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Psr\Clock\ClockInterface;
 use ReBuji\Http\ArraySession;
 use ReBuji\Http\Session;
+use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\TemporaryDirectory;
 use ReBuji\Tests\Support\TestApp;
 
@@ -34,6 +36,43 @@ final class LoginTest extends TestCase
             $home = $app->handle(TestApp::request('GET', '/'));
             $this->assertSame(200, $home->getStatusCode());
             $this->assertStringContainsString('安否 太郎', (string) $home->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function logsOutAfterEightHoursWithoutARequest(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $clock->advance('+8 hours +1 minute');
+            $response = $app->handle(TestApp::request('GET', '/'));
+
+            $this->assertSame(302, $response->getStatusCode());
+            $this->assertSame('/login', $response->getHeaderLine('Location'));
+            $this->assertNull(TestApp::session($container)->get('admin_id'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function staysLoggedInWhileInUse(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            TestApp::logIn($app, $container);
+
+            for ($i = 0; $i < 3; $i++) {
+                $clock->advance('+7 hours');
+                $this->assertSame(200, $app->handle(TestApp::request('GET', '/'))->getStatusCode());
+            }
         } finally {
             TemporaryDirectory::remove($root);
         }

@@ -15,10 +15,18 @@ final class ArraySession implements Session
 {
     public int $regenerated = 0;
 
+    private bool $started = false;
+
     /**
      * @var array<string, mixed>
      */
     private array $data = [];
+
+    #[Override]
+    public function exists(): bool
+    {
+        return $this->started;
+    }
 
     #[Override]
     public function get(string $key): mixed
@@ -29,6 +37,7 @@ final class ArraySession implements Session
     #[Override]
     public function set(string $key, mixed $value): void
     {
+        $this->started = true;
         $this->data[$key] = $value;
     }
 
@@ -41,6 +50,7 @@ final class ArraySession implements Session
     #[Override]
     public function regenerate(): void
     {
+        $this->started = true;
         $this->regenerated++;
     }
 
@@ -53,6 +63,8 @@ final class ArraySession implements Session
     #[Override]
     public function &reference(string $key): array
     {
+        $this->started = true;
+
         if (!isset($this->data[$key]) || !is_array($this->data[$key])) {
             $this->data[$key] = [];
         }

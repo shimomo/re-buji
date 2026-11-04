@@ -8,20 +8,34 @@ use Override;
 use RuntimeException;
 
 /**
- * PHP's session, started on first use. Files go to storage/sessions rather than the server's shared directory.
+ * PHP's session, started on first write. Reading without a session cookie starts nothing, so requests that never need
+ * one (bots, monitors) leave no file. Files go to storage/sessions rather than the server's shared directory, and
+ * PHP's own cleanup runs there even on hosts that switch it off.
  *
  * @author shimomo
  */
 final class NativeSession implements Session
 {
+    private const string NAME = 'rebuji_session';
+
     public function __construct(private readonly string $savePath, private readonly bool $secure)
     {
         //
     }
 
     #[Override]
+    public function exists(): bool
+    {
+        return session_status() === PHP_SESSION_ACTIVE || isset($_COOKIE[self::NAME]);
+    }
+
+    #[Override]
     public function get(string $key): mixed
     {
+        if (!$this->exists()) {
+            return null;
+        }
+
         $this->start();
 
         return $_SESSION[$key] ?? null;
@@ -38,6 +52,10 @@ final class NativeSession implements Session
     #[Override]
     public function remove(string $key): void
     {
+        if (!$this->exists()) {
+            return;
+        }
+
         $this->start();
         unset($_SESSION[$key]);
     }
@@ -52,6 +70,10 @@ final class NativeSession implements Session
     #[Override]
     public function clear(): void
     {
+        if (!$this->exists()) {
+            return;
+        }
+
         $this->start();
         $_SESSION = [];
     }
@@ -82,10 +104,11 @@ final class NativeSession implements Session
         }
 
         session_save_path($this->savePath);
-        session_name('rebuji_session');
+        session_name(self::NAME);
         session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => $this->secure, 'httponly' => true, 'samesite' => 'Lax']);
 
-        if (!session_start()) {
+        // One start in a hundred removes files idle for longer than IDLE_SECONDS (Debian-based PHP ships with 0).
+        if (!session_start(['gc_maxlifetime' => self::IDLE_SECONDS, 'gc_probability' => 1, 'gc_divisor' => 100])) {
             throw new RuntimeException('Cannot start the session');
         }
     }

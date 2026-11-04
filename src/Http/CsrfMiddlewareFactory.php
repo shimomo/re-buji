@@ -21,16 +21,22 @@ final class CsrfMiddlewareFactory
     {
         /** @psalm-suppress UnsupportedReferenceUsage slim/csrf stores its tokens through this reference */
         $storage = &$session->reference('csrf');
-        $failure = static function () use ($responses, $templates): ResponseInterface {
-            $response = $responses->createResponse(400);
-            $response->getBody()->write($templates->render('error', [
-                'title' => 'もう一度お試しください',
-                'message' => 'フォームの有効期限が切れたか、正しく送られませんでした。ページを開き直して、もう一度お試しください。',
-            ]));
-
-            return $response;
-        };
+        $failure = static fn(): ResponseInterface => self::failure($responses, $templates);
 
         return new Guard($responses, 'csrf', $storage, $failure, 200, 16, true);
+    }
+
+    /**
+     * The answer to a form sent without a valid token.
+     */
+    public static function failure(ResponseFactoryInterface $responses, Engine $templates): ResponseInterface
+    {
+        $response = $responses->createResponse(400);
+        $response->getBody()->write($templates->render('error', [
+            'title' => 'もう一度お試しください',
+            'message' => 'フォームの有効期限が切れたか、正しく送られませんでした。ページを開き直して、もう一度お試しください。',
+        ]));
+
+        return $response;
     }
 }

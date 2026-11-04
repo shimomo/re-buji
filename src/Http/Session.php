@@ -9,6 +9,16 @@ namespace ReBuji\Http;
  */
 interface Session
 {
+    /**
+     * Sessions idle for longer end: the admin is logged out, and PHP's cleanup removes the file.
+     */
+    public const int IDLE_SECONDS = 8 * 3600;
+
+    /**
+     * Whether there is a session: started by this request, or named by its cookie. Reading never starts one.
+     */
+    public function exists(): bool;
+
     public function get(string $key): mixed;
 
     public function set(string $key, mixed $value): void;

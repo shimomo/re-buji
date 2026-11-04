@@ -75,6 +75,7 @@ final class LoginController
 
         $this->session->regenerate();
         $this->session->set('admin_id', $admin['id']);
+        $this->session->set('admin_seen_at', $now->getTimestamp());
 
         return $this->redirect('/');
     }
