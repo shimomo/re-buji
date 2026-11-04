@@ -14,6 +14,7 @@ use ReBuji\Config\Config;
 use ReBuji\Config\ConfigFile;
 use ReBuji\Container;
 use ReBuji\Database\Database;
+use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
 use ReBuji\Http\AppFactory;
 use ReBuji\Http\ArraySession;
@@ -67,11 +68,11 @@ final class TestApp
     public static function installed(array $overrides = []): array
     {
         [$app, $container, $root] = self::create($overrides, self::installedConfig());
-        $migrator = $container->get(Migrator::class);
         $db = $container->get(Database::class);
         $clock = $container->get(ClockInterface::class);
-        assert($migrator instanceof Migrator && $db instanceof Database && $clock instanceof ClockInterface);
-        $migrator->migrate();
+        assert($db instanceof Database && $clock instanceof ClockInterface);
+        // The real migrations, not the container's list, so a test can add one that stays pending.
+        (new Migrator($db, Migrations::all(), $clock))->migrate();
         (new AdminRepository($db, $clock))->create('安否 太郎', self::ADMIN_EMAIL, self::ADMIN_PASSWORD);
 
         return [$app, $container, $root];

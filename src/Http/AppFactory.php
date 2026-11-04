@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ReBuji\Http;
 
 use Psr\Container\ContainerInterface;
+use ReBuji\Admin\DatabaseUpdateController;
 use ReBuji\Auth\AuthMiddleware;
 use ReBuji\Auth\LoginController;
 use ReBuji\HomeController;
@@ -59,6 +60,8 @@ final class AppFactory
         $app->group('', function (RouteCollectorProxyInterface $group): void {
             $group->get('/', [HomeController::class, 'show']);
             $group->post('/settings/status-token', [StatusTokenController::class, 'regenerate']);
+            $group->get('/admin/database', [DatabaseUpdateController::class, 'show']);
+            $group->post('/admin/database', [DatabaseUpdateController::class, 'apply']);
         })->add(AuthMiddleware::class);
 
         $app->get('/status/{token}', [StatusController::class, 'show']);
