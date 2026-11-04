@@ -18,7 +18,7 @@ $this->layout('layout', ['title' => $title]);
 </ul>
 <form method="post" action="<?= $this->e($this->url('/install/exposure')) ?>">
     <?= $this->csrf() ?>
-    <label>このアプリの URL <input name="base_url" value="<?= $this->e($baseUrl) ?>" required></label>
-    <label><input type="checkbox" name="checked_by_hand" value="1"> ブラウザで確かめた（サーバーから自分の URL に接続できないと言われたときだけ）</label>
+    <label>このアプリの URL（ホスト名は変えられません） <input name="base_url" value="<?= $this->e($baseUrl) ?>" required></label>
+    <label><input type="checkbox" name="checked_by_hand" value="1"> ブラウザで確かめた（自分の URL に接続できない、または届かないと言われたときだけ）</label>
     <button type="submit">確かめる</button>
 </form>

@@ -94,6 +94,22 @@ final class InstallContext
     }
 
     /**
+     * Where the package root is served, on the scheme, host and port of $publicUrl. $publicUrl itself when the server
+     * does not say, or when the package is outside the document root (only public/ is served).
+     */
+    public function packageUrl(string $publicUrl): string
+    {
+        $path = PackagePath::detect($this->request->getServerParams(), $this->paths->root());
+        $parts = parse_url($publicUrl);
+
+        if ($path === null || !is_array($parts) || !isset($parts['scheme'], $parts['host'])) {
+            return $publicUrl;
+        }
+
+        return $parts['scheme'] . '://' . $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : '') . $path;
+    }
+
+    /**
      * @return list<string>
      */
     private function completedSteps(): array

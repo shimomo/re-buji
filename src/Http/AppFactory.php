@@ -10,6 +10,7 @@ use ReBuji\Auth\AuthMiddleware;
 use ReBuji\Auth\LoginController;
 use ReBuji\HomeController;
 use ReBuji\Install\InstallController;
+use ReBuji\Install\ProbeController;
 use ReBuji\Monitor\StatusController;
 use ReBuji\Monitor\StatusTokenController;
 use Slim\App;
@@ -68,6 +69,7 @@ final class AppFactory
         $app->get('/status/{token}', [StatusController::class, 'show']);
 
         $app->get('/install', [InstallController::class, 'index']);
+        $app->get('/install/probe/{nonce}', [ProbeController::class, 'show']);
         $app->get('/install/{step}', [InstallController::class, 'show']);
         $app->post('/install/{step}', [InstallController::class, 'submit']);
     }

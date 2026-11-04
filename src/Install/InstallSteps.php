@@ -34,7 +34,7 @@ final class InstallSteps
 
         return [
             new EnvironmentStep(),
-            new KeyStep($key),
+            new KeyStep($key, $exposure),
             new DatabaseStep($clock),
             new AdminStep($clock),
             new ExposureStep($exposure),

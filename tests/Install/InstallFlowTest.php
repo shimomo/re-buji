@@ -96,6 +96,101 @@ final class InstallFlowTest extends TestCase
     }
 
     #[Test]
+    public function refusesAUrlThatDoesNotReachThisCopy(): void
+    {
+        // Another server (or a wrong path) answers 404 to every file, which must not pass as protection.
+        [$app, $container, $root] = TestApp::create([ClientInterface::class => new FakeHttpClient(404, [], false)]);
+
+        try {
+            $this->reachExposure($app, $container, $root);
+            $response = $this->post($app, $container, '/install/exposure', ['base_url' => 'https://example.com']);
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertStringContainsString('この Re:無事 に届きませんでした（状態 404）', (string) $response->getBody());
+            $this->assertSame('/install/exposure', $app->handle(TestApp::request('GET', '/install/finish'))->getHeaderLine('Location'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function keepsTheHostOfTheInstaller(): void
+    {
+        $client = new FakeHttpClient();
+        [$app, $container, $root] = TestApp::create([ClientInterface::class => $client]);
+
+        try {
+            $this->reachExposure($app, $container, $root);
+            $response = $this->post($app, $container, '/install/exposure', ['base_url' => 'https://other.example.net']);
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertStringContainsString('ホスト名は、いま開いている example.com から変えられません', (string) $response->getBody());
+            $this->assertSame([], array_filter($client->requested, static fn(string $url): bool => str_contains($url, 'other.example.net')));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function probesFilesWhereThePackageIsServed(): void
+    {
+        // Only public/ is served at the top, but the package itself sits in the document root under its own name.
+        $root = TestApp::root();
+        $package = 'https://example.com/' . basename($root);
+        [$app, $container] = TestApp::build($root, [ClientInterface::class => new FakeHttpClient(403, [$package . '/storage/database.sqlite' => 200])]);
+
+        try {
+            $this->reachExposure($app, $container, $root);
+            $body = ['base_url' => 'https://example.com'] + TestApp::csrf($container);
+            $response = $app->handle(TestApp::request('POST', '/install/exposure', $body, ['DOCUMENT_ROOT' => dirname($root)]));
+
+            $this->assertStringContainsString('ウェブから見えています：' . $package . '/storage/database.sqlite', (string) $response->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function refusesAKeyThatCanBeReadFromTheWeb(): void
+    {
+        [$app, $container, $root] = TestApp::create([ClientInterface::class => new FakeHttpClient(403, ['https://example.com/storage/install-key.txt' => 200])]);
+
+        try {
+            $this->post($app, $container, '/install/environment');
+            $key = $this->installKey($app, $root);
+            $response = $this->post($app, $container, '/install/key', ['install_key' => $key]);
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertStringContainsString('storage/install-key.txt がウェブから読めるため', (string) $response->getBody());
+            // Anyone could have read the old key, so it is replaced.
+            $this->assertNotSame($key, trim((string) @file_get_contents($root . '/storage/install-key.txt')));
+            $this->assertSame('/install/key', $app->handle(TestApp::request('GET', '/install/database'))->getHeaderLine('Location'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function answersItsProbeOnlyWithTheStoredNonce(): void
+    {
+        [$app, , $root] = TestApp::create();
+
+        try {
+            file_put_contents($root . '/storage/install-probe.txt', str_repeat('ab', 16));
+            $response = $app->handle(TestApp::request('GET', '/install/probe/' . str_repeat('ab', 16)));
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertSame(str_repeat('ab', 16), (string) $response->getBody());
+            $this->assertStringContainsString('no-store', $response->getHeaderLine('Cache-Control'));
+            $this->assertSame(404, $app->handle(TestApp::request('GET', '/install/probe/' . str_repeat('cd', 16)))->getStatusCode());
+            unlink($root . '/storage/install-probe.txt');
+            $this->assertSame(404, $app->handle(TestApp::request('GET', '/install/probe/' . str_repeat('ab', 16)))->getStatusCode());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function allowsAManualCheckWhenTheServerCannotReachItself(): void
     {
         [$app, $container, $root] = TestApp::create([ClientInterface::class => new FakeHttpClient(403, [
