@@ -1,0 +1,95 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: PHPUnit ${{ matrix.phpunit-version }} on PHP ${{ matrix.php-version }} (${{ matrix.dependency-version }}, Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        php-version:
+          - '8.3'
+          - '8.4'
+          - '8.5'
+        phpunit-version:
+          - '12.5'
+          - '13.2'
+        dependency-version:
+          - prefer-lowest
+          - prefer-stable
+        # PHPUnit 13 needs PHP 8.4, so PHP 8.3 runs PHPUnit 12.
+        exclude:
+          - php-version: '8.3'
+            phpunit-version: '13.2'
+          - php-version: '8.4'
+            phpunit-version: '12.5'
+          - php-version: '8.5'
+            phpunit-version: '12.5'
+    steps:
+      - name: Setup PHP ${{ matrix.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: pdo_sqlite, pdo_mysql
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Pin the minor version, not one release: "12.5" alone means exactly 12.5.0, which Composer refuses to install
+      # because of a security advisory (versions below 12.5.8). With ".*" it takes the lowest or newest safe patch.
+      # composer.json pins the platform to PHP 8.3 so the release installs what a PHP 8.3 rental server gets;
+      # tests resolve for the runner's PHP instead (PHPUnit 13 needs PHP 8.4).
+      - name: Resolve for the runner's PHP
+        run: composer config --unset platform.php
+
+      - name: Install dependencies
+        run: composer update --${{ matrix.dependency-version }} --prefer-dist --no-interaction --no-progress --with="phpunit/phpunit:${{ matrix.phpunit-version }}.*"
+
+      - name: Run PHPUnit ${{ matrix.phpunit-version }}
+        run: vendor/bin/phpunit --configuration=phpunit.xml.dist --no-progress
+
+  mysql:
+    name: PHPUnit on PHP 8.3 with MySQL 8.4 (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: rebuji_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, pdo_mysql
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run PHPUnit against MySQL
+        run: vendor/bin/phpunit --configuration=phpunit.xml.dist --no-progress
+        env:
+          REBUJI_TEST_MYSQL_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=rebuji_test;charset=utf8mb4'
+          REBUJI_TEST_MYSQL_USER: root
+          REBUJI_TEST_MYSQL_PASSWORD: root
