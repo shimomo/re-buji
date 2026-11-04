@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace ReBuji\Http;
 
-use League\Plates\Engine;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
+use ReBuji\Install\InstallController;
 use Slim\App;
 use Slim\Factory\AppFactory as SlimAppFactory;
 
@@ -49,19 +49,14 @@ final class AppFactory
     {
         $responses = $container->get(ResponseFactoryInterface::class);
         $url = $container->get(Url::class);
-        $templates = $container->get(Engine::class);
-        assert($responses instanceof ResponseFactoryInterface && $url instanceof Url && $templates instanceof Engine);
+        assert($responses instanceof ResponseFactoryInterface && $url instanceof Url);
 
         // Route closures are not static: Slim binds them to the container.
         // Replaced by the login-protected home page (Task 6).
         $app->get('/', fn(): ResponseInterface => $responses->createResponse(302)->withHeader('Location', $url->to('/login')));
 
-        // Replaced by the installer (Task 4).
-        $app->get('/install', function () use ($responses, $templates): ResponseInterface {
-            $response = $responses->createResponse(200);
-            $response->getBody()->write($templates->render('install/placeholder'));
-
-            return $response;
-        });
+        $app->get('/install', [InstallController::class, 'index']);
+        $app->get('/install/{step}', [InstallController::class, 'show']);
+        $app->post('/install/{step}', [InstallController::class, 'submit']);
     }
 }

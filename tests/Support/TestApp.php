@@ -14,6 +14,7 @@ use ReBuji\Http\ArraySession;
 use ReBuji\Http\Session;
 use ReBuji\Paths;
 use Slim\App;
+use Slim\Csrf\Guard;
 use Slim\Psr7\Factory\ServerRequestFactory;
 
 /**
@@ -56,6 +57,23 @@ final class TestApp
             'status.token' => str_repeat('a', 32),
             'installed_at' => '2026-11-05T03:00:00Z',
         ]);
+    }
+
+    /**
+     * Valid CSRF fields for POST requests (one token per session).
+     *
+     * @return array<string, string>
+     */
+    public static function csrf(ContainerInterface $container): array
+    {
+        $guard = $container->get(Guard::class);
+        assert($guard instanceof Guard);
+        $token = $guard->generateToken();
+
+        return [
+            $guard->getTokenNameKey() => (string) $token[$guard->getTokenNameKey()],
+            $guard->getTokenValueKey() => (string) $token[$guard->getTokenValueKey()],
+        ];
     }
 
     /**

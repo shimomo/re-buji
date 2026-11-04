@@ -24,7 +24,7 @@ final class InstalledGateTest extends TestCase
             $this->assertSame(302, $response->getStatusCode());
             $this->assertSame('/install', $response->getHeaderLine('Location'));
 
-            $this->assertSame(200, $app->handle(TestApp::request('GET', '/install'))->getStatusCode());
+            $this->assertSame(200, $app->handle(TestApp::request('GET', '/install/environment'))->getStatusCode());
         } finally {
             TemporaryDirectory::remove($root);
         }

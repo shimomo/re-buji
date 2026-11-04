@@ -56,8 +56,10 @@ final class Database
 
     public static function mysql(string $dsn, string $username, string $password): self
     {
-        // MYSQL_ATTR_FOUND_ROWS: UPDATE reports matched rows, so writing the same value again is not "0 rows".
-        $pdo = new PDO($dsn, $username, $password, self::options() + [PDO::MYSQL_ATTR_FOUND_ROWS => true]);
+        // FOUND_ROWS: UPDATE reports matched rows, so writing the same value again is not "0 rows". PHP 8.4 moved the
+        // constant to Pdo\Mysql and 8.5 deprecates the old name, while 8.3 only has the old one.
+        $foundRows = (int) (class_exists('Pdo\\Mysql') ? constant('Pdo\\Mysql::ATTR_FOUND_ROWS') : constant('PDO::MYSQL_ATTR_FOUND_ROWS'));
+        $pdo = new PDO($dsn, $username, $password, self::options() + [$foundRows => true]);
 
         return new self($pdo, 'mysql');
     }
