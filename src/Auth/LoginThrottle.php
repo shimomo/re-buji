@@ -9,13 +9,18 @@ use ReBuji\Database\Database;
 use ReBuji\Time;
 
 /**
- * Blocks logins for an email or an address after 5 failures within 15 minutes.
+ * Holds off logins after repeated failures (design 3.2): 5 failures in a row for one email from one address within
+ * 15 minutes, or 20 failures from one address across any emails. Keyed on the pair, so failures sent from elsewhere
+ * cannot lock an admin out. LoginController does not record attempts made while blocked, so a block ends 15 minutes
+ * after the last failure that counted.
  *
  * @author shimomo
  */
 final class LoginThrottle
 {
     public const int MAX_FAILURES = 5;
+
+    public const int MAX_FAILURES_PER_ADDRESS = 20;
 
     public const int WINDOW_MINUTES = 15;
 
@@ -27,10 +32,13 @@ final class LoginThrottle
     public function isBlocked(string $email, string $ip, DateTimeImmutable $now): bool
     {
         $since = Time::format($now->modify('-' . self::WINDOW_MINUTES . ' minutes'));
-        $failures = 'SELECT COUNT(*) FROM login_attempts WHERE succeeded = 0 AND attempted_at > ? AND ';
+        $email = AdminRepository::normalize($email);
+        $failures = 'SELECT COUNT(*) FROM login_attempts WHERE succeeded = 0 AND attempted_at > ? AND ip = ?';
+        // "In a row": failures after this pair's last success.
+        $lastSuccess = (int) $this->db->fetchValue('SELECT COALESCE(MAX(id), 0) FROM login_attempts WHERE succeeded = 1 AND email = ? AND ip = ?', [$email, $ip]);
 
-        return (int) $this->db->fetchValue($failures . 'email = ?', [$since, AdminRepository::normalize($email)]) >= self::MAX_FAILURES
-            || (int) $this->db->fetchValue($failures . 'ip = ?', [$since, $ip]) >= self::MAX_FAILURES;
+        return (int) $this->db->fetchValue($failures . ' AND email = ? AND id > ?', [$since, $ip, $email, $lastSuccess]) >= self::MAX_FAILURES
+            || (int) $this->db->fetchValue($failures, [$since, $ip]) >= self::MAX_FAILURES_PER_ADDRESS;
     }
 
     public function record(string $email, string $ip, bool $succeeded, DateTimeImmutable $now): void

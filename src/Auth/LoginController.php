@@ -13,13 +13,16 @@ use ReBuji\Http\Session;
 use ReBuji\Http\Url;
 
 /**
- * Login and logout. A wrong password, an unknown email and a blocked attempt all get the same answer.
+ * Login and logout. A wrong password and an unknown email get the same answer. A block says so: it does not depend on
+ * whether the account exists, so it reveals nothing, and an admin told "wrong password" would keep retrying.
  *
  * @author shimomo
  */
 final class LoginController
 {
     private const string FAILED = 'メールアドレスかパスワードが違います';
+
+    private const string BLOCKED = 'ログインに続けて失敗したため、' . LoginThrottle::WINDOW_MINUTES . ' 分ほど受け付けを止めています。時間をおいてから、もう一度お試しください。';
 
     // Compared against for unknown emails, so they take as long as a wrong password. PHP 8.3 hashes at bcrypt cost 10
     // and PHP 8.4 at cost 12, so there is one dummy per cost.
@@ -57,12 +60,16 @@ final class LoginController
         $ip = self::text($request->getServerParams()['REMOTE_ADDR'] ?? '');
         $now = $this->clock->now();
 
+        // Not recorded, so retrying during a block does not move its end.
+        if ($this->throttle->isBlocked($email, $ip, $now)) {
+            return $this->render($email, self::BLOCKED);
+        }
+
         $admin = $this->admins->findByEmail($email);
         $valid = password_verify($password, $admin['password_hash'] ?? self::dummyHash()) && $admin !== null;
-        $blocked = $this->throttle->isBlocked($email, $ip, $now);
-        $this->throttle->record($email, $ip, $valid && !$blocked, $now);
+        $this->throttle->record($email, $ip, $valid, $now);
 
-        if (!$valid || $blocked) {
+        if (!$valid) {
             return $this->render($email, self::FAILED);
         }
 
