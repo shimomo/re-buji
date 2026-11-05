@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "82dda86e8f5514cc82cbbede3aa175aa",
+    "content-hash": "5d62a5df33aa0defe9d7b23d9b783953",
     "packages": [
         {
             "name": "fig/http-message-util",
@@ -61,6 +61,61 @@
                 "source": "https://github.com/php-fig/http-message-util/tree/1.1.5"
             },
             "time": "2020-11-24T22:02:12+00:00"
+        },
+        {
+            "name": "jmaxml/codes",
+            "version": "0.1.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/shimomo/jmaxml-php-codes.git",
+                "reference": "ce08a84cd6707a52af8ddfb244d86c1b852285f9"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/shimomo/jmaxml-php-codes/zipball/ce08a84cd6707a52af8ddfb244d86c1b852285f9",
+                "reference": "ce08a84cd6707a52af8ddfb244d86c1b852285f9",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^12.5 || ^13.2",
+                "vimeo/psalm": "^6.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "JmaXml\\Codes\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "shimomo",
+                    "email": "yuichi@shimomo.net"
+                }
+            ],
+            "description": "Unofficial JMA (Japan Meteorological Agency) earthquake code tables for JMA XML",
+            "keywords": [
+                "Earthquake",
+                "code-table",
+                "jma",
+                "jmaxml"
+            ],
+            "support": {
+                "issues": "https://github.com/shimomo/jmaxml-php-codes/issues",
+                "source": "https://github.com/shimomo/jmaxml-php-codes/tree/0.1.1"
+            },
+            "time": "2026-11-04T17:19:49+00:00"
         },
         {
             "name": "laravel/serializable-closure",
@@ -6892,6 +6947,7 @@
     "prefer-lowest": false,
     "platform": {
         "php": "^8.3",
+        "ext-mbstring": "*",
         "ext-pdo": "*"
     },
     "platform-dev": {},

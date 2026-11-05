@@ -26,11 +26,10 @@ final class MigratorTest extends TestCase
         $db = TestDatabase::open($driver);
         $migrator = new Migrator($db, Migrations::all(), new FrozenClock());
 
-        $this->assertSame(
-            array_map(static fn(Migration $m): string => $m->version(), Migrations::all()),
-            array_map(static fn(Migration $m): string => $m->version(), $migrator->pending()),
-        );
-        $this->assertSame(['0001'], $migrator->migrate());
+        $versions = array_map(static fn(Migration $m): string => $m->version(), Migrations::all());
+
+        $this->assertSame($versions, array_map(static fn(Migration $m): string => $m->version(), $migrator->pending()));
+        $this->assertSame($versions, $migrator->migrate());
         $this->assertSame([], $migrator->pending());
         $this->assertSame([], $migrator->migrate());
 
