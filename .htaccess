@@ -1,0 +1,7 @@
+# Used when the whole package is uploaded into the web root (for example on Lolipop): requests go to public/, and
+# nothing outside public/ is ever served. Each private directory also has its own "deny all" .htaccess.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^public/ - [L]
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>

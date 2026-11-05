@@ -1,0 +1,59 @@
+{
+    "name": "shimomo/re-buji",
+    "description": "Re:Buji (Re:無事) is a self-hosted earthquake safety-confirmation app: staff reply to an email to report that they are safe. Unofficial; uses JMA disaster information XML.",
+    "license": "MIT",
+    "type": "project",
+    "authors": [
+        {
+            "name": "shimomo",
+            "email": "yuichi@shimomo.net"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "ext-pdo": "*",
+        "league/plates": "^3.6",
+        "nyholm/psr7": "^1.8",
+        "php-di/php-di": "^7.1.1",
+        "psr/clock": "^1.0",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.1",
+        "psr/log": "^3.0",
+        "slim/csrf": "^1.5",
+        "slim/psr7": "^1.7",
+        "slim/slim": "^4.15",
+        "symfony/http-client": "^7.4 || ^8.0"
+    },
+    "require-dev": {
+        "ergebnis/composer-normalize": "^2.52",
+        "laravel/pint": "^1.27",
+        "phpunit/phpunit": "^12.5 || ^13.2",
+        "vimeo/psalm": "^6.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "ReBuji\\": "src/",
+            "ReBuji\\Migrations\\": "migrations/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "ReBuji\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "ergebnis/composer-normalize": true
+        },
+        "platform": {
+            "php": "8.3.16"
+        },
+        "sort-packages": true
+    },
+    "scripts": {
+        "analyse": "psalm",
+        "fix": "pint",
+        "lint": "pint --test",
+        "test": "phpunit"
+    }
+}
