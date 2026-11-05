@@ -6,9 +6,18 @@
 /** @var bool $stale */
 /** @var string|null $lastError */
 /** @var string $statusUrl */
+/** @var array{all: int, active: int} $employeeCounts */
+/** @var list<array{employee_id: int, name: string, code: string}> $unknownCities */
 $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?= $this->insert('employees/unknown-cities', ['unknownCities' => $unknownCities]) ?>
+<h2>従業員</h2>
+<?php if ($employeeCounts['all'] === 0): ?>
+<p>従業員がまだ登録されていません。<a href="<?= $this->e($this->url('/employees/new')) ?>">従業員を追加する</a></p>
+<?php else: ?>
+<p>従業員：<?= $employeeCounts['all'] ?> 人（停止中 <?= $employeeCounts['all'] - $employeeCounts['active'] ?> 人）　<a href="<?= $this->e($this->url('/employees')) ?>">一覧</a></p>
+<?php endif ?>
 <h2>cron</h2>
 <?php if ($lastRun === null): ?>
 <p class="error">cron が一度も動いていません。サーバーの管理画面で bin/cron.php を登録したか確かめてください。</p>

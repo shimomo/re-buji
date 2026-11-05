@@ -9,6 +9,7 @@ use ReBuji\Admin\DatabaseUpdateController;
 use ReBuji\Admin\PendingMigrationsGate;
 use ReBuji\Auth\AuthMiddleware;
 use ReBuji\Auth\LoginController;
+use ReBuji\Employees\EmployeesController;
 use ReBuji\HomeController;
 use ReBuji\Install\InstallController;
 use ReBuji\Install\ProbeController;
@@ -66,6 +67,12 @@ final class AppFactory
             $group->post('/settings/status-token', [StatusTokenController::class, 'regenerate']);
             $group->get('/admin/database', [DatabaseUpdateController::class, 'show']);
             $group->post('/admin/database', [DatabaseUpdateController::class, 'apply']);
+            $group->get('/employees', [EmployeesController::class, 'index']);
+            $group->get('/employees/new', [EmployeesController::class, 'create']);
+            $group->post('/employees', [EmployeesController::class, 'store']);
+            $group->get('/employees/{id:[0-9]+}', [EmployeesController::class, 'edit']);
+            $group->post('/employees/{id:[0-9]+}', [EmployeesController::class, 'update']);
+            $group->post('/employees/{id:[0-9]+}/delete', [EmployeesController::class, 'delete']);
         })->add(PendingMigrationsGate::class)->add(AuthMiddleware::class);
 
         $app->get('/status/{token}', [StatusController::class, 'show']);

@@ -10,6 +10,7 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ReBuji\Config\ConfigFile;
+use ReBuji\Employees\EmployeeRepository;
 use ReBuji\Http\Url;
 use ReBuji\Monitor\Health;
 
@@ -26,6 +27,7 @@ final class HomeController
         private readonly Health $health,
         private readonly ConfigFile $configFile,
         private readonly Url $url,
+        private readonly EmployeeRepository $employees,
     ) {
         //
     }
@@ -44,6 +46,8 @@ final class HomeController
             'lastRun' => $lastRun?->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('Y-m-d H:i'),
             'stale' => $this->health->isStale(),
             'lastError' => $this->health->lastError(),
+            'employeeCounts' => $this->employees->counts(),
+            'unknownCities' => $this->employees->unknownCities(),
             'statusUrl' => $uri->getScheme() . '://' . $uri->getHost() . ($port === null ? '' : ':' . $port) . $this->url->to('/status/' . $token),
         ]));
 

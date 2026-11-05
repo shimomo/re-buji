@@ -19,6 +19,7 @@ use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
 use ReBuji\Http\CsrfMiddlewareFactory;
 use ReBuji\Http\ErrorHandler;
+use ReBuji\Http\Flash;
 use ReBuji\Http\InstalledGate;
 use ReBuji\Http\NativeSession;
 use ReBuji\Http\Session;
@@ -79,6 +80,12 @@ final class Container
                 assert($url instanceof Url);
                 $engine = new Engine($paths->templates());
                 $engine->registerFunction('url', static fn(string $path): string => $url->to($path));
+                $engine->registerFunction('flash', static function () use ($c): ?string {
+                    $flash = $c->get(Flash::class);
+                    assert($flash instanceof Flash);
+
+                    return $flash->take();
+                });
                 $engine->registerFunction('csrf', static function () use ($c): string {
                     $guard = $c->get(Guard::class);
                     assert($guard instanceof Guard);
