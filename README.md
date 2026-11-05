@@ -5,7 +5,7 @@
 気象庁防災情報XML（[jmaxml](https://github.com/shimomo/jmaxml-php)）を使います。**非公式**で、気象庁とは関係ありません。
 
 > [!NOTE]
-> 開発中です。今の版でできるのは、設置、初期設定、管理者のログイン、cron と見張りの仕組みまでです。地震の検知、メールの送信、返信の記録は、これから足していきます。設計は [docs/superpowers/specs/2026-11-05-re-buji-design.md](docs/superpowers/specs/2026-11-05-re-buji-design.md) にあります。
+> 開発中です。今の版でできるのは、設置、初期設定、管理者のログインと管理、従業員の登録（画面と CSV）、cron と見張りの仕組みまでです。地震の検知、メールの送信、返信の記録は、これから足していきます。設計は [docs/superpowers/specs/2026-11-05-re-buji-design.md](docs/superpowers/specs/2026-11-05-re-buji-design.md) にあります。
 
 ## 必要なもの
 

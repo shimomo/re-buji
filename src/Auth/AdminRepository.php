@@ -50,6 +50,27 @@ final class AdminRepository
         return $row === null ? null : self::admin($row);
     }
 
+    /**
+     * @return list<array{id: int, name: string, email: string, created_at: string}>
+     */
+    public function all(): array
+    {
+        return array_map(static fn(array $row): array => [
+            'id' => (int) $row['id'],
+            'name' => (string) $row['name'],
+            'email' => (string) $row['email'],
+            'created_at' => (string) $row['created_at'],
+        ], $this->db->fetchAll('SELECT id, name, email, created_at FROM admins ORDER BY id'));
+    }
+
+    /**
+     * A deleted admin is logged out on their next request: AuthMiddleware looks the id up every time.
+     */
+    public function delete(int $id): void
+    {
+        $this->db->execute('DELETE FROM admins WHERE id = ?', [$id]);
+    }
+
     public function count(): int
     {
         return (int) $this->db->fetchValue('SELECT COUNT(*) FROM admins');

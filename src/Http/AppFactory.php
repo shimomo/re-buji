@@ -7,6 +7,7 @@ namespace ReBuji\Http;
 use Psr\Container\ContainerInterface;
 use ReBuji\Admin\DatabaseUpdateController;
 use ReBuji\Admin\PendingMigrationsGate;
+use ReBuji\Auth\AdminsController;
 use ReBuji\Auth\AuthMiddleware;
 use ReBuji\Auth\LoginController;
 use ReBuji\Employees\EmployeeCsvController;
@@ -78,6 +79,9 @@ final class AppFactory
             $group->get('/employees/{id:[0-9]+}', [EmployeesController::class, 'edit']);
             $group->post('/employees/{id:[0-9]+}', [EmployeesController::class, 'update']);
             $group->post('/employees/{id:[0-9]+}/delete', [EmployeesController::class, 'delete']);
+            $group->get('/admins', [AdminsController::class, 'index']);
+            $group->post('/admins', [AdminsController::class, 'store']);
+            $group->post('/admins/{id:[0-9]+}/delete', [AdminsController::class, 'delete']);
         })->add(PendingMigrationsGate::class)->add(AuthMiddleware::class);
 
         $app->get('/status/{token}', [StatusController::class, 'show']);
