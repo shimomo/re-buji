@@ -6,6 +6,7 @@ namespace ReBuji\Http;
 
 use Psr\Container\ContainerInterface;
 use ReBuji\Admin\DatabaseUpdateController;
+use ReBuji\Admin\PendingMigrationsGate;
 use ReBuji\Auth\AuthMiddleware;
 use ReBuji\Auth\LoginController;
 use ReBuji\HomeController;
@@ -58,13 +59,14 @@ final class AppFactory
         $app->post('/login', [LoginController::class, 'login']);
         $app->post('/logout', [LoginController::class, 'logout']);
 
-        // Added by class name, so it is built (and touches the database) only when a protected route runs.
+        // Added by class name, so they are built (and touch the database) only when a protected route runs. Added last
+        // runs first: login, then the pending-migrations gate.
         $app->group('', function (RouteCollectorProxyInterface $group): void {
             $group->get('/', [HomeController::class, 'show']);
             $group->post('/settings/status-token', [StatusTokenController::class, 'regenerate']);
             $group->get('/admin/database', [DatabaseUpdateController::class, 'show']);
             $group->post('/admin/database', [DatabaseUpdateController::class, 'apply']);
-        })->add(AuthMiddleware::class);
+        })->add(PendingMigrationsGate::class)->add(AuthMiddleware::class);
 
         $app->get('/status/{token}', [StatusController::class, 'show']);
 

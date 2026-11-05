@@ -6,13 +6,9 @@
 /** @var bool $stale */
 /** @var string|null $lastError */
 /** @var string $statusUrl */
-/** @var bool $databaseUpdate */
 $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
-<?php if ($databaseUpdate): ?>
-<p class="warning">DB の更新があります。<a href="<?= $this->e($this->url('/admin/database')) ?>">DB の更新</a>から当ててください。</p>
-<?php endif ?>
 <h2>cron</h2>
 <?php if ($lastRun === null): ?>
 <p class="error">cron が一度も動いていません。サーバーの管理画面で bin/cron.php を登録したか確かめてください。</p>

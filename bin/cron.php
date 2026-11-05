@@ -30,6 +30,16 @@ $container = ReBuji\Container::build($paths);
 $state = $container->get(ReBuji\SystemState::class);
 $clock = $container->get(Psr\Clock\ClockInterface::class);
 $logger = $container->get(Psr\Log\LoggerInterface::class);
+$migrator = $container->get(ReBuji\Database\Migrator::class);
 assert($state instanceof ReBuji\SystemState && $clock instanceof Psr\Clock\ClockInterface && $logger instanceof Psr\Log\LoggerInterface);
+assert($migrator instanceof ReBuji\Database\Migrator);
+
+// A new version was uploaded but its database changes are not applied yet: the jobs would meet old tables. Nothing is
+// recorded as run, so the status URL turns 503 and the external monitor tells someone.
+if ($migrator->pending() !== []) {
+    $state->set('cron.last_error', 'DB の更新を待っています。管理画面の「DB の更新」でボタンを押してください。');
+    $logger->warning('cron: waiting for the database update');
+    exit(0);
+}
 
 (new ReBuji\Cron\CronRunner($paths->storage('cron.lock'), ReBuji\Cron\CronJobs::all($container), $state, $clock, $logger))->run();

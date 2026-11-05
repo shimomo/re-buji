@@ -15,6 +15,7 @@ $this->layout('layout', ['title' => $title]);
 <?php if ($pending === []): ?>
 <p>DB は最新です。</p>
 <?php else: ?>
+<p class="warning">DB の更新を当てるまで、ほかの画面は開けません。</p>
 <p>新しい版をアップロードした後は、DB の変更を当ててください。</p>
 <ul>
 <?php foreach ($pending as $migration): ?>

@@ -8,8 +8,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReBuji\Config\ConfigFile;
 use ReBuji\Database\Database;
+use ReBuji\Database\Migration;
 use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
+use ReBuji\Migrations\M0001CreateFoundationTables;
 use ReBuji\Paths;
 use ReBuji\SystemClock;
 use ReBuji\SystemState;
@@ -33,6 +35,23 @@ final class CronEntryTest extends TestCase
 
             $this->assertSame(0, $exitCode);
             $this->assertNotNull($this->state($root)->get('cron.last_finished_at'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function waitsForTheDatabaseUpdate(): void
+    {
+        // A new version was uploaded over FTP, but nobody has pressed the update button yet.
+        $root = $this->copy(true, [new M0001CreateFoundationTables()]);
+
+        try {
+            [$exitCode] = $this->runCron($root, []);
+
+            $this->assertSame(0, $exitCode);
+            $this->assertStringContainsString('DB の更新を待っています', (string) $this->state($root)->get('cron.last_error'));
+            $this->assertNull($this->state($root)->get('cron.last_started_at'));
         } finally {
             TemporaryDirectory::remove($root);
         }
@@ -69,7 +88,10 @@ final class CronEntryTest extends TestCase
         }
     }
 
-    private function copy(bool $installed): string
+    /**
+     * @param list<Migration>|null $migrations what an installed copy has applied (all of them by default)
+     */
+    private function copy(bool $installed, ?array $migrations = null): string
     {
         $root = TemporaryDirectory::create();
         mkdir($root . '/storage');
@@ -80,7 +102,7 @@ final class CronEntryTest extends TestCase
         if ($installed) {
             $paths = new Paths($root);
             (new ConfigFile($paths->storage('config.php')))->save(TestApp::installedConfig());
-            (new Migrator(Database::fromConfig(TestApp::installedConfig(), $paths), Migrations::all(), new SystemClock()))->migrate();
+            (new Migrator(Database::fromConfig(TestApp::installedConfig(), $paths), $migrations ?? Migrations::all(), new SystemClock()))->migrate();
         }
 
         return $root;
