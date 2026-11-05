@@ -9,6 +9,7 @@ use ReBuji\Admin\DatabaseUpdateController;
 use ReBuji\Admin\PendingMigrationsGate;
 use ReBuji\Auth\AuthMiddleware;
 use ReBuji\Auth\LoginController;
+use ReBuji\Employees\EmployeeCsvController;
 use ReBuji\Employees\EmployeesController;
 use ReBuji\HomeController;
 use ReBuji\Install\InstallController;
@@ -69,6 +70,10 @@ final class AppFactory
             $group->post('/admin/database', [DatabaseUpdateController::class, 'apply']);
             $group->get('/employees', [EmployeesController::class, 'index']);
             $group->get('/employees/new', [EmployeesController::class, 'create']);
+            $group->get('/employees/export', [EmployeeCsvController::class, 'export']);
+            $group->get('/employees/import', [EmployeeCsvController::class, 'show']);
+            $group->post('/employees/import', [EmployeeCsvController::class, 'import']);
+            $group->get('/employees/cities.csv', [EmployeeCsvController::class, 'cities']);
             $group->post('/employees', [EmployeesController::class, 'store']);
             $group->get('/employees/{id:[0-9]+}', [EmployeesController::class, 'edit']);
             $group->post('/employees/{id:[0-9]+}', [EmployeesController::class, 'update']);
