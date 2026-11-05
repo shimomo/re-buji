@@ -94,7 +94,9 @@ final class EmployeeImport
             return new ImportResult($errors, 0, 0);
         }
 
-        return $this->db->transaction(function () use ($rows): ImportResult {
+        return $this->db->transaction(function () use ($rows, $idsInFile): ImportResult {
+            // Checked as the state after the import; written so that no row meets another row's old address.
+            $this->employees->clearAddresses(array_keys($idsInFile));
             $created = 0;
             $updated = 0;
 

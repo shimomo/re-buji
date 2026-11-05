@@ -85,6 +85,58 @@ final class EmployeeImportTest extends TestCase
     }
 
     #[Test]
+    public function allowsMovingAnAddressToSomeoneAboveInTheFile(): void
+    {
+        // The receiver's row comes before the row that gives the address up.
+        [$import, $employees] = $this->import();
+        $a = $employees->create($this->input('安否 太郎', 'shared@example.com'));
+        $b = $employees->create($this->input('安否 花子', 'hanako@example.com'));
+
+        $result = $import->run($this->file([
+            [(string) $b, '安否 花子', 'shared@example.com'],
+            [(string) $a, '安否 太郎', 'taro@example.com'],
+        ]));
+
+        $this->assertSame([], $result->errors);
+        $this->assertSame(['shared@example.com'], $employees->find($b)?->emails);
+        $this->assertSame(['taro@example.com'], $employees->find($a)?->emails);
+    }
+
+    #[Test]
+    public function allowsSwappingAddresses(): void
+    {
+        // Addresses entered the wrong way round, corrected in one file.
+        [$import, $employees] = $this->import();
+        $a = $employees->create($this->input('安否 太郎', 'hanako@example.com'));
+        $b = $employees->create($this->input('安否 花子', 'taro@example.com'));
+
+        $result = $import->run($this->file([
+            [(string) $a, '安否 太郎', 'taro@example.com'],
+            [(string) $b, '安否 花子', 'hanako@example.com'],
+        ]));
+
+        $this->assertSame([], $result->errors);
+        $this->assertSame(['taro@example.com'], $employees->find($a)?->emails);
+        $this->assertSame(['hanako@example.com'], $employees->find($b)?->emails);
+    }
+
+    #[Test]
+    public function allowsANewRowToTakeAnAddressFromSomeoneBelow(): void
+    {
+        [$import, $employees] = $this->import();
+        $a = $employees->create($this->input('安否 太郎', 'shared@example.com'));
+
+        $result = $import->run($this->file([
+            ['', '安否 花子', 'shared@example.com'],
+            [(string) $a, '安否 太郎', 'taro@example.com'],
+        ]));
+
+        $this->assertSame([], $result->errors);
+        $this->assertSame(1, $result->created);
+        $this->assertSame(['taro@example.com'], $employees->find($a)?->emails);
+    }
+
+    #[Test]
     public function refusesAnAddressSomeoneOutsideTheFileUses(): void
     {
         [$import, $employees] = $this->import();

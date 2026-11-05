@@ -51,6 +51,21 @@ final class EmployeeRepository
     }
 
     /**
+     * Removes these employees' addresses, so an import can hand an address from one person to another in any row
+     * order: the unique index would otherwise see the address twice between two rows.
+     *
+     * @param list<int> $ids
+     */
+    public function clearAddresses(array $ids): void
+    {
+        if ($ids === []) {
+            return;
+        }
+
+        $this->db->execute('DELETE FROM employee_emails WHERE employee_id IN (' . implode(', ', array_fill(0, count($ids), '?')) . ')', $ids);
+    }
+
+    /**
      * The addresses and municipalities go with the employee (ON DELETE CASCADE).
      */
     public function delete(int $id): void
