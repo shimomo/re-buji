@@ -59,6 +59,26 @@ final class EmployeePagesTest extends TestCase
     }
 
     #[Test]
+    public function refusesARowWhoseMunicipalityWasNotChosen(): void
+    {
+        [$app, $container, $root] = $this->loggedIn();
+
+        try {
+            $body = ['cities' => [
+                ['prefecture' => '13', 'code' => '1310100', 'label' => '勤務地'],
+                ['prefecture' => '01', 'code' => '', 'label' => '自宅'],
+            ]] + $this->hanako();
+            $response = $this->post($app, $container, '/employees', $body);
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertStringContainsString('市町村が入っていません：自宅', (string) $response->getBody());
+            $this->assertSame(0, $this->employees($container)->counts()['all']);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function editsAndStopsAnEmployee(): void
     {
         [$app, $container, $root] = $this->loggedIn();

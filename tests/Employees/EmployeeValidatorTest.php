@@ -73,6 +73,25 @@ final class EmployeeValidatorTest extends TestCase
     }
 
     #[Test]
+    public function refusesAMunicipalityRowWithoutACode(): void
+    {
+        [$validator] = $this->validator();
+
+        $this->assertSame(['市町村が入っていません：自宅'], $validator->validate($this->input(cities: [
+            ['code' => '1310100', 'label' => '勤務地'],
+            ['code' => '', 'label' => '自宅'],
+        ])));
+        $this->assertSame(['都道府県を選んだ行に、市町村が入っていません。'], $validator->validate(EmployeeInput::from(
+            '安否 花子',
+            '',
+            ['hanako@example.com'],
+            [['code' => '1310100', 'label' => ''], ['code' => '', 'label' => '', 'prefecture' => '01']],
+            '',
+            true,
+        )));
+    }
+
+    #[Test]
     public function refusesAnAddressAnotherEmployeeUses(): void
     {
         [$validator, $employees] = $this->validator();

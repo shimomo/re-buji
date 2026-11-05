@@ -21,7 +21,7 @@ final class EmployeeInputTest extends TestCase
             ' 安否 花子 ',
             ' 総務部 ',
             ['', ' taro@example.com '],
-            [['code' => '', 'label' => '自宅'], ['code' => ' 110100 ', 'label' => ' 勤務地 ']],
+            [['code' => '', 'label' => ' '], ['code' => ' 110100 ', 'label' => ' 勤務地 ']],
             " 階段で転びやすい\n",
             true,
         );
@@ -32,5 +32,19 @@ final class EmployeeInputTest extends TestCase
         $this->assertEquals([new EmployeeCity('0110100', '勤務地')], $input->cities);
         $this->assertSame('階段で転びやすい', $input->memo);
         $this->assertTrue($input->active);
+    }
+
+    #[Test]
+    public function keepsHalfFilledMunicipalityRows(): void
+    {
+        // A label or a prefecture without a municipality is a mistake to report, not a blank row to drop.
+        $input = EmployeeInput::from('安否 花子', '', ['hanako@example.com'], [
+            ['code' => '1310100', 'label' => '勤務地'],
+            ['code' => '', 'label' => '自宅'],
+            ['code' => '', 'label' => '', 'prefecture' => '01'],
+            ['code' => '', 'label' => '', 'prefecture' => ''],
+        ], '', true);
+
+        $this->assertEquals([new EmployeeCity('1310100', '勤務地'), new EmployeeCity('', '自宅'), new EmployeeCity('', '')], $input->cities);
     }
 }

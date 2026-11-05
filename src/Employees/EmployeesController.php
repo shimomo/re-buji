@@ -187,7 +187,11 @@ final class EmployeesController
         $cities = array_map(static function (mixed $row): array {
             $fields = is_array($row) ? $row : [];
 
-            return ['code' => self::text($fields['code'] ?? null), 'label' => self::text($fields['label'] ?? null)];
+            return [
+                'code' => self::text($fields['code'] ?? null),
+                'label' => self::text($fields['label'] ?? null),
+                'prefecture' => self::text($fields['prefecture'] ?? null),
+            ];
         }, self::list($body['cities'] ?? null));
 
         return EmployeeInput::from(

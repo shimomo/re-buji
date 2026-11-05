@@ -148,6 +148,18 @@ final class EmployeeImportTest extends TestCase
     }
 
     #[Test]
+    public function refusesALabelWithoutACode(): void
+    {
+        [$import, $employees] = $this->import();
+        $csv = implode(',', EmployeeCsv::HEADER) . "\r\n" . ',安否 花子,,hanako@example.com,,,,1310100,勤務地,,自宅,,,,,,,,' . "\r\n";
+
+        $result = $import->run($csv);
+
+        $this->assertSame(['2 行目：市町村が入っていません：自宅'], $result->errors);
+        $this->assertSame(0, $employees->counts()['all']);
+    }
+
+    #[Test]
     public function refusesAnUnknownOrRepeatedId(): void
     {
         [$import, $employees] = $this->import();

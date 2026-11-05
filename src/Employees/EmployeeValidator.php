@@ -73,7 +73,9 @@ final class EmployeeValidator
         }
 
         foreach ($input->cities as $city) {
-            if (Cities::find($city->code) === null) {
+            if ($city->code === '') {
+                $errors[] = $city->label === '' ? '都道府県を選んだ行に、市町村が入っていません。' : '市町村が入っていません：' . $city->label;
+            } elseif (Cities::find($city->code) === null) {
                 $errors[] = '市町村コード ' . $city->code . ' は地震の情報で使えません。政令指定都市は区のコードを、合併や再編で変わった市町村は今のコードを使ってください。';
             }
 

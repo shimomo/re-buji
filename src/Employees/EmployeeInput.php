@@ -27,11 +27,12 @@ final readonly class EmployeeInput
     }
 
     /**
-     * Trims every value, drops empty addresses and municipality rows without a code, and puts back the leading zero
-     * a spreadsheet may have dropped from a code.
+     * Trims every value, drops empty addresses and empty municipality rows, and puts back the leading zero a
+     * spreadsheet may have dropped from a code. A row with a label or a prefecture (from the form) but no code is
+     * kept with an empty code, so the validator reports it instead of the place being lost without a word.
      *
      * @param list<string> $emails
-     * @param list<array{code: string, label: string}> $cities
+     * @param list<array{code: string, label: string, prefecture?: string}> $cities
      */
     public static function from(string $name, string $department, array $emails, array $cities, string $memo, bool $active): self
     {
@@ -40,9 +41,10 @@ final readonly class EmployeeInput
 
         foreach ($cities as $city) {
             $code = Cities::normalizeCode($city['code']);
+            $label = trim($city['label']);
 
-            if ($code !== '') {
-                $places[] = new EmployeeCity($code, trim($city['label']));
+            if ($code !== '' || $label !== '' || trim($city['prefecture'] ?? '') !== '') {
+                $places[] = new EmployeeCity($code, $label);
             }
         }
 
