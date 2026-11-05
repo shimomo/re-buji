@@ -6,8 +6,12 @@ namespace ReBuji\Http;
 
 use Psr\Container\ContainerInterface;
 use ReBuji\Admin\DatabaseUpdateController;
+use ReBuji\Admin\PendingMigrationsGate;
+use ReBuji\Auth\AdminsController;
 use ReBuji\Auth\AuthMiddleware;
 use ReBuji\Auth\LoginController;
+use ReBuji\Employees\EmployeeCsvController;
+use ReBuji\Employees\EmployeesController;
 use ReBuji\HomeController;
 use ReBuji\Install\InstallController;
 use ReBuji\Install\ProbeController;
@@ -58,13 +62,27 @@ final class AppFactory
         $app->post('/login', [LoginController::class, 'login']);
         $app->post('/logout', [LoginController::class, 'logout']);
 
-        // Added by class name, so it is built (and touches the database) only when a protected route runs.
+        // Added by class name, so they are built (and touch the database) only when a protected route runs. Added last
+        // runs first: login, then the pending-migrations gate.
         $app->group('', function (RouteCollectorProxyInterface $group): void {
             $group->get('/', [HomeController::class, 'show']);
             $group->post('/settings/status-token', [StatusTokenController::class, 'regenerate']);
             $group->get('/admin/database', [DatabaseUpdateController::class, 'show']);
             $group->post('/admin/database', [DatabaseUpdateController::class, 'apply']);
-        })->add(AuthMiddleware::class);
+            $group->get('/employees', [EmployeesController::class, 'index']);
+            $group->get('/employees/new', [EmployeesController::class, 'create']);
+            $group->get('/employees/export', [EmployeeCsvController::class, 'export']);
+            $group->get('/employees/import', [EmployeeCsvController::class, 'show']);
+            $group->post('/employees/import', [EmployeeCsvController::class, 'import']);
+            $group->get('/employees/cities.csv', [EmployeeCsvController::class, 'cities']);
+            $group->post('/employees', [EmployeesController::class, 'store']);
+            $group->get('/employees/{id:[0-9]+}', [EmployeesController::class, 'edit']);
+            $group->post('/employees/{id:[0-9]+}', [EmployeesController::class, 'update']);
+            $group->post('/employees/{id:[0-9]+}/delete', [EmployeesController::class, 'delete']);
+            $group->get('/admins', [AdminsController::class, 'index']);
+            $group->post('/admins', [AdminsController::class, 'store']);
+            $group->post('/admins/{id:[0-9]+}/delete', [AdminsController::class, 'delete']);
+        })->add(PendingMigrationsGate::class)->add(AuthMiddleware::class);
 
         $app->get('/status/{token}', [StatusController::class, 'show']);
 

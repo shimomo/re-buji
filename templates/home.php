@@ -6,12 +6,17 @@
 /** @var bool $stale */
 /** @var string|null $lastError */
 /** @var string $statusUrl */
-/** @var bool $databaseUpdate */
+/** @var array{all: int, active: int} $employeeCounts */
+/** @var list<array{employee_id: int, name: string, code: string}> $unknownCities */
 $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
-<?php if ($databaseUpdate): ?>
-<p class="warning">DB の更新があります。<a href="<?= $this->e($this->url('/admin/database')) ?>">DB の更新</a>から当ててください。</p>
+<?= $this->insert('employees/unknown-cities', ['unknownCities' => $unknownCities]) ?>
+<h2>従業員</h2>
+<?php if ($employeeCounts['all'] === 0): ?>
+<p>従業員がまだ登録されていません。<a href="<?= $this->e($this->url('/employees/new')) ?>">従業員を追加する</a></p>
+<?php else: ?>
+<p>従業員：<?= $employeeCounts['all'] ?> 人（停止中 <?= $employeeCounts['all'] - $employeeCounts['active'] ?> 人）　<a href="<?= $this->e($this->url('/employees')) ?>">一覧</a></p>
 <?php endif ?>
 <h2>cron</h2>
 <?php if ($lastRun === null): ?>

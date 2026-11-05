@@ -128,6 +128,11 @@ final class Database
      */
     public function transaction(callable $callback): mixed
     {
+        // Inside an open transaction (a CSV import saving each row), the outermost call commits or rolls back.
+        if ($this->pdo->inTransaction()) {
+            return $callback($this);
+        }
+
         $this->pdo->beginTransaction();
 
         try {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ReBuji\Database;
 
 use ReBuji\Migrations\M0001CreateFoundationTables;
+use ReBuji\Migrations\M0002CreateEmployeeTables;
 
 /**
  * Every migration, in version order. Later plans append theirs here.
@@ -20,6 +21,7 @@ final class Migrations
     {
         return [
             new M0001CreateFoundationTables(),
+            new M0002CreateEmployeeTables(),
         ];
     }
 }

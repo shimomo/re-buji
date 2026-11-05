@@ -25,7 +25,7 @@ final class DatabaseUpdateTest extends TestCase
         try {
             TestApp::logIn($app, $container);
 
-            $this->assertStringContainsString('DB の更新があります', (string) $app->handle(TestApp::request('GET', '/'))->getBody());
+            $this->assertSame('/admin/database', $app->handle(TestApp::request('GET', '/'))->getHeaderLine('Location'));
             $before = (string) $app->handle(TestApp::request('GET', '/admin/database'))->getBody();
             $this->assertStringContainsString('9999', $before);
             $this->assertStringContainsString('テスト用の変更', $before);
@@ -36,7 +36,7 @@ final class DatabaseUpdateTest extends TestCase
             $this->assertStringContainsString('9999', (string) $applied->getBody());
 
             $this->assertStringNotContainsString('テスト用の変更', (string) $app->handle(TestApp::request('GET', '/admin/database'))->getBody());
-            $this->assertStringNotContainsString('DB の更新があります', (string) $app->handle(TestApp::request('GET', '/'))->getBody());
+            $this->assertSame(200, $app->handle(TestApp::request('GET', '/'))->getStatusCode());
         } finally {
             TemporaryDirectory::remove($root);
         }

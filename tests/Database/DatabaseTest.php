@@ -56,6 +56,34 @@ final class DatabaseTest extends TestCase
     }
 
     #[Test]
+    #[DataProvider('drivers')]
+    public function joinsAnOpenTransaction(string $driver): void
+    {
+        // A CSV import saves every row in one transaction, and each save opens its own.
+        $db = TestDatabase::open($driver);
+        $db->execute('CREATE TABLE notes (id INTEGER PRIMARY KEY, body VARCHAR(255))');
+
+        try {
+            $db->transaction(static function (Database $db): void {
+                $db->execute('INSERT INTO notes (id, body) VALUES (1, ?)', ['x']);
+                $db->transaction(static fn(Database $db): int => $db->execute('INSERT INTO notes (id, body) VALUES (2, ?)', ['y']));
+
+                throw new RuntimeException('boom');
+            });
+            $this->fail('The exception was swallowed');
+        } catch (RuntimeException) {
+            $this->assertSame(0, (int) $db->fetchValue('SELECT COUNT(*) FROM notes'));
+        }
+
+        $db->transaction(static function (Database $db): void {
+            $db->execute('INSERT INTO notes (id, body) VALUES (1, ?)', ['x']);
+            $db->transaction(static fn(Database $db): int => $db->execute('INSERT INTO notes (id, body) VALUES (2, ?)', ['y']));
+        });
+
+        $this->assertSame(2, (int) $db->fetchValue('SELECT COUNT(*) FROM notes'));
+    }
+
+    #[Test]
     public function sqliteFileIsOpenedWithoutWal(): void
     {
         $root = TemporaryDirectory::create();
