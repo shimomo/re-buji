@@ -6,11 +6,13 @@ namespace ReBuji\Tests\Employees;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use ReBuji\Employees\EmployeeCsv;
 use ReBuji\Employees\EmployeeInput;
 use ReBuji\Employees\EmployeeRepository;
+use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\TemporaryDirectory;
 use ReBuji\Tests\Support\TestApp;
 use Slim\App;
@@ -112,7 +114,8 @@ final class EmployeeCsvPagesTest extends TestCase
      */
     private function loggedIn(): array
     {
-        [$app, $container, $root] = TestApp::installed();
+        // A frozen clock, so the export file name does not depend on the day the tests run.
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => new FrozenClock()]);
         TestApp::logIn($app, $container);
 
         return [$app, $container, $root];
