@@ -89,13 +89,19 @@ final class MessageRepository
     }
 
     /**
-     * Addresses a mail of the contact went out to and did not come back from.
+     * Addresses a mail of the contact went out to and never came back from: one bounce means the mailbox does not take
+     * mail, whatever earlier mails did.
      *
      * @return list<string>
      */
     public function deliveredAddresses(int $notificationId): array
     {
-        return self::unique($this->db->fetchAll('SELECT address FROM messages WHERE notification_id = ? AND sent = 1 AND bounced_at IS NULL ORDER BY id', [$notificationId]));
+        $bounced = array_map(EmployeeRepository::addressKey(...), self::unique($this->db->fetchAll('SELECT address FROM messages WHERE notification_id = ? AND bounced_at IS NOT NULL', [$notificationId])));
+
+        return array_values(array_filter(
+            $this->sentAddresses($notificationId),
+            static fn(string $address): bool => !in_array(EmployeeRepository::addressKey($address), $bounced, true),
+        ));
     }
 
     /**

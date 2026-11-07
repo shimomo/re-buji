@@ -179,6 +179,47 @@ final class NotificationRepository
         $this->db->execute('UPDATE notifications SET next_send_at = ?, updated_at = ? WHERE id = ?', [Time::format($until), Time::format($this->clock->now()), $id]);
     }
 
+    /**
+     * Records a reply, or an admin's record on the person's behalf. The first answer's time stays, an answer that needs
+     * checking never turns back to safe, and new words to read clear an earlier "checked". Resends stop.
+     */
+    public function recordAnswer(int $id, string $answer, string $source, ?string $by, ?string $note, DateTimeImmutable $at): void
+    {
+        // The conditions are decided here: SQLite compares a bound parameter as text, so "? = 1" would never hold.
+        $set = ['answer = CASE WHEN answer = ? THEN answer ELSE ? END', 'answer_source = ?', 'replied_at = COALESCE(replied_at, ?)', 'next_send_at = NULL', 'updated_at = ?'];
+        $params = [Notification::NEEDS_CHECK, $answer, $source, Time::format($at), Time::format($this->clock->now())];
+
+        if ($source === 'proxy') {
+            $set[] = 'answered_by = ?';
+            $set[] = 'proxy_note = ?';
+            $params[] = $by;
+            $params[] = $note;
+        }
+
+        if ($answer === Notification::NEEDS_CHECK) {
+            $set[] = 'checked_at = NULL';
+            $set[] = 'checked_by = NULL';
+        }
+
+        $this->db->execute('UPDATE notifications SET ' . implode(', ', $set) . ' WHERE id = ?', [...$params, $id]);
+    }
+
+    /**
+     * An absence notice came back: not an answer, so resends go on (design 5.2).
+     */
+    public function recordAutoReply(int $id, DateTimeImmutable $at): void
+    {
+        $this->db->execute(
+            'UPDATE notifications SET auto_replied_at = COALESCE(auto_replied_at, ?), updated_at = ? WHERE id = ? AND answer IS NULL',
+            [Time::format($at), Time::format($this->clock->now()), $id],
+        );
+    }
+
+    public function markChecked(int $id, string $by, DateTimeImmutable $at): void
+    {
+        $this->db->execute('UPDATE notifications SET checked_at = ?, checked_by = ?, updated_at = ? WHERE id = ?', [Time::format($at), $by, Time::format($this->clock->now()), $id]);
+    }
+
     public function markCancelled(int $id): void
     {
         $this->setState($id, Notification::CANCELLED);
