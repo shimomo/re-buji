@@ -17,6 +17,7 @@ use ReBuji\Install\InstallController;
 use ReBuji\Install\ProbeController;
 use ReBuji\Monitor\StatusController;
 use ReBuji\Monitor\StatusTokenController;
+use ReBuji\Settings\SettingsController;
 use Slim\App;
 use Slim\Factory\AppFactory as SlimAppFactory;
 use Slim\Interfaces\RouteCollectorProxyInterface;
@@ -82,6 +83,9 @@ final class AppFactory
             $group->get('/admins', [AdminsController::class, 'index']);
             $group->post('/admins', [AdminsController::class, 'store']);
             $group->post('/admins/{id:[0-9]+}/delete', [AdminsController::class, 'delete']);
+            $group->get('/settings', [SettingsController::class, 'show']);
+            $group->post('/settings', [SettingsController::class, 'save']);
+            $group->post('/settings/test-mail', [SettingsController::class, 'testMail']);
         })->add(PendingMigrationsGate::class)->add(AuthMiddleware::class);
 
         $app->get('/status/{token}', [StatusController::class, 'show']);

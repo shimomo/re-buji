@@ -15,7 +15,7 @@ h1{font-size:20px;font-weight:500}
 .error{color:#a32d2d}.warning{color:#854f0b}.notice{color:#0f6e56}.muted{color:#6b6a66;font-size:14px}
 table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}
 fieldset{border:1px solid #ddd;margin-top:1rem}.row{display:flex;gap:8px;flex-wrap:wrap}.row label{flex:1;min-width:140px}
-label{display:block;margin-top:1rem}input,select{font:inherit;padding:6px 8px;width:100%;max-width:420px;box-sizing:border-box}
+label{display:block;margin-top:1rem}input,select,textarea{font:inherit;padding:6px 8px;width:100%;max-width:420px;box-sizing:border-box}
 button{font:inherit;padding:6px 14px;margin-top:1rem}
 </style>
 </head>
