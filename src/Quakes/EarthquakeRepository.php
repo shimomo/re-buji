@@ -86,6 +86,43 @@ final class EarthquakeRepository
         );
     }
 
+    /**
+     * Every quake and drill, newest first, with how its contacts stand.
+     *
+     * @return list<array{earthquake: Earthquake, total: int, sent: int, waiting: int, failed: int, merged: int}>
+     */
+    public function summaries(): array
+    {
+        $rows = $this->db->fetchAll(
+            'SELECT ' . self::COLUMNS . ','
+            . ' (SELECT COUNT(*) FROM notifications n WHERE n.earthquake_id = earthquakes.id) AS total,'
+            . ' (SELECT COUNT(*) FROM notifications n WHERE n.earthquake_id = earthquakes.id AND n.sent_count > 0) AS sent,'
+            . " (SELECT COUNT(*) FROM notifications n WHERE n.earthquake_id = earthquakes.id AND n.state IN ('pending', 'held')) AS waiting,"
+            . " (SELECT COUNT(*) FROM notifications n WHERE n.earthquake_id = earthquakes.id AND n.state = 'failed') AS failed,"
+            . " (SELECT COUNT(*) FROM notifications n WHERE n.earthquake_id = earthquakes.id AND n.state = 'merged') AS merged"
+            . ' FROM earthquakes ORDER BY detected_at DESC, id DESC',
+        );
+
+        return array_map(static fn(array $row): array => [
+            'earthquake' => self::hydrate($row),
+            'total' => (int) $row['total'],
+            'sent' => (int) $row['sent'],
+            'waiting' => (int) $row['waiting'],
+            'failed' => (int) $row['failed'],
+            'merged' => (int) $row['merged'],
+        ], $rows);
+    }
+
+    public function countHeld(): int
+    {
+        return (int) $this->db->fetchValue('SELECT COUNT(*) FROM earthquakes WHERE delivery = ?', [Earthquake::HELD]);
+    }
+
+    public function setDelivery(int $id, string $delivery): void
+    {
+        $this->db->execute('UPDATE earthquakes SET delivery = ?, updated_at = ? WHERE id = ?', [$delivery, Time::format($this->clock->now()), $id]);
+    }
+
     public function markCancelled(int $id, DateTimeImmutable $at): void
     {
         $this->db->execute('UPDATE earthquakes SET cancelled_at = ?, updated_at = ? WHERE id = ?', [Time::format($at), Time::format($this->clock->now()), $id]);

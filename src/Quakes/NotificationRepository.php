@@ -140,6 +140,29 @@ final class NotificationRepository
         ));
     }
 
+    /**
+     * An admin chose to send a late quake: its held contacts go out from now on.
+     */
+    public function release(int $earthquakeId, DateTimeImmutable $now): void
+    {
+        $at = Time::format($now);
+        $this->db->execute(
+            'UPDATE notifications SET state = ?, not_before = ?, updated_at = ? WHERE earthquake_id = ? AND state = ?',
+            [Notification::PENDING, $at, Time::format($this->clock->now()), $earthquakeId, Notification::HELD],
+        );
+    }
+
+    /**
+     * An admin chose not to send a late quake.
+     */
+    public function dismiss(int $earthquakeId): void
+    {
+        $this->db->execute(
+            'UPDATE notifications SET state = ?, updated_at = ? WHERE earthquake_id = ? AND state = ?',
+            [Notification::SKIPPED, Time::format($this->clock->now()), $earthquakeId, Notification::HELD],
+        );
+    }
+
     public function markFailed(int $id): void
     {
         $this->setState($id, Notification::FAILED);

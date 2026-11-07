@@ -8,9 +8,42 @@
 /** @var string $statusUrl */
 /** @var array{all: int, active: int} $employeeCounts */
 /** @var list<array{employee_id: int, name: string, code: string}> $unknownCities */
+/** @var int $heldQuakes */
+/** @var bool $smtpMissing */
+/** @var string $mailError */
+/** @var int $waiting */
+/** @var string|null $nextSlot */
+/** @var string|null $feedGap */
+/** @var list<array{title: string, at: string}> $failedTelegrams */
 $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?php if ($heldQuakes > 0): ?>
+<p class="error">遅れて届いた地震が <?= $heldQuakes ?> 件あります。送るかどうかを決めてください。<a href="<?= $this->e($this->url('/earthquakes')) ?>">地震の一覧</a></p>
+<?php endif ?>
+<?php if ($smtpMissing): ?>
+<p class="error">メールの送信の設定がありません。「設定」で SMTP を登録してください。<a href="<?= $this->e($this->url('/settings')) ?>">設定</a></p>
+<?php endif ?>
+<?php if ($mailError !== ''): ?>
+<p class="error">メールを送れていません：<?= $this->e($mailError) ?></p>
+<?php endif ?>
+<?php if ($waiting > 0 && $nextSlot !== null): ?>
+<p class="warning">1 時間の上限のため、<?= $waiting ?> 人への連絡が送信待ちです。次に送れるのは <?= $this->e($nextSlot) ?> ごろです。</p>
+<?php elseif ($waiting > 0): ?>
+<p class="warning">送信待ちの連絡が <?= $waiting ?> 件あります。次の cron で送ります。</p>
+<?php endif ?>
+<?php if ($feedGap !== null || $failedTelegrams !== []): ?>
+<?php if ($feedGap !== null): ?>
+<p class="error">気象庁の情報に抜けがあります（<?= $this->e($feedGap) ?> 以降）。この間の地震は連絡されていない可能性があります。</p>
+<?php endif ?>
+<?php foreach ($failedTelegrams as $failed): ?>
+<p class="warning">取れなかった電文があります：<?= $this->e($failed['title']) ?>（<?= $this->e($failed['at']) ?>）</p>
+<?php endforeach ?>
+<form method="post" action="<?= $this->e($this->url('/feed/acknowledge')) ?>">
+    <?= $this->csrf() ?>
+    <button type="submit">確かめた（この警告を消す）</button>
+</form>
+<?php endif ?>
 <?= $this->insert('employees/unknown-cities', ['unknownCities' => $unknownCities]) ?>
 <h2>従業員</h2>
 <?php if ($employeeCounts['all'] === 0): ?>
