@@ -42,21 +42,22 @@ final class NotificationMail
         $account = $this->account();
         $prefix = '[安否確認 #' . $notification->token . '] ';
 
-        if ($kind === self::CANCEL) {
-            return self::mail(
-                $account,
-                $to,
-                $prefix . '先ほどの連絡は取り消されました',
-                $notification->employeeName . " さん\n\n先ほどお送りした安否確認の連絡は、気象庁が地震の情報を取り消したため、取り消します。返信は不要です。\n",
-            );
-        }
-
         $values = [
             '{名前}' => $notification->employeeName,
             '{発生時刻}' => $quake->detectedAt->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('n月j日 G時i分'),
             '{地震}' => $quake->title,
             '{市町村と震度}' => implode("\n", array_map(self::cityLine(...), $notification->cities)),
         ];
+
+        // The notice names the quake: someone contacted twice must know which contact it takes back.
+        if ($kind === self::CANCEL) {
+            return self::mail(
+                $account,
+                $to,
+                $prefix . '先ほどの連絡は取り消されました',
+                strtr("{名前} さん\n\n{発生時刻}ごろの地震（{地震}）について先ほどお送りした安否確認の連絡は、気象庁が地震の情報を取り消したため、取り消します。返信は不要です。\n", $values),
+            );
+        }
         $subject = $prefix . ($kind === self::RESEND ? '【再送】' : '') . ($quake->isDrill() ? '【訓練】' : '') . strtr($this->settings->get('mail.subject'), $values);
         $body = strtr($this->settings->get('mail.body'), $values);
 

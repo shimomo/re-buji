@@ -66,6 +66,10 @@ final class SmtpMailSender implements MailSender
             assert($this->settings !== null);
             $transport = new RecipientAwareSmtpTransport($this->settings->host, $this->settings->port, $this->settings->encryption === 'ssl');
 
+            // Without TLS the password would cross the network in clear text: refuse a server that does not offer
+            // STARTTLS. 'none' is only for the test servers.
+            $transport->setRequireTls($this->settings->encryption === 'starttls');
+
             if ($this->settings->username !== '') {
                 $transport->setUsername($this->settings->username);
                 $transport->setPassword($this->settings->password);

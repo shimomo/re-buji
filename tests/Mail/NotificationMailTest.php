@@ -114,7 +114,7 @@ final class NotificationMailTest extends TestCase
         $mail = self::mails()->compose(self::quake(), self::contact(), 'cancel', 'hanako@example.com');
 
         $this->assertSame('[安否確認 #a1b2c3d4] 先ほどの連絡は取り消されました', $mail->subject);
-        $this->assertSame("山田 花子 さん\n\n先ほどお送りした安否確認の連絡は、気象庁が地震の情報を取り消したため、取り消します。返信は不要です。\n", $mail->body);
+        $this->assertSame("山田 花子 さん\n\n8月11日 5時07分ごろの地震（駿河湾・最大震度6弱）について先ほどお送りした安否確認の連絡は、気象庁が地震の情報を取り消したため、取り消します。返信は不要です。\n", $mail->body);
     }
 
     #[Test]

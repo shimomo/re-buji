@@ -120,6 +120,25 @@ final class SmtpMailSenderTest extends TestCase
     }
 
     #[Test]
+    public function refusesToLogInWithoutTls(): void
+    {
+        $server = FakeSmtpServer::start();
+
+        try {
+            try {
+                (new SmtpMailSender(self::settings($server->port(), 'starttls')))->send(self::mail('ok@example.com'));
+                $this->fail('A server without STARTTLS should not get the password');
+            } catch (MailUnavailable) {
+                // expected
+            }
+
+            $this->assertStringNotContainsString('C: AUTH', $server->transcript());
+        } finally {
+            $server->stop();
+        }
+    }
+
+    #[Test]
     public function reportsMissingSettings(): void
     {
         $this->expectException(MailUnavailable::class);
@@ -128,9 +147,13 @@ final class SmtpMailSenderTest extends TestCase
         (new SmtpMailSender(null))->send(self::mail('ok@example.com'));
     }
 
-    private static function settings(int $port): SmtpSettings
+    /**
+     * The fake server has no TLS, so the tests send without it ('none' is for tests only; the settings page offers ssl
+     * and starttls).
+     */
+    private static function settings(int $port, string $encryption = 'none'): SmtpSettings
     {
-        return new SmtpSettings('127.0.0.1', $port, 'starttls', 'anpi', 'secret', 'anpi@example.co.jp', '安否確認');
+        return new SmtpSettings('127.0.0.1', $port, $encryption, 'anpi', 'secret', 'anpi@example.co.jp', '安否確認');
     }
 
     private static function mail(string $to): OutgoingMail
