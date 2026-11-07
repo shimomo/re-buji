@@ -17,7 +17,7 @@ use ReBuji\Time;
  */
 final class NotificationRepository
 {
-    private const string COLUMNS = 'id, earthquake_id, employee_id, employee_name, employee_department, token, cities, priority, state, not_before, sent_count, first_sent_at, last_sent_at, next_send_at, replied_at, cancel_notice, merged_into_id';
+    private const string COLUMNS = 'id, earthquake_id, employee_id, employee_name, employee_department, token, cities, priority, state, not_before, sent_count, first_sent_at, last_sent_at, next_send_at, replied_at, cancel_notice, merged_into_id, answer, answer_source, answered_by, proxy_note, auto_replied_at, checked_at, checked_by';
 
     public function __construct(private readonly Database $db, private readonly ClockInterface $clock)
     {
@@ -312,6 +312,18 @@ final class NotificationRepository
             Time::parseNullable($row['replied_at']),
             $row['cancel_notice'] === null ? null : (string) $row['cancel_notice'],
             $row['merged_into_id'] === null ? null : (int) $row['merged_into_id'],
+            self::nullableText($row['answer']),
+            self::nullableText($row['answer_source']),
+            self::nullableText($row['answered_by']),
+            self::nullableText($row['proxy_note']),
+            Time::parseNullable($row['auto_replied_at']),
+            Time::parseNullable($row['checked_at']),
+            self::nullableText($row['checked_by']),
         );
+    }
+
+    private static function nullableText(mixed $value): ?string
+    {
+        return $value === null ? null : (string) $value;
     }
 }

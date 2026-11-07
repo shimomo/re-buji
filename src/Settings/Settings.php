@@ -8,6 +8,7 @@ use JmaXml\Earthquake\SeismicIntensity;
 use LogicException;
 use Psr\Clock\ClockInterface;
 use ReBuji\Database\Database;
+use ReBuji\Mail\Imap\ImapSettings;
 use ReBuji\Time;
 
 /**
@@ -46,6 +47,11 @@ final class Settings
         'smtp.password' => '',
         'mail.from_address' => '',
         'mail.from_name' => '安否確認',
+        'imap.host' => '',
+        'imap.port' => '993',
+        'imap.encryption' => 'ssl',
+        'imap.username' => '',
+        'imap.password' => '',
     ];
 
     public function __construct(private readonly Database $db, private readonly ClockInterface $clock)
@@ -88,6 +94,30 @@ final class Settings
             $this->get('smtp.password'),
             $from,
             $this->get('mail.from_name'),
+        );
+    }
+
+    /**
+     * The reply mailbox, or null until its server is saved. An empty user name or password means the sending account's:
+     * replies come back to the account mail is sent from (design 5.1).
+     */
+    public function imap(): ?ImapSettings
+    {
+        $host = $this->get('imap.host');
+
+        if ($host === '') {
+            return null;
+        }
+
+        $username = $this->get('imap.username');
+        $password = $this->get('imap.password');
+
+        return new ImapSettings(
+            $host,
+            $this->int('imap.port'),
+            $this->get('imap.encryption'),
+            $username === '' ? $this->get('smtp.username') : $username,
+            $password === '' ? $this->get('smtp.password') : $password,
         );
     }
 
