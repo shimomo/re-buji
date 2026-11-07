@@ -67,6 +67,20 @@ final class EarthquakeRepository
     }
 
     /**
+     * A drill (design 4): sent like a quake and shown with them, but never judged against telegrams.
+     */
+    public function createDrill(DateTimeImmutable $now): int
+    {
+        $at = Time::format($now);
+        $this->db->execute(
+            'INSERT INTO earthquakes (kind, event_id, title, detected_at, delivery, late, created_at, updated_at) VALUES (?, NULL, ?, ?, ?, 0, ?, ?)',
+            [Earthquake::KIND_DRILL, '訓練', $at, Earthquake::AUTO, Time::format($this->clock->now()), Time::format($this->clock->now())],
+        );
+
+        return $this->db->lastInsertId();
+    }
+
+    /**
      * Refreshes what the record shows. The detection time stays: lateness and delays were decided from it.
      */
     public function updateSnapshot(int $id, QuakeSnapshot $snapshot): void

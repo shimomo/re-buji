@@ -59,6 +59,14 @@ final readonly class MatchedCity
     }
 
     /**
+     * A registered municipality without an intensity, as a drill lists it.
+     */
+    public static function registered(EmployeeCity $city): self
+    {
+        return new self($city->code, $city->label, Cities::find($city->code)?->label() ?? $city->code, null, false, self::BASIS_NONE);
+    }
+
+    /**
      * The strength used to order sending: a municipality not received yet counts as 5弱, the least it may have been.
      */
     public function rank(): int

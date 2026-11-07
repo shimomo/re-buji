@@ -18,6 +18,7 @@ use ReBuji\Install\ProbeController;
 use ReBuji\Monitor\FeedNoticeController;
 use ReBuji\Monitor\StatusController;
 use ReBuji\Monitor\StatusTokenController;
+use ReBuji\Quakes\DrillsController;
 use ReBuji\Quakes\EarthquakesController;
 use ReBuji\Settings\SettingsController;
 use Slim\App;
@@ -88,6 +89,8 @@ final class AppFactory
             $group->get('/earthquakes', [EarthquakesController::class, 'index']);
             $group->post('/earthquakes/{id:[0-9]+}/release', [EarthquakesController::class, 'release']);
             $group->post('/earthquakes/{id:[0-9]+}/dismiss', [EarthquakesController::class, 'dismiss']);
+            $group->get('/drills/new', [DrillsController::class, 'create']);
+            $group->post('/drills', [DrillsController::class, 'store']);
             $group->post('/feed/acknowledge', [FeedNoticeController::class, 'acknowledge']);
             $group->get('/settings', [SettingsController::class, 'show']);
             $group->post('/settings', [SettingsController::class, 'save']);
