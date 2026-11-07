@@ -14,6 +14,8 @@
         "ext-mbstring": "*",
         "ext-pdo": "*",
         "jmaxml/codes": "^0.1.1",
+        "jmaxml/earthquake": "^0.1.1",
+        "jmaxml/feed": "^0.1.1",
         "league/plates": "^3.6",
         "nyholm/psr7": "^1.8",
         "php-di/php-di": "^7.1.1",
@@ -24,7 +26,8 @@
         "slim/csrf": "^1.5",
         "slim/psr7": "^1.7",
         "slim/slim": "^4.15",
-        "symfony/http-client": "^7.4 || ^8.0"
+        "symfony/http-client": "^7.4 || ^8.0",
+        "symfony/mailer": "^7.4 || ^8.0"
     },
     "require-dev": {
         "ergebnis/composer-normalize": "^2.52",
