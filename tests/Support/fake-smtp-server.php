@@ -6,11 +6,14 @@ declare(strict_types=1);
 //   php fake-smtp-server.php TRANSCRIPT_FILE OPTIONS_JSON
 // Prints the port it listens on, then answers connections one after another and appends every line it receives and
 // sends to TRANSCRIPT_FILE. It offers AUTH PLAIN and LOGIN, never STARTTLS, and exits after 30 seconds without a
-// connection.
+// connection. Options: rejectRecipients (550 5.1.1), deferRecipients (450 4.1.2), policyRecipients (554 5.7.1),
+// rejectAuth (535).
 
 [, $transcript, $json] = $argv + [null, null, '{}'];
 $options = json_decode((string) $json, true);
 $rejectRecipients = is_array($options) && is_array($options['rejectRecipients'] ?? null) ? $options['rejectRecipients'] : [];
+$deferRecipients = is_array($options) && is_array($options['deferRecipients'] ?? null) ? $options['deferRecipients'] : [];
+$policyRecipients = is_array($options) && is_array($options['policyRecipients'] ?? null) ? $options['policyRecipients'] : [];
 $rejectAuth = is_array($options) && ($options['rejectAuth'] ?? false) === true;
 
 $server = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
@@ -71,15 +74,17 @@ while (($client = @stream_socket_accept($server, 30)) !== false) {
         } elseif ($command === 'MAIL') {
             $say('250 2.1.0 Ok');
         } elseif ($command === 'RCPT') {
-            $refused = false;
+            $reply = '250 2.1.5 Ok';
 
-            foreach ($rejectRecipients as $address) {
-                if (is_string($address) && str_contains($line, '<' . $address . '>')) {
-                    $refused = true;
+            foreach (['550 5.1.1 User unknown' => $rejectRecipients, '450 4.1.2 Recipient address rejected: Domain not found' => $deferRecipients, '554 5.7.1 Relay access denied' => $policyRecipients] as $answer => $addresses) {
+                foreach ($addresses as $address) {
+                    if (is_string($address) && str_contains($line, '<' . $address . '>')) {
+                        $reply = $answer;
+                    }
                 }
             }
 
-            $say($refused ? '550 5.1.1 User unknown' : '250 2.1.5 Ok');
+            $say($reply);
         } elseif ($command === 'DATA') {
             $say('354 End data with <CR><LF>.<CR><LF>');
 

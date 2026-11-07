@@ -22,7 +22,7 @@ final class FakeSmtpServer
     }
 
     /**
-     * @param array{rejectRecipients?: list<string>, rejectAuth?: bool} $options
+     * @param array{rejectRecipients?: list<string>, deferRecipients?: list<string>, policyRecipients?: list<string>, rejectAuth?: bool} $options
      */
     public static function start(array $options = []): self
     {

@@ -29,6 +29,16 @@ enum Delivery
     case Unavailable;
 
     /**
+     * Every address was refused for now: try this person again a little later.
+     */
+    case Deferred;
+
+    /**
+     * The quake was cancelled before this went out.
+     */
+    case Withdrawn;
+
+    /**
      * Not tried: the hourly limit or the run's time is used up.
      */
     case Postponed;

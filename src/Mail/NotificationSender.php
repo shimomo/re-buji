@@ -31,6 +31,26 @@ final class NotificationSender
      */
     public const int MAX_SECONDS = 120;
 
+    /**
+     * A person whose addresses were all refused for now is tried again after this long, behind the others.
+     */
+    public const int DEFER_MINUTES = 15;
+
+    /**
+     * After this many people refused for now one after another, the server is likely refusing everyone: stop the step.
+     */
+    public const int DEFERRALS_IN_A_ROW = 3;
+
+    /**
+     * The server could not be used in this cron run (one instance serves a whole run: SendJob and ResendJob share it).
+     */
+    private bool $unavailable = false;
+
+    /**
+     * A sending problem was shown in this cron run.
+     */
+    private bool $troubled = false;
+
     public function __construct(
         private readonly NotificationRepository $notifications,
         private readonly EarthquakeRepository $earthquakes,
@@ -51,6 +71,10 @@ final class NotificationSender
     {
         $run = $this->start();
 
+        if ($run === null) {
+            return;
+        }
+
         foreach ($this->notifications->dueFirstContacts($run->now) as $contact) {
             $employee = $this->recipient($contact);
 
@@ -62,17 +86,15 @@ final class NotificationSender
 
             $delivery = $this->deliver($run, $contact, NotificationMail::FIRST, $employee->emails);
 
-            if ($delivery === Delivery::Postponed) {
-                break;
-            }
+            match ($delivery) {
+                Delivery::Postponed, Delivery::Unavailable => null,
+                Delivery::Sent => $this->notifications->markSent($contact->id, $run->now, $this->nextResend($run->now, 1)),
+                Delivery::Refused => $this->notifications->markFailed($contact->id),
+                Delivery::Deferred => $this->notifications->postpone($contact->id, $run->now->modify('+' . self::DEFER_MINUTES . ' minutes')),
+                Delivery::Withdrawn => $this->notifications->markCancelled($contact->id),
+            };
 
-            if ($delivery === Delivery::Refused) {
-                $this->notifications->markFailed($contact->id);
-            } elseif ($delivery !== Delivery::Unavailable) {
-                $this->notifications->markSent($contact->id, $run->now, $this->nextResend($run->now, 1));
-            }
-
-            if ($run->unavailable) {
+            if ($run->mustStop()) {
                 break;
             }
         }
@@ -84,16 +106,19 @@ final class NotificationSender
     {
         $run = $this->start();
 
+        if ($run === null) {
+            return;
+        }
+
         foreach ($this->notifications->dueCancelNotices() as $contact) {
             $delivery = $this->deliver($run, $contact, NotificationMail::CANCEL, $this->messages->sentAddresses($contact->id));
 
-            if ($delivery === Delivery::Postponed || $delivery === Delivery::Unavailable) {
-                break;
+            // A notice refused for now is tried again next run, like one the server could not take.
+            if ($delivery !== Delivery::Postponed && $delivery !== Delivery::Unavailable && $delivery !== Delivery::Deferred) {
+                $this->notifications->markCancelNoticeSent($contact->id);
             }
 
-            $this->notifications->markCancelNoticeSent($contact->id);
-
-            if ($run->unavailable) {
+            if ($run->mustStop()) {
                 break;
             }
         }
@@ -104,6 +129,10 @@ final class NotificationSender
     public function sendResends(): void
     {
         $run = $this->start();
+
+        if ($run === null) {
+            return;
+        }
 
         foreach ($this->notifications->dueResends($run->now) as $contact) {
             $employee = $this->recipient($contact);
@@ -121,17 +150,14 @@ final class NotificationSender
 
             $delivery = $this->deliver($run, $contact, NotificationMail::RESEND, $addresses);
 
-            if ($delivery === Delivery::Postponed) {
-                break;
-            }
+            match ($delivery) {
+                Delivery::Postponed, Delivery::Unavailable => null,
+                Delivery::Sent => $this->notifications->markSent($contact->id, $run->now, $this->nextResend($run->now, $contact->sentCount + 1)),
+                Delivery::Refused, Delivery::Withdrawn => $this->notifications->stopResending($contact->id),
+                Delivery::Deferred => $this->notifications->postponeResend($contact->id, $run->now->modify('+' . self::DEFER_MINUTES . ' minutes')),
+            };
 
-            if ($delivery === Delivery::Refused) {
-                $this->notifications->stopResending($contact->id);
-            } elseif ($delivery !== Delivery::Unavailable) {
-                $this->notifications->markSent($contact->id, $run->now, $this->nextResend($run->now, $contact->sentCount + 1));
-            }
-
-            if ($run->unavailable) {
+            if ($run->mustStop()) {
                 break;
             }
         }
@@ -139,9 +165,13 @@ final class NotificationSender
         $this->finish($run);
     }
 
-    private function start(): SendingRun
+    /**
+     * A new step of the cron run, or null once the server proved unavailable in an earlier step: trying again would
+     * only wait for the same timeout.
+     */
+    private function start(): ?SendingRun
     {
-        return new SendingRun($this->clock->now());
+        return $this->unavailable ? null : new SendingRun($this->clock->now());
     }
 
     /**
@@ -151,21 +181,25 @@ final class NotificationSender
      */
     private function deliver(SendingRun $run, Notification $contact, string $kind, array $addresses): Delivery
     {
-        if ($addresses === []) {
+        $quake = $this->earthquakes->find($contact->earthquakeId);
+
+        // Whatever state the contact is in, nothing but the cancel notice goes out for a cancelled quake.
+        if ($quake !== null && $quake->isCancelled() && $kind !== NotificationMail::CANCEL) {
+            return Delivery::Withdrawn;
+        }
+
+        if ($quake === null || $addresses === []) {
             return Delivery::Refused;
         }
 
         if ($this->clock->now()->getTimestamp() - $run->now->getTimestamp() > self::MAX_SECONDS || $this->limit->remaining($run->now) < count($addresses)) {
+            $run->postponed = true;
+
             return Delivery::Postponed;
         }
 
-        $quake = $this->earthquakes->find($contact->earthquakeId);
-
-        if ($quake === null) {
-            return Delivery::Refused;
-        }
-
         $sent = 0;
+        $deferred = 0;
 
         foreach ($addresses as $address) {
             try {
@@ -178,25 +212,45 @@ final class NotificationSender
                     $this->logger->warning('mail: ' . $address . ' refused: ' . $exception->getMessage());
 
                     continue;
+                } catch (RecipientDeferred $exception) {
+                    $this->trouble('一時的に送れない宛先があります：' . $address . '（' . $exception->getMessage() . '）');
+                    $this->logger->warning('mail: ' . $address . ' deferred: ' . $exception->getMessage());
+                    $deferred++;
+
+                    continue;
                 }
 
                 $this->messages->record($contact->id, $kind, $address, $mail->messageId, true, '', $run->now);
                 $sent++;
                 $run->succeeded = true;
             } catch (MailUnavailable $exception) {
-                $this->state->set('mail.last_error', $exception->getMessage());
+                $this->trouble($exception->getMessage());
                 $this->logger->error('mail: cannot send: ' . $exception->getMessage());
+                $this->unavailable = true;
                 $run->unavailable = true;
 
                 break;
             }
         }
 
-        if ($sent > 0) {
-            return Delivery::Sent;
-        }
+        $run->deferredInARow = $sent === 0 && $deferred > 0 && !$run->unavailable ? $run->deferredInARow + 1 : 0;
 
-        return $run->unavailable ? Delivery::Unavailable : Delivery::Refused;
+        return match (true) {
+            $sent > 0 => Delivery::Sent,
+            $run->unavailable => Delivery::Unavailable,
+            $deferred > 0 => Delivery::Deferred,
+            default => Delivery::Refused,
+        };
+    }
+
+    /**
+     * Shows a sending problem on the home page. It stays for the rest of the cron run, so a later step that goes well
+     * does not hide it.
+     */
+    private function trouble(string $message): void
+    {
+        $this->state->set('mail.last_error', $message);
+        $this->troubled = true;
     }
 
     private function nextResend(DateTimeImmutable $now, int $sentCount): ?DateTimeImmutable
@@ -220,7 +274,7 @@ final class NotificationSender
 
     private function finish(SendingRun $run): void
     {
-        if ($run->succeeded && !$run->unavailable) {
+        if ($run->succeeded && !$this->troubled) {
             $this->state->set('mail.last_error', '');
         }
     }

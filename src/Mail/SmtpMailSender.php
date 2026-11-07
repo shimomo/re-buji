@@ -53,6 +53,8 @@ final class SmtpMailSender implements MailSender
             $this->transport()->send($email, new Envelope(new Address($mail->fromAddress), [$recipient]));
         } catch (RecipientRefusedResponse $exception) {
             throw new RecipientRefused($exception->getMessage(), 0, $exception);
+        } catch (RecipientDeferredResponse $exception) {
+            throw new RecipientDeferred($exception->getMessage(), 0, $exception);
         } catch (TransportExceptionInterface|RfcComplianceException $exception) {
             throw new MailUnavailable($exception->getMessage(), 0, $exception);
         }

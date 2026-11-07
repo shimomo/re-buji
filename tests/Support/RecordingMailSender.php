@@ -8,6 +8,7 @@ use Override;
 use ReBuji\Mail\MailSender;
 use ReBuji\Mail\MailUnavailable;
 use ReBuji\Mail\OutgoingMail;
+use ReBuji\Mail\RecipientDeferred;
 use ReBuji\Mail\RecipientRefused;
 
 /**
@@ -22,10 +23,17 @@ final class RecordingMailSender implements MailSender
      */
     public array $sent = [];
 
+    /**
+     * Every recipient tried, sent or not.
+     *
+     * @var list<string>
+     */
+    public array $attempts = [];
+
     public bool $unavailable = false;
 
     /**
-     * @param array<string, 'refuse'|'unavailable'> $failures by recipient address
+     * @param array<string, 'refuse'|'defer'|'unavailable'> $failures by recipient address
      */
     public function __construct(public array $failures = [])
     {
@@ -36,9 +44,14 @@ final class RecordingMailSender implements MailSender
     public function send(OutgoingMail $mail): void
     {
         $failure = $this->failures[$mail->to] ?? null;
+        $this->attempts[] = $mail->to;
 
         if ($this->unavailable || $failure === 'unavailable') {
             throw new MailUnavailable('Connection to "smtp.example.co.jp:587" timed out.');
+        }
+
+        if ($failure === 'defer') {
+            throw new RecipientDeferred('450 4.1.2 Recipient address rejected: Domain not found: ' . $mail->to);
         }
 
         if ($failure === 'refuse') {

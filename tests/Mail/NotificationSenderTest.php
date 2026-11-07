@@ -251,6 +251,100 @@ final class NotificationSenderTest extends TestCase
     }
 
     #[Test]
+    public function neverSendsAContactOfACancelledQuake(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        $world->earthquakes->markCancelled($world->contactNow($contact)->earthquakeId, $world->clock->now());
+
+        $world->sender()->sendFirstContacts();
+
+        $this->assertSame([], $world->mailer->attempts);
+        $this->assertSame(Notification::CANCELLED, $world->contactNow($contact)->state);
+    }
+
+    #[Test]
+    public function keepsSendingPastATemporarilyRefusedRecipient(): void
+    {
+        $world = self::world();
+        $stuck = $world->contact($world->person('山田 花子', '2221300'), 7);
+        $next = $world->contact($world->person('佐藤 一郎', '2221300'), 5);
+        $world->mailer->failures = ['person1@example.com' => 'defer'];
+
+        $world->sender()->sendFirstContacts();
+
+        $this->assertSame(['person2@example.com'], $world->mailer->recipients());
+        $this->assertSame(Notification::SENT, $world->contactNow($next)->state);
+        $deferred = $world->contactNow($stuck);
+        $this->assertSame(Notification::PENDING, $deferred->state);
+        $this->assertEquals($world->clock->now()->modify('+15 minutes'), $deferred->notBefore);
+        $this->assertStringContainsString('450 4.1.2', (string) $world->state->get('mail.last_error'));
+        $this->assertSame(0, (int) $world->db->fetchValue('SELECT COUNT(*) FROM messages WHERE notification_id = ?', [$stuck]));
+    }
+
+    #[Test]
+    public function stopsAfterSeveralTemporaryRefusalsInARow(): void
+    {
+        $world = self::world();
+
+        for ($i = 1; $i <= 5; $i++) {
+            $world->contact($world->person('従業員 ' . $i, '2221300'));
+            $world->mailer->failures['person' . $i . '@example.com'] = 'defer';
+        }
+
+        $world->sender()->sendFirstContacts();
+
+        $this->assertCount(3, $world->mailer->attempts);
+    }
+
+    #[Test]
+    public function keepsTheErrorUntilARunHasNoProblem(): void
+    {
+        $world = self::world();
+        $world->contact($world->person('山田 花子', '2221300'));
+        $resent = $world->contact($world->person('佐藤 一郎', '2221300'));
+        $world->sender()->sendFirstContacts();
+        $world->clock->advance('+60 minutes');
+        $world->contact($world->person('鈴木 三郎', '2221300'));
+        $world->mailer->failures = ['person3@example.com' => 'defer'];
+
+        // One cron run: the first contacts meet a temporary refusal, the resends then go out fine.
+        $sender = $world->sender();
+        $sender->sendFirstContacts();
+        $sender->sendResends();
+
+        $this->assertSame(2, $world->contactNow($resent)->sentCount);
+        $this->assertStringContainsString('450 4.1.2', (string) $world->state->get('mail.last_error'));
+
+        $world->mailer->failures = [];
+        $world->clock->advance('+15 minutes');
+        $world->sender()->sendFirstContacts();
+
+        $this->assertSame('', $world->state->get('mail.last_error'));
+    }
+
+    #[Test]
+    public function skipsTheLaterStepsOnceTheServerIsUnavailable(): void
+    {
+        $world = self::world();
+        $world->contact($world->person('山田 花子', '2221300'));
+        $resent = $world->contact($world->person('佐藤 一郎', '2221300'));
+        $world->sender()->sendFirstContacts();
+        $world->clock->advance('+60 minutes');
+        $world->contact($world->person('鈴木 三郎', '2221300'));
+        $world->mailer->unavailable = true;
+        $world->mailer->attempts = [];
+
+        $sender = $world->sender();
+        $sender->sendFirstContacts();
+        $sender->sendCancelNotices();
+        $sender->sendResends();
+
+        $this->assertCount(1, $world->mailer->attempts);
+        $this->assertSame(1, $world->contactNow($resent)->sentCount);
+    }
+
+    #[Test]
     public function stopsAfterTheTimeBudget(): void
     {
         $world = self::world();

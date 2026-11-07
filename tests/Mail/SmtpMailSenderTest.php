@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReBuji\Mail\MailUnavailable;
 use ReBuji\Mail\OutgoingMail;
+use ReBuji\Mail\RecipientDeferred;
 use ReBuji\Mail\RecipientRefused;
 use ReBuji\Mail\SmtpMailSender;
 use ReBuji\Settings\SmtpSettings;
@@ -58,6 +59,32 @@ final class SmtpMailSenderTest extends TestCase
                 $this->fail('A refused recipient should be reported');
             } catch (RecipientRefused $exception) {
                 $this->assertStringContainsString('550', $exception->getMessage());
+            }
+
+            $sender->send(self::mail('ok@example.com'));
+
+            $this->assertStringContainsString('C: RCPT TO:<ok@example.com>', $server->transcript());
+            $this->assertStringContainsString('S: 250 2.0.0 Ok: queued', $server->transcript());
+        } finally {
+            $server->stop();
+        }
+    }
+
+    #[Test]
+    public function reportsATemporarilyRefusedRecipientAndKeepsSending(): void
+    {
+        $server = FakeSmtpServer::start(['deferRecipients' => ['taro@docomo.ne.jpp'], 'policyRecipients' => ['blocked@example.com']]);
+
+        try {
+            $sender = new SmtpMailSender(self::settings($server->port()));
+
+            foreach (['taro@docomo.ne.jpp' => '450', 'blocked@example.com' => '554 5.7.1'] as $address => $answer) {
+                try {
+                    $sender->send(self::mail($address));
+                    $this->fail('A deferred recipient should be reported: ' . $address);
+                } catch (RecipientDeferred $exception) {
+                    $this->assertStringContainsString($answer, $exception->getMessage());
+                }
             }
 
             $sender->send(self::mail('ok@example.com'));
