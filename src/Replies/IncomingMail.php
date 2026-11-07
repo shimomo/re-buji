@@ -24,14 +24,19 @@ final readonly class IncomingMail
 {
     public const string BOUNCE = 'bounce';
 
+    public const string DELAYED = 'delayed';
+
     public const string AUTO_REPLY = 'auto_reply';
 
     public const string REPLY = 'reply';
 
     private const string AUTO_REPLY_SUBJECT = '/自動応答|自動返信|不在|out of office|automatic reply|auto[- ]?reply/iu';
 
+    private const string DELAY_SUBJECT = '/delay|遅延|遅れ/iu';
+
     /**
      * @param list<string> $references Message-IDs this mail answers: In-Reply-To first, then References
+     * @param list<string> $attachments the names of the files it carries
      */
     public function __construct(
         public ?string $messageId,
@@ -42,6 +47,7 @@ final readonly class IncomingMail
         public string $text,
         public bool $autoReply,
         public ?Bounce $bounce,
+        public array $attachments = [],
     ) {
         //
     }
@@ -66,7 +72,7 @@ final readonly class IncomingMail
             throw new InvalidArgumentException('Not a mail: no sender, subject or Message-ID');
         }
 
-        $subject = (string) $message->getSubject();
+        $subject = mb_scrub((string) $message->getSubject(), 'UTF-8');
         $bounce = self::bounceOf($message, $fromAddress, $subject, $raw);
 
         return new self(
@@ -78,13 +84,14 @@ final readonly class IncomingMail
             self::text($message),
             $bounce === null && self::isAutoReply($message, $subject),
             $bounce,
+            self::attachments($message),
         );
     }
 
     public function kind(): string
     {
         return match (true) {
-            $this->bounce !== null => self::BOUNCE,
+            $this->bounce !== null => $this->bounce->failed ? self::BOUNCE : self::DELAYED,
             $this->autoReply => self::AUTO_REPLY,
             default => self::REPLY,
         };
@@ -115,18 +122,43 @@ final readonly class IncomingMail
         return array_map(strval(...), array_keys($ids));
     }
 
+    /**
+     * The text, always as UTF-8: bytes in a charset that could not be read become "?", so they still count as written.
+     */
     private static function text(IMessage $message): string
     {
         $text = $message->getTextContent();
 
         if ($text !== null) {
-            return $text;
+            return mb_scrub($text, 'UTF-8');
         }
 
-        $html = (string) $message->getHtmlContent();
-        $html = (string) preg_replace(['/<br\s*\/?>/i', '/<\/(p|div|li|tr)>/i'], "\n", $html);
+        $html = mb_scrub((string) $message->getHtmlContent(), 'UTF-8');
+
+        // The quoted mail, innermost first; words written around it stay.
+        do {
+            $before = $html;
+            $html = preg_replace('/<blockquote\b[^>]*>(?:(?!<blockquote\b).)*?<\/blockquote>/is', '', $html) ?? $before;
+        } while ($html !== $before);
+
+        $html = preg_replace(['/<br\s*\/?>/i', '/<\/(p|div|li|tr)>/i'], "\n", $html) ?? $html;
 
         return html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function attachments(IMessage $message): array
+    {
+        $names = [];
+
+        foreach ($message->getAllAttachmentParts() as $part) {
+            $name = mb_scrub(trim((string) $part->getFilename()), 'UTF-8');
+            $names[] = $name === '' ? '（名前のないファイル）' : $name;
+        }
+
+        return $names;
     }
 
     private static function isAutoReply(IMessage $message, string $subject): bool
@@ -157,6 +189,7 @@ final readonly class IncomingMail
 
         $recipients = [];
         $reasons = [];
+        $notFailed = false;
 
         foreach ($message->getAllPartsByMimeType('message/delivery-status') as $part) {
             foreach (preg_split('/\r?\n\r?\n/', (string) $part->getContent()) ?: [] as $paragraph) {
@@ -166,7 +199,9 @@ final readonly class IncomingMail
 
                 $action = preg_match('/^Action:\s*(\S+)/mi', $paragraph, $found) === 1 ? strtolower($found[1]) : 'failed';
 
-                if ($action === 'failed') {
+                if ($action !== 'failed') {
+                    $notFailed = true;
+                } else {
                     $recipients[] = trim($recipient[1], '<>');
 
                     foreach (['Status', 'Diagnostic-Code'] as $field) {
@@ -178,7 +213,10 @@ final readonly class IncomingMail
             }
         }
 
-        return new Bounce(array_values(array_unique($recipients)), self::originalMessageId($message, $raw), $reasons === [] ? $subject : implode(' ', $reasons));
+        // Only delays (or a plain-text warning about one) mean the mail system is still trying.
+        $failed = $recipients !== [] || (!$notFailed && preg_match(self::DELAY_SUBJECT, $subject) !== 1);
+
+        return new Bounce(array_values(array_unique($recipients)), self::originalMessageId($message, $raw), $reasons === [] ? $subject : implode(' ', $reasons), $failed);
     }
 
     private static function originalMessageId(IMessage $message, string $raw): ?string

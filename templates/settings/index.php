@@ -78,6 +78,7 @@ $this->layout('layout', ['title' => $title]);
     </fieldset>
     <fieldset>
         <legend>返信を受けるアカウント（IMAP。上の送信元のアドレスに届いた返信を読みます）</legend>
+        <?= $this->insert('mail/dedicated') ?>
         <label>IMAP のサーバー名 <input name="imap_host" value="<?= $this->e($values['imap_host']) ?>" autocomplete="off"></label>
         <div class="row">
             <label>ポート番号 <input name="imap_port" inputmode="numeric" value="<?= $this->e($values['imap_port']) ?>"></label>

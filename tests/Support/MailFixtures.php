@@ -56,6 +56,30 @@ final class MailFixtures
     }
 
     /**
+     * A reply with no words, carrying a photo.
+     */
+    public static function withAttachment(string $from, string $inReplyTo, string $filename): string
+    {
+        return 'From: ' . $from . "\r\nTo: anpi@example.co.jp\r\nSubject: Re: [安否確認 #a1b2c3d4]\r\nMessage-ID: <" . bin2hex(random_bytes(8)) . "@phone.example>\r\n"
+            . 'Date: ' . self::DATE . "\r\nIn-Reply-To: <{$inReplyTo}>\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"M\"\r\n\r\n"
+            . "--M\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n\r\n"
+            . "--M\r\nContent-Type: image/jpeg; name=\"{$filename}\"\r\nContent-Disposition: attachment; filename=\"{$filename}\"\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+            . base64_encode(str_repeat("\xff\xd8\xff", 100)) . "\r\n--M--\r\n";
+    }
+
+    /**
+     * A notice that delivery is delayed, not failed.
+     */
+    public static function delay(string $recipient, string $originalMessageId): string
+    {
+        return str_replace(
+            ['Action: failed', 'Status: 5.1.1', 'Subject: Undelivered Mail Returned to Sender'],
+            ['Action: delayed', 'Status: 4.4.1', 'Subject: Delayed Mail (still being retried)'],
+            self::bounce($recipient, $originalMessageId),
+        );
+    }
+
+    /**
      * A delivery status notification in the shape Postfix sends.
      */
     public static function bounce(string $recipient, ?string $originalMessageId): string

@@ -13,6 +13,7 @@ use ReBuji\Mail\MessageRepository;
 use ReBuji\Mail\NotificationMail;
 use ReBuji\Mail\RateLimit;
 use ReBuji\Monitor\WatchJob;
+use ReBuji\Replies\ReplyReading;
 use ReBuji\Tests\Support\QuakeWorld;
 
 /**
@@ -84,6 +85,18 @@ final class WatchJobTest extends TestCase
         $this->assertCount(2, $world->mailer->sent);
         $this->assertStringContainsString('・メールを送れていません：Connection timed out', $world->mailer->sent[0]->body);
         $this->assertStringContainsString('・返信を読めていません：IMAP のサーバーが断りました', $world->mailer->sent[0]->body);
+    }
+
+    #[Test]
+    public function tellsWhenRepliesHaveNotBeenRead(): void
+    {
+        $world = self::world();
+        $world->settings->save(['imap.host' => 'imap.example.co.jp', 'smtp.username' => 'anpi', 'smtp.password' => 'secret']);
+        $world->state->set('imap.last_checked_at', '2009-08-10T19:00:00Z');
+
+        self::job($world)->run($world->clock->now());
+
+        $this->assertStringContainsString('・返信を 30 分以上読めていません（最後は 8月11日 4時00分）。', $world->mailer->sent[0]->body);
     }
 
     #[Test]
@@ -171,6 +184,7 @@ final class WatchJobTest extends TestCase
             $messages,
             $world->clock,
             new NullLogger(),
+            new ReplyReading($world->settings, $world->state),
         );
     }
 }

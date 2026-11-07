@@ -18,6 +18,11 @@ use DateTimeImmutable;
 final class ImapClient
 {
     /**
+     * How much of one mail is read: the words come before the attachments, and a photo need not fill the memory.
+     */
+    public const int MAX_BYTES = 1048576;
+
+    /**
      * @var resource|null
      */
     private $stream = null;
@@ -78,9 +83,12 @@ final class ImapClient
         return $uids;
     }
 
+    /**
+     * The mail as it is, up to MAX_BYTES of it.
+     */
     public function fetch(int $uid): string
     {
-        $literals = $this->command('UID FETCH ' . $uid . ' (BODY.PEEK[])')['literals'];
+        $literals = $this->command('UID FETCH ' . $uid . ' (BODY.PEEK[]<0.' . self::MAX_BYTES . '>)')['literals'];
 
         if ($literals === []) {
             throw new MailboxUnavailable('メール ' . $uid . ' を受け取れませんでした');

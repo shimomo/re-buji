@@ -37,7 +37,7 @@ final class ReplyRepository
                 mb_substr($fromAddress, 0, 255),
                 mb_substr($subject, 0, self::SUBJECT_LENGTH),
                 mb_substr($body, 0, self::BODY_LENGTH),
-                $messageId,
+                self::key($messageId),
                 Time::format($receivedAt),
                 Time::format($this->clock->now()),
             ],
@@ -51,7 +51,20 @@ final class ReplyRepository
      */
     public function knows(string $messageId): bool
     {
-        return $this->db->fetchValue('SELECT 1 FROM replies WHERE message_id = ?', [$messageId]) !== null;
+        return $this->db->fetchValue('SELECT 1 FROM replies WHERE message_id = ?', [self::key($messageId)]) !== null;
+    }
+
+    /**
+     * The Message-ID as kept: one too long for the column, or not plain ASCII, is kept as its hash, so it still tells
+     * the same mail apart.
+     */
+    private static function key(?string $messageId): ?string
+    {
+        if ($messageId === null || preg_match('/^[\x21-\x7e]{1,255}$/', $messageId) === 1) {
+            return $messageId;
+        }
+
+        return 'sha256:' . hash('sha256', $messageId);
     }
 
     /**

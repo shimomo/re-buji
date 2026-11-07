@@ -40,9 +40,30 @@ final class ReplyTextTest extends TestCase
     }
 
     #[Test]
-    public function dropsTheJapaneseWroteLine(): void
+    public function keepsWhatFollowsAQuoteWithoutMarks(): void
     {
-        $this->assertSame('家族も無事', ReplyText::extract("家族も無事\n\n安否確認 さんは書きました：\n山田 花子 さん\n地震がありました\n"));
+        // Without > marks the quoted mail cannot be told apart from the person's words: it is kept, to be read.
+        $this->assertSame("家族も無事\n\n山田 花子 さん\n地震がありました", ReplyText::extract("家族も無事\n\n安否確認 さんは書きました：\n山田 花子 さん\n地震がありました\n"));
+    }
+
+    #[Test]
+    public function keepsWordsWrittenBelowTheQuote(): void
+    {
+        $this->assertSame('足を骨折しました。動けません。', ReplyText::extract("2026年11月5日 12:12、安否確認 さんは書きました:\n> 山田 花子 さん\n> 地震がありました。\n\n足を骨折しました。動けません。\n"));
+        $this->assertSame('I broke my leg', ReplyText::extract("On Thu, Nov 5, 2026 at 12:12 PM 安否確認 <anpi@example.co.jp> wrote:\n> 山田\n\nI broke my leg\n-- \nTaro\n"));
+    }
+
+    #[Test]
+    public function keepsTheirOwnLineEndingInKakimashita(): void
+    {
+        $this->assertSame('けがの状況は課長に LINE で書きました', ReplyText::extract("けがの状況は課長に LINE で書きました\n"));
+        $this->assertSame("無事ではありません。詳しくは下に書きました\n家が倒壊しました", ReplyText::extract("無事ではありません。詳しくは下に書きました\n家が倒壊しました\n"));
+    }
+
+    #[Test]
+    public function keepsTextItCannotRead(): void
+    {
+        $this->assertNotSame('', ReplyText::extract("\x91\xab\x82\xf0\x8d\x9c\x90\xdc"));
     }
 
     #[Test]

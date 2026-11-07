@@ -86,6 +86,47 @@ final class IncomingMailTest extends TestCase
     }
 
     #[Test]
+    public function readsTextInAnUnknownCharsetAsSomething(): void
+    {
+        $raw = str_replace('charset=Shift_JIS', 'charset=x-sjis', MailFixtures::reply('hanako@example.com', '足を骨折しました', null, 'Re: 地震', 'Shift_JIS'));
+
+        $text = IncomingMail::parse($raw)->text;
+
+        $this->assertTrue(mb_check_encoding($text, 'UTF-8'));
+        $this->assertNotSame('', trim($text));
+    }
+
+    #[Test]
+    public function dropsTheQuotedBlockOfAnHtmlReply(): void
+    {
+        $raw = str_replace('Content-Type: text/plain; charset=UTF-8', 'Content-Type: text/html; charset=UTF-8', MailFixtures::reply('hanako@example.com', '<div>無事です</div><blockquote><div>山田 花子 さん</div></blockquote>'));
+
+        $this->assertSame('無事です', trim(IncomingMail::parse($raw)->text));
+    }
+
+    #[Test]
+    public function namesItsAttachments(): void
+    {
+        $this->assertSame(['IMG_0001.jpg'], IncomingMail::parse(MailFixtures::withAttachment('hanako@example.com', 'x@example.co.jp', 'IMG_0001.jpg'))->attachments);
+        $this->assertSame([], IncomingMail::parse(MailFixtures::reply('hanako@example.com', '無事'))->attachments);
+    }
+
+    #[Test]
+    public function tellsADelayFromABounce(): void
+    {
+        $mail = IncomingMail::parse(MailFixtures::delay('slow@example.com', '0123abcd@example.co.jp'));
+
+        $this->assertSame('delayed', $mail->kind());
+        $this->assertFalse($mail->bounce?->failed);
+        $this->assertTrue(IncomingMail::parse(MailFixtures::bounce('gone@example.com', null))->bounce?->failed);
+
+        // Exim warns in plain text.
+        $warning = "From: Mail Delivery System <Mailer-Daemon@mail.example.com>\r\nTo: anpi@example.co.jp\r\nSubject: Warning: message 1abcde-000001-AB delayed 24 hours\r\n"
+            . 'Message-ID: <w1@mail.example.com>' . "\r\nDate: " . MailFixtures::DATE . "\r\n\r\nA message that you sent has not yet been delivered to one or more of its recipients after more than 24 hours on the queue.\r\n";
+        $this->assertSame('delayed', IncomingMail::parse($warning)->kind());
+    }
+
+    #[Test]
     public function refusesWhatIsNotMail(): void
     {
         $this->expectException(InvalidArgumentException::class);

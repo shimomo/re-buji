@@ -19,7 +19,7 @@ use Slim\Exception\HttpNotFoundException;
  */
 final class UnmatchedController
 {
-    private const array KINDS = ['reply' => '返信', 'auto_reply' => '自動応答', 'bounce' => '宛先不明', 'unreadable' => '読めないメール'];
+    private const array KINDS = ['reply' => '返信', 'auto_reply' => '自動応答', 'bounce' => '宛先不明', 'delayed' => '配信の遅れ', 'unreadable' => '読めないメール'];
 
     public function __construct(
         private readonly ReplyRepository $replies,

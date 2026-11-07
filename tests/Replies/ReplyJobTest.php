@@ -24,7 +24,7 @@ final class ReplyJobTest extends TestCase
     public function recordsAnEmptyReplyAsSafe(): void
     {
         [$world, $contact] = self::sent();
-        $uid = $world->mailbox->add(MailFixtures::reply('person1@example.com', "\n> 山田 花子 さん\n", $world->messageIdSentTo('person1@example.com')));
+        $uid = $world->mailbox->add(MailFixtures::reply('person1@example.com', "\n> 山田 花子 さん\n", $world->messageIdSentTo('person1@example.com'), 'Re: ' . $world->mailer->sent[0]->subject));
 
         $world->replyJob()->run($world->clock->now());
 
@@ -44,7 +44,7 @@ final class ReplyJobTest extends TestCase
     public function recordsAWrittenReplyForChecking(): void
     {
         [$world, $contact] = self::sent();
-        $world->mailbox->add(MailFixtures::reply('person1@example.com', "足を怪我しました\n\n> 山田 花子 さん\n", $world->messageIdSentTo('person1@example.com')));
+        $world->mailbox->add(MailFixtures::reply('person1@example.com', "足を怪我しました\n\n> 山田 花子 さん\n", $world->messageIdSentTo('person1@example.com'), 'Re: ' . $world->mailer->sent[0]->subject));
 
         $world->replyJob()->run($world->clock->now());
 
@@ -115,6 +115,84 @@ final class ReplyJobTest extends TestCase
         $this->assertSame(Notification::FAILED, $world->contactNow($contact)->state);
         $this->assertNull($world->contactNow($contact)->nextSendAt);
         $this->assertSame(['bounce', 'bounce'], array_column($world->replies->forNotification($contact), 'kind'));
+    }
+
+    #[Test]
+    public function checksABodyItCannotRead(): void
+    {
+        [$world, $contact] = self::sent();
+        $world->mailbox->add(str_replace('charset=Shift_JIS', 'charset=x-sjis', MailFixtures::reply('person1@example.com', '足を骨折しました', $world->messageIdSentTo('person1@example.com'), 'Re: 地震', 'Shift_JIS')));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame(Notification::NEEDS_CHECK, $world->contactNow($contact)->answer);
+    }
+
+    #[Test]
+    public function checksAReplyWithOnlyAnAttachment(): void
+    {
+        [$world, $contact] = self::sent();
+        $world->mailbox->add(MailFixtures::withAttachment('person1@example.com', $world->messageIdSentTo('person1@example.com'), 'IMG_0001.jpg'));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame(Notification::NEEDS_CHECK, $world->contactNow($contact)->answer);
+        $this->assertStringContainsString('IMG_0001.jpg', $world->replies->forNotification($contact)[0]['body']);
+    }
+
+    #[Test]
+    public function checksWordsInTheSubject(): void
+    {
+        [$world, $contact] = self::sent();
+        $sent = $world->mailer->sent[0];
+        $world->mailbox->add(MailFixtures::reply('person1@example.com', '', $sent->messageId, 'Re: [安否確認 #' . $world->contactNow($contact)->token . '] 足を骨折、動けません'));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame(Notification::NEEDS_CHECK, $world->contactNow($contact)->answer);
+        $this->assertStringContainsString('足を骨折、動けません', $world->replies->forNotification($contact)[0]['body']);
+    }
+
+    #[Test]
+    public function keepsAnUnchangedSubjectSafe(): void
+    {
+        [$world, $contact] = self::sent();
+        $sent = $world->mailer->sent[0];
+        $world->mailbox->add(MailFixtures::reply('person1@example.com', '', $sent->messageId, 'RE: Re: ' . $sent->subject));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame(Notification::SAFE, $world->contactNow($contact)->answer);
+    }
+
+    #[Test]
+    public function takesADelayNoticeAsNews(): void
+    {
+        [$world, $contact] = self::sent();
+        $world->mailbox->add(MailFixtures::delay('person1@example.com', $world->messageIdSentTo('person1@example.com')));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $kept = $world->contactNow($contact);
+        $this->assertSame(Notification::SENT, $kept->state);
+        $this->assertNotNull($kept->nextSendAt);
+        $this->assertNull($world->db->fetchValue('SELECT bounced_at FROM messages'));
+        $this->assertSame(['delayed'], array_column($world->replies->forNotification($contact), 'kind'));
+    }
+
+    #[Test]
+    public function keepsReadingPastAMailItCannotRecord(): void
+    {
+        [$world, $contact] = self::sent();
+        $world->db->execute("CREATE TRIGGER refuse_poison BEFORE INSERT ON replies WHEN NEW.subject = 'poison' BEGIN SELECT RAISE(ABORT, 'disk full'); END");
+        $poison = $world->mailbox->add(MailFixtures::reply('stranger@example.net', '', null, 'poison'));
+        $world->mailbox->add(MailFixtures::reply('person1@example.com', '', $world->messageIdSentTo('person1@example.com'), 'Re: ' . $world->mailer->sent[0]->subject));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame(Notification::SAFE, $world->contactNow($contact)->answer);
+        $this->assertContains($poison, $world->mailbox->seen);
+        $this->assertSame('unreadable', $world->replies->unmatched()[0]['kind']);
     }
 
     #[Test]

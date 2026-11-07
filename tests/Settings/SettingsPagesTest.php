@@ -42,6 +42,7 @@ final class SettingsPagesTest extends TestCase
             $this->assertStringContainsString('<input type="password" name="smtp_password" value=""', $page);
             $this->assertStringNotContainsString('secret-password', $page);
             $this->assertStringContainsString('ロリポップ エコノミー', $page);
+            $this->assertStringContainsString('このメールボックスは Re:無事 の専用にしてください。', $page);
         } finally {
             TemporaryDirectory::remove($root);
         }

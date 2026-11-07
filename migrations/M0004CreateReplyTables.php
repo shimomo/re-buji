@@ -44,7 +44,8 @@ final class M0004CreateReplyTables implements Migration
                 "checked_at {$time} NULL",
                 'checked_by VARCHAR(255) NULL',
             ],
-            'messages' => ["bounced_at {$time} NULL", 'bounce_reason TEXT NULL'],
+            // The subject, to tell a reply whose subject the person rewrote (design 5.2).
+            'messages' => ["bounced_at {$time} NULL", 'bounce_reason TEXT NULL', 'subject VARCHAR(255) NULL'],
         ];
         $statements = [
             "CREATE TABLE replies (id {$id}, notification_id {$ref} NULL, kind VARCHAR(16) NOT NULL, matched_by VARCHAR(16) NULL, from_address VARCHAR(255) NOT NULL, subject VARCHAR(255) NOT NULL, body TEXT NOT NULL, message_id VARCHAR(255) NULL UNIQUE, received_at {$time} NOT NULL, created_at {$time} NOT NULL, FOREIGN KEY (notification_id) REFERENCES notifications (id) ON DELETE CASCADE){$table}",

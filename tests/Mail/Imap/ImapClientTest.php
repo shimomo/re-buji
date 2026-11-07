@@ -134,10 +134,46 @@ final class ImapClientTest extends TestCase
         [$dir, $server] = self::mailbox(5);
 
         try {
-            $mails = (new ImapMailbox(self::settings($server->port())))->unseen(new DateTimeImmutable(self::SINCE), 2);
+            $mails = iterator_to_array((new ImapMailbox(self::settings($server->port())))->unseen(new DateTimeImmutable(self::SINCE), 2), false);
 
             $this->assertSame([1, 2], array_map(static fn($mail): int => $mail->uid, $mails));
             $this->assertSame((string) file_get_contents($dir . '/1.eml'), $mails[0]->raw);
+        } finally {
+            $server->stop();
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function fetchesAtMostAMebibyteOfAMail(): void
+    {
+        [$dir, $server] = self::mailbox(1);
+        file_put_contents($dir . '/1.eml', "Subject: photo\r\n\r\n" . str_repeat('A', 2 * 1048576));
+
+        try {
+            $client = new ImapClient(self::settings($server->port()));
+            $client->open();
+
+            $this->assertSame(1048576, strlen($client->fetch(1)));
+            $this->assertStringContainsString('UID FETCH 1 (BODY.PEEK[]<0.1048576>)', $server->transcript());
+        } finally {
+            $server->stop();
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function fetchesOneMailAtATime(): void
+    {
+        [$dir, $server] = self::mailbox(3);
+
+        try {
+            foreach ((new ImapMailbox(self::settings($server->port())))->unseen(new DateTimeImmutable(self::SINCE), 50) as $mail) {
+                $this->assertSame(1, $mail->uid);
+                $this->assertSame(1, substr_count($server->transcript(), 'UID FETCH'));
+
+                break;
+            }
         } finally {
             $server->stop();
             TemporaryDirectory::remove($dir);

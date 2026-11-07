@@ -56,6 +56,19 @@ final class ReplyRepositoryTest extends TestCase
         $this->assertSame(4000, mb_strlen($row['body']));
     }
 
+    #[Test]
+    #[DataProvider('drivers')]
+    public function shortensLongMessageIds(string $driver): void
+    {
+        $replies = new ReplyRepository($this->migrated($driver), new FrozenClock());
+        $long = str_repeat('a', 300) . '@spam.example';
+
+        $replies->record(null, 'reply', null, 'spam@example.net', 'spam', '', $long, new DateTimeImmutable('2026-11-05T03:28:00Z'));
+
+        $this->assertTrue($replies->knows($long));
+        $this->assertFalse($replies->knows(str_repeat('a', 299) . '@spam.example'));
+    }
+
     /**
      * @return iterable<string, array{string}>
      */

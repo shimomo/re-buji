@@ -208,7 +208,7 @@ final class NotificationSender
                 try {
                     $this->sender->send($mail);
                 } catch (RecipientRefused $exception) {
-                    $this->messages->record($contact->id, $kind, $address, $mail->messageId, false, $exception->getMessage(), $run->now);
+                    $this->messages->record($contact->id, $kind, $address, $mail->messageId, false, $exception->getMessage(), $run->now, $mail->subject);
                     $this->logger->warning('mail: ' . $address . ' refused: ' . $exception->getMessage());
 
                     continue;
@@ -220,7 +220,7 @@ final class NotificationSender
                     continue;
                 }
 
-                $this->messages->record($contact->id, $kind, $address, $mail->messageId, true, '', $run->now);
+                $this->messages->record($contact->id, $kind, $address, $mail->messageId, true, '', $run->now, $mail->subject);
                 $sent++;
                 $run->succeeded = true;
             } catch (MailUnavailable $exception) {

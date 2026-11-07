@@ -59,6 +59,7 @@ final class MailStepsTest extends TestCase
             $page = (string) self::post($app, $container, '/install/mail', ['imap_host' => ''] + TestApp::mailSettings())->getBody();
 
             $this->assertStringContainsString('返信を受ける IMAP のサーバー名を入れてください。', $page);
+            $this->assertStringContainsString('このメールボックスは Re:無事 の専用にしてください。', $page);
             $this->assertSame([], $mailer->sent);
         } finally {
             TemporaryDirectory::remove($root);

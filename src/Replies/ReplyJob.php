@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace ReBuji\Replies;
 
 use DateTimeImmutable;
-use InvalidArgumentException;
 use Override;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
@@ -15,6 +14,7 @@ use ReBuji\Mail\Imap\MailboxUnavailable;
 use ReBuji\Settings\Settings;
 use ReBuji\SystemState;
 use ReBuji\Time;
+use Throwable;
 
 /**
  * Design 6.1 step 5: reads the reply mailbox and records replies, between sending and resending so someone who just
@@ -71,19 +71,20 @@ final class ReplyJob implements CronJob
                     break;
                 }
 
+                // One mail that cannot be read or recorded must not stop the replies behind it, run after run: it is
+                // listed for the admins instead. A failure of the mailbox itself still stops the run.
                 try {
                     $mail = IncomingMail::parse($raw->raw);
-                } catch (InvalidArgumentException $exception) {
+
+                    // Recorded already: the run that read it stopped before marking it seen.
+                    if ($mail->messageId === null || !$this->replies->knows($mail->messageId)) {
+                        $this->recorder->record($mail);
+                    }
+                } catch (MailboxUnavailable $exception) {
+                    throw $exception;
+                } catch (Throwable $exception) {
                     $this->logger->warning('replies: unreadable mail ' . $raw->uid . ': ' . $exception->getMessage());
                     $this->replies->record(null, 'unreadable', null, '', '（読めないメール）', '', null, $now);
-                    $this->mailbox->markSeen($raw);
-
-                    continue;
-                }
-
-                // Recorded already: the run that read it stopped before marking it seen.
-                if ($mail->messageId === null || !$this->replies->knows($mail->messageId)) {
-                    $this->recorder->record($mail);
                 }
 
                 $this->mailbox->markSeen($raw);

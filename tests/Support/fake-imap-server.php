@@ -70,8 +70,16 @@ while (($client = @stream_socket_accept($server, 30)) !== false) {
 
             if (is_file($file)) {
                 $raw = (string) file_get_contents($file);
-                fwrite($client, '* 1 FETCH (UID ' . $match[1] . ' BODY[] {' . strlen($raw) . "}\r\n" . $raw . ")\r\n");
-                $log('S: * 1 FETCH (UID ' . $match[1] . ' BODY[] {' . strlen($raw) . '} …)');
+                $origin = '';
+
+                // A partial fetch: BODY.PEEK[]<start.length>
+                if (preg_match('/<(\d+)\.(\d+)>/', $rest, $part) === 1) {
+                    $raw = substr($raw, (int) $part[1], (int) $part[2]);
+                    $origin = '<' . $part[1] . '>';
+                }
+
+                fwrite($client, '* 1 FETCH (UID ' . $match[1] . ' BODY[]' . $origin . ' {' . strlen($raw) . "}\r\n" . $raw . ")\r\n");
+                $log('S: * 1 FETCH (UID ' . $match[1] . ' BODY[]' . $origin . ' {' . strlen($raw) . '} …)');
             }
 
             $say($tag . ' OK FETCH completed');

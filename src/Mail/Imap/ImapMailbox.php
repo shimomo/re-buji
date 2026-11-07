@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ReBuji\Mail\Imap;
 
 use DateTimeImmutable;
+use Generator;
 use Override;
 
 /**
@@ -26,23 +27,35 @@ final class ImapMailbox implements Mailbox
         $this->client?->close();
     }
 
+    /**
+     * Logs in and searches at once; fetches each mail only when it is reached, so one run holds one mail at a time.
+     */
     #[Override]
-    public function unseen(DateTimeImmutable $since, int $limit): array
+    public function unseen(DateTimeImmutable $since, int $limit): iterable
     {
         $client = $this->client();
-        $mails = [];
 
-        foreach (array_slice($client->unseenSince($since), 0, $limit) as $uid) {
-            $mails[] = new RawMail($uid, $client->fetch($uid));
-        }
-
-        return $mails;
+        return $this->fetching($client, array_slice($client->unseenSince($since), 0, $limit));
     }
 
     #[Override]
     public function markSeen(RawMail $mail): void
     {
         $this->client()->markSeen($mail->uid);
+    }
+
+    /**
+     * Not static: the generator keeps the mailbox, and so the connection, alive while it is iterated.
+     *
+     * @param list<int> $uids
+     *
+     * @return Generator<int, RawMail>
+     */
+    private function fetching(ImapClient $client, array $uids): Generator
+    {
+        foreach ($uids as $uid) {
+            yield new RawMail($uid, $client->fetch($uid));
+        }
     }
 
     private function client(): ImapClient

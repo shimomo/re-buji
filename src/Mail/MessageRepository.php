@@ -22,12 +22,25 @@ final class MessageRepository
         //
     }
 
-    public function record(?int $notificationId, string $kind, string $address, string $messageId, bool $sent, string $error, DateTimeImmutable $at): void
+    public function record(?int $notificationId, string $kind, string $address, string $messageId, bool $sent, string $error, DateTimeImmutable $at, ?string $subject = null): void
     {
         $this->db->execute(
-            'INSERT INTO messages (notification_id, kind, address, message_id, sent, error, attempted_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$notificationId, $kind, $address, $messageId, $sent ? 1 : 0, $error, Time::format($at)],
+            'INSERT INTO messages (notification_id, kind, address, message_id, sent, error, attempted_at, subject) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$notificationId, $kind, $address, $messageId, $sent ? 1 : 0, $error, Time::format($at), $subject === null ? null : mb_substr($subject, 0, 255)],
         );
+    }
+
+    /**
+     * The subjects of the mails that went out for this contact (none for mail sent before subjects were kept).
+     *
+     * @return list<string>
+     */
+    public function sentSubjects(int $notificationId): array
+    {
+        return array_values(array_unique(array_map(
+            static fn(array $row): string => (string) $row['subject'],
+            $this->db->fetchAll('SELECT subject FROM messages WHERE notification_id = ? AND sent = 1 AND subject IS NOT NULL ORDER BY id', [$notificationId]),
+        )));
     }
 
     /**

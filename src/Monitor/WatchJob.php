@@ -18,6 +18,7 @@ use ReBuji\Mail\NotificationMail;
 use ReBuji\Mail\RateLimit;
 use ReBuji\Mail\RecipientRefused;
 use ReBuji\Quakes\NotificationRepository;
+use ReBuji\Replies\ReplyReading;
 use ReBuji\SystemState;
 use ReBuji\Time;
 
@@ -34,7 +35,7 @@ final class WatchJob implements CronJob
      */
     public const int RETRY_MINUTES = 60;
 
-    private const array KEYS = ['feed_gap', 'feed_failed', 'mail', 'imap', 'waiting'];
+    private const array KEYS = ['feed_gap', 'feed_failed', 'mail', 'imap', 'imap_stale', 'waiting'];
 
     public function __construct(
         private readonly SystemState $state,
@@ -46,6 +47,7 @@ final class WatchJob implements CronJob
         private readonly MessageRepository $messages,
         private readonly ClockInterface $clock,
         private readonly LoggerInterface $logger,
+        private readonly ReplyReading $reading,
     ) {
         //
     }
@@ -134,6 +136,12 @@ final class WatchJob implements CronJob
 
         if ($imap !== '') {
             $problems['imap'] = '返信を読めていません：' . $imap;
+        }
+
+        $stale = $this->reading->staleWarning($now);
+
+        if ($stale !== null) {
+            $problems['imap_stale'] = $stale;
         }
 
         if ($this->notifications->countWaiting($now) > 0 && $this->limit->nextSlotAt($now) !== null) {

@@ -14,13 +14,14 @@ use DateTimeImmutable;
 interface Mailbox
 {
     /**
-     * Unseen mail received since the given day, oldest first, at most $limit of it.
+     * Unseen mail received since the given day, oldest first, at most $limit of it. Each mail may be fetched only when
+     * it is reached, so iterating may throw too.
      *
-     * @return list<RawMail>
+     * @return iterable<RawMail>
      *
      * @throws MailboxUnavailable
      */
-    public function unseen(DateTimeImmutable $since, int $limit): array;
+    public function unseen(DateTimeImmutable $since, int $limit): iterable;
 
     /**
      * Marks the mail as read so it is not counted twice. Mail is never deleted (design 5.2).

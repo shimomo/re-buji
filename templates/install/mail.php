@@ -33,6 +33,7 @@ $thresholds = ['4' => '震度4', '5-' => '震度5弱', '5+' => '震度5強', '6-
     </fieldset>
     <fieldset>
         <legend>受信（IMAP）</legend>
+        <?= $this->insert('mail/dedicated') ?>
         <label>IMAP のサーバー名 <input name="imap_host" value="<?= $this->e($value('imap_host')) ?>" required></label>
         <div class="row">
             <label>ポート番号 <input name="imap_port" inputmode="numeric" value="<?= $this->e($value('imap_port')) ?>"></label>
