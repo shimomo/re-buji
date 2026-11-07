@@ -26,6 +26,13 @@ final class TimeTest extends TestCase
     }
 
     #[Test]
+    public function readsNullableColumns(): void
+    {
+        $this->assertNull(Time::parseNullable(null));
+        $this->assertEquals(new DateTimeImmutable('2026-11-05T03:12:00Z'), Time::parseNullable('2026-11-05T03:12:00Z'));
+    }
+
+    #[Test]
     public function rejectsOtherShapes(): void
     {
         $this->expectException(InvalidArgumentException::class);

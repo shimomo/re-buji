@@ -20,7 +20,7 @@ use ReBuji\Time;
 final class HealthTest extends TestCase
 {
     #[Test]
-    public function isStaleWithoutARunOrAfterFifteenMinutes(): void
+    public function isStaleWithoutAFeedCheckOrAfterFifteenMinutes(): void
     {
         $db = Database::sqliteInMemory();
         $clock = new FrozenClock();
@@ -28,11 +28,11 @@ final class HealthTest extends TestCase
         $state = new SystemState($db, $clock);
         $health = new Health($state, $clock);
 
-        $this->assertNull($health->lastRunAt());
+        $this->assertNull($health->lastCheckedAt());
         $this->assertTrue($health->isStale());
 
         foreach (['-14 minutes' => false, '-15 minutes' => true, '-16 minutes' => true] as $ago => $stale) {
-            $state->set('cron.last_finished_at', Time::format($clock->now()->modify($ago)));
+            $state->set('feed.last_checked_at', Time::format($clock->now()->modify($ago)));
             $this->assertSame($stale, $health->isStale(), $ago);
         }
     }

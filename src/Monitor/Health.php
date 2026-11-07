@@ -26,9 +26,9 @@ final class Health
         //
     }
 
-    public function lastRunAt(): ?DateTimeImmutable
+    public function lastCheckedAt(): ?DateTimeImmutable
     {
-        $value = $this->state->get('cron.last_finished_at');
+        $value = $this->state->get('feed.last_checked_at');
 
         if ($value === null) {
             return null;
@@ -43,9 +43,9 @@ final class Health
 
     public function isStale(): bool
     {
-        $lastRun = $this->lastRunAt();
+        $lastCheck = $this->lastCheckedAt();
 
-        return $lastRun === null || $this->clock->now()->getTimestamp() - $lastRun->getTimestamp() >= self::STALE_AFTER_MINUTES * 60;
+        return $lastCheck === null || $this->clock->now()->getTimestamp() - $lastCheck->getTimestamp() >= self::STALE_AFTER_MINUTES * 60;
     }
 
     public function lastError(): ?string

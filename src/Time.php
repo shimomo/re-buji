@@ -33,4 +33,12 @@ final class Time
 
         return $parsed;
     }
+
+    /**
+     * Reads a nullable date-time column.
+     */
+    public static function parseNullable(mixed $value): ?DateTimeImmutable
+    {
+        return $value === null ? null : self::parse((string) $value);
+    }
 }

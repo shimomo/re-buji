@@ -2,3 +2,6 @@
 *.png binary
 *.zip binary
 *.sqlite binary
+
+# JMA sample telegrams are kept byte for byte as distributed (some use CRLF).
+tests/Fixtures/jma/** -text

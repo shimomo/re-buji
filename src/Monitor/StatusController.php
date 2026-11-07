@@ -38,14 +38,14 @@ final class StatusController
             throw new HttpNotFoundException($request);
         }
 
-        $lastRun = $this->health->lastRunAt();
+        $lastCheck = $this->health->lastCheckedAt();
         $stale = $this->health->isStale();
         $response = $this->responses->createResponse($stale ? 503 : 200)
             ->withHeader('Content-Type', 'application/json; charset=utf-8')
             ->withHeader('Cache-Control', 'no-store');
         $response->getBody()->write((string) json_encode([
             'status' => $stale ? 'stale' : 'ok',
-            'last_run' => $lastRun === null ? null : Time::format($lastRun),
+            'last_checked' => $lastCheck === null ? null : Time::format($lastCheck),
         ]));
 
         return $response;

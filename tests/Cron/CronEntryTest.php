@@ -31,10 +31,12 @@ final class CronEntryTest extends TestCase
         $root = $this->copy(true);
 
         try {
-            [$exitCode] = $this->runCron($root, []);
+            // Nothing listens on port 9 (discard), so the feed job fails fast instead of reaching the real JMA site.
+            [$exitCode] = $this->runCron($root, ['https_proxy' => 'http://127.0.0.1:9', 'HTTPS_PROXY' => 'http://127.0.0.1:9', 'no_proxy' => '', 'NO_PROXY' => '']);
 
             $this->assertSame(0, $exitCode);
             $this->assertNotNull($this->state($root)->get('cron.last_finished_at'));
+            $this->assertStringStartsWith('feed: ', (string) $this->state($root)->get('cron.last_error'));
         } finally {
             TemporaryDirectory::remove($root);
         }
