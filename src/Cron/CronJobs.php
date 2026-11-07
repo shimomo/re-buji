@@ -6,6 +6,7 @@ namespace ReBuji\Cron;
 
 use Psr\Container\ContainerInterface;
 use ReBuji\Feed\FeedJob;
+use ReBuji\Quakes\DispatchJob;
 
 /**
  * The jobs of a cron run, in order. Later plans add them in the order of design 6.1: poll the feed, build events,
@@ -23,7 +24,7 @@ final class CronJobs
         $jobs = [];
 
         // Design 6.1's order. Later plans insert their jobs between these.
-        foreach ([FeedJob::class] as $class) {
+        foreach ([FeedJob::class, DispatchJob::class] as $class) {
             $job = $container->get($class);
             assert($job instanceof CronJob);
             $jobs[] = $job;
