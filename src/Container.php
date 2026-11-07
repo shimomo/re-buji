@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace ReBuji;
 
 use DI\ContainerBuilder;
+use JmaXml\Feed\FeedClient;
+use JmaXml\Feed\StateStore;
 use League\Plates\Engine;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Clock\ClockInterface;
@@ -17,6 +19,7 @@ use ReBuji\Config\ConfigFile;
 use ReBuji\Database\Database;
 use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
+use ReBuji\Feed\DatabaseStateStore;
 use ReBuji\Http\CsrfMiddlewareFactory;
 use ReBuji\Http\ErrorHandler;
 use ReBuji\Http\Flash;
@@ -68,6 +71,20 @@ final class Container
 
                 /** @var list<\ReBuji\Database\Migration> $migrations */
                 return new Migrator($db, $migrations, self::clock($c));
+            },
+            StateStore::class => static function (ContainerInterface $c): StateStore {
+                $store = $c->get(DatabaseStateStore::class);
+                assert($store instanceof DatabaseStateStore);
+
+                return $store;
+            },
+            FeedClient::class => static function (ContainerInterface $c): FeedClient {
+                $http = $c->get(ClientInterface::class);
+                $requests = $c->get(RequestFactoryInterface::class);
+                $store = $c->get(StateStore::class);
+                assert($http instanceof ClientInterface && $requests instanceof RequestFactoryInterface && $store instanceof StateStore);
+
+                return new FeedClient($http, $requests, $store, self::clock($c), 'Re-Buji/' . Version::CURRENT . ' (+https://github.com/shimomo/re-buji)');
             },
             SystemState::class => static function (ContainerInterface $c): SystemState {
                 $db = $c->get(Database::class);

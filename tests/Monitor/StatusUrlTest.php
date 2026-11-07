@@ -28,13 +28,13 @@ final class StatusUrlTest extends TestCase
         [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
 
         try {
-            $this->lastRun($container, $clock, '-2 minutes');
+            $this->lastChecked($container, $clock, '-2 minutes');
             $response = $app->handle(TestApp::request('GET', '/status/' . self::TOKEN));
 
             $this->assertSame(200, $response->getStatusCode());
             $this->assertStringStartsWith('application/json', $response->getHeaderLine('Content-Type'));
             $this->assertStringContainsString('no-store', $response->getHeaderLine('Cache-Control'));
-            $this->assertSame(['status' => 'ok', 'last_run' => '2026-11-05T03:10:00Z'], json_decode((string) $response->getBody(), true));
+            $this->assertSame(['status' => 'ok', 'last_checked' => '2026-11-05T03:10:00Z'], json_decode((string) $response->getBody(), true));
         } finally {
             TemporaryDirectory::remove($root);
         }
@@ -49,12 +49,12 @@ final class StatusUrlTest extends TestCase
         try {
             $never = $app->handle(TestApp::request('GET', '/status/' . self::TOKEN));
             $this->assertSame(503, $never->getStatusCode());
-            $this->assertSame(['status' => 'stale', 'last_run' => null], json_decode((string) $never->getBody(), true));
+            $this->assertSame(['status' => 'stale', 'last_checked' => null], json_decode((string) $never->getBody(), true));
 
-            $this->lastRun($container, $clock, '-20 minutes');
+            $this->lastChecked($container, $clock, '-20 minutes');
             $stale = $app->handle(TestApp::request('GET', '/status/' . self::TOKEN));
             $this->assertSame(503, $stale->getStatusCode());
-            $this->assertSame(['status' => 'stale', 'last_run' => '2026-11-05T02:52:00Z'], json_decode((string) $stale->getBody(), true));
+            $this->assertSame(['status' => 'stale', 'last_checked' => '2026-11-05T02:52:00Z'], json_decode((string) $stale->getBody(), true));
         } finally {
             TemporaryDirectory::remove($root);
         }
@@ -83,7 +83,7 @@ final class StatusUrlTest extends TestCase
         [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
 
         try {
-            $this->lastRun($container, $clock, '-1 minute');
+            $this->lastChecked($container, $clock, '-1 minute');
             $body = (string) $app->handle(TestApp::request('GET', '/status/' . self::TOKEN))->getBody();
 
             $this->assertStringNotContainsString(TestApp::ADMIN_EMAIL, $body);
@@ -93,10 +93,10 @@ final class StatusUrlTest extends TestCase
         }
     }
 
-    private function lastRun(ContainerInterface $container, FrozenClock $clock, string $ago): void
+    private function lastChecked(ContainerInterface $container, FrozenClock $clock, string $ago): void
     {
         $state = $container->get(SystemState::class);
         $this->assertInstanceOf(SystemState::class, $state);
-        $state->set('cron.last_finished_at', Time::format($clock->now()->modify($ago)));
+        $state->set('feed.last_checked_at', Time::format($clock->now()->modify($ago)));
     }
 }

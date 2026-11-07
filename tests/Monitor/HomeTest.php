@@ -20,7 +20,7 @@ use ReBuji\Time;
 final class HomeTest extends TestCase
 {
     #[Test]
-    public function warnsWhenCronHasNotRunForFifteenMinutes(): void
+    public function warnsWhenTheFeedHasNotBeenCheckedForFifteenMinutes(): void
     {
         $clock = new FrozenClock();
         [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
@@ -28,21 +28,23 @@ final class HomeTest extends TestCase
         try {
             TestApp::logIn($app, $container);
             $never = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
-            $this->assertStringContainsString('cron が一度も動いていません', $never);
+            $this->assertStringContainsString('まだ一度も気象庁の情報を確かめていません', $never);
 
             $state = $container->get(SystemState::class);
             $this->assertInstanceOf(SystemState::class, $state);
-            $state->set('cron.last_finished_at', Time::format($clock->now()->modify('-20 minutes')));
+            $state->set('feed.last_checked_at', Time::format($clock->now()->modify('-20 minutes')));
             $state->set('cron.last_error', 'feed: down');
             $body = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
 
-            $this->assertStringContainsString('15 分以上 cron が動いていません', $body);
+            $this->assertStringContainsString('15 分以上、気象庁の情報を確かめていません（最後は 2026-11-05 11:52）', $body);
             $this->assertStringContainsString('2026-11-05 11:52', $body);
             $this->assertStringContainsString('feed: down', $body);
             $this->assertStringContainsString('https://example.com/status/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', $body);
 
-            $state->set('cron.last_finished_at', Time::format($clock->now()->modify('-1 minute')));
-            $this->assertStringNotContainsString('cron が動いていません', (string) $app->handle(TestApp::request('GET', '/'))->getBody());
+            $state->set('feed.last_checked_at', Time::format($clock->now()->modify('-1 minute')));
+            $fresh = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+            $this->assertStringNotContainsString('15 分以上', $fresh);
+            $this->assertStringContainsString('最後に気象庁の情報を確かめたのは 2026-11-05 12:11 です。', $fresh);
         } finally {
             TemporaryDirectory::remove($root);
         }

@@ -34,7 +34,7 @@ final class HomeController
 
     public function show(ServerRequestInterface $request): ResponseInterface
     {
-        $lastRun = $this->health->lastRunAt();
+        $lastCheck = $this->health->lastCheckedAt();
         $uri = $request->getUri();
         $port = $uri->getPort();
         $token = (string) $this->configFile->load()->get('status.token', '');
@@ -43,7 +43,7 @@ final class HomeController
         $response->getBody()->write($this->templates->render('home', [
             'title' => 'ホーム',
             'admin' => $request->getAttribute('admin'),
-            'lastRun' => $lastRun?->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('Y-m-d H:i'),
+            'lastCheck' => $lastCheck?->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('Y-m-d H:i'),
             'stale' => $this->health->isStale(),
             'lastError' => $this->health->lastError(),
             'employeeCounts' => $this->employees->counts(),

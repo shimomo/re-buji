@@ -63,6 +63,11 @@ final class EnvironmentStep implements InstallStep
             $problems[] = 'PHP の pdo_sqlite か pdo_mysql の拡張が必要です。';
         }
 
+        // symfony/http-client needs curl, or PHP's own streams with allow_url_fopen, to fetch the JMA feed.
+        if (!extension_loaded('curl') && !filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOL)) {
+            $problems[] = '気象庁の情報を取りに行けません。PHP の curl 拡張か、allow_url_fopen を有効にしてください。';
+        }
+
         $storage = $context->paths->storage();
 
         if (!is_dir($storage) || !is_writable($storage)) {
