@@ -11,6 +11,7 @@ use Psr\Log\NullLogger;
 use ReBuji\Database\Database;
 use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
+use ReBuji\Employees\Cities;
 use ReBuji\Employees\EmployeeCity;
 use ReBuji\Employees\EmployeeInput;
 use ReBuji\Employees\EmployeeRepository;
@@ -19,9 +20,11 @@ use ReBuji\Mail\MessageRepository;
 use ReBuji\Mail\NotificationMail;
 use ReBuji\Mail\NotificationSender;
 use ReBuji\Mail\RateLimit;
+use ReBuji\Quakes\Board\QuakeBoard;
 use ReBuji\Quakes\DispatchJob;
 use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\EarthquakeRepository;
+use ReBuji\Quakes\MatchedCity;
 use ReBuji\Quakes\Notification;
 use ReBuji\Quakes\NotificationRepository;
 use ReBuji\Quakes\QuakeSnapshot;
@@ -123,7 +126,12 @@ final class QuakeWorld
         );
         $employee = $this->employees->find($employeeId) ?? throw new LogicException('No employee ' . $employeeId);
 
-        return $this->notifications->create($quake ?? $this->quake, $employee, [], $priority, $state, $notBefore ?? $this->clock->now());
+        $cities = array_map(
+            static fn(EmployeeCity $city): MatchedCity => new MatchedCity($city->code, $city->label, Cities::find($city->code)?->label() ?? $city->code, '5-', false, MatchedCity::BASIS_CITY),
+            $employee->cities,
+        );
+
+        return $this->notifications->create($quake ?? $this->quake, $employee, $cities, $priority, $state, $notBefore ?? $this->clock->now());
     }
 
     /**
@@ -146,6 +154,11 @@ final class QuakeWorld
         }
 
         throw new LogicException('Nothing was sent to ' . $address);
+    }
+
+    public function board(): QuakeBoard
+    {
+        return new QuakeBoard($this->notifications, $this->earthquakes, $this->replies, new RateLimit($this->messages, $this->settings), $this->clock);
     }
 
     public function matcher(): ReplyMatcher
