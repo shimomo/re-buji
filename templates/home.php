@@ -9,6 +9,7 @@
 /** @var array{all: int, active: int} $employeeCounts */
 /** @var list<array{employee_id: int, name: string, code: string}> $unknownCities */
 /** @var int $heldQuakes */
+/** @var int $unmatchedMails */
 /** @var bool $smtpMissing */
 /** @var string $mailError */
 /** @var int $waiting */
@@ -20,6 +21,9 @@ $this->layout('layout', ['title' => $title]);
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
 <?php if ($heldQuakes > 0): ?>
 <p class="error">遅れて届いた地震が <?= $heldQuakes ?> 件あります。送るかどうかを決めてください。<a href="<?= $this->e($this->url('/earthquakes')) ?>">地震の一覧</a></p>
+<?php endif ?>
+<?php if ($unmatchedMails > 0): ?>
+<p class="warning">照合できなかったメールが <?= $unmatchedMails ?> 通あります。<a href="<?= $this->e($this->url('/mail/unmatched')) ?>">一覧</a></p>
 <?php endif ?>
 <?php if ($smtpMissing): ?>
 <p class="error">メールの送信の設定がありません。「設定」で SMTP を登録してください。<a href="<?= $this->e($this->url('/settings')) ?>">設定</a></p>

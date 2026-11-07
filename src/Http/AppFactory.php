@@ -21,6 +21,7 @@ use ReBuji\Monitor\StatusTokenController;
 use ReBuji\Quakes\ContactsController;
 use ReBuji\Quakes\DrillsController;
 use ReBuji\Quakes\EarthquakesController;
+use ReBuji\Replies\UnmatchedController;
 use ReBuji\Settings\SettingsController;
 use Slim\App;
 use Slim\Factory\AppFactory as SlimAppFactory;
@@ -92,6 +93,10 @@ final class AppFactory
             $group->post('/earthquakes/{id:[0-9]+}/release', [EarthquakesController::class, 'release']);
             $group->post('/earthquakes/{id:[0-9]+}/dismiss', [EarthquakesController::class, 'dismiss']);
             $group->post('/contacts/{id:[0-9]+}/check', [ContactsController::class, 'check']);
+            $group->get('/contacts/{id:[0-9]+}/proxy', [ContactsController::class, 'proxyForm']);
+            $group->post('/contacts/{id:[0-9]+}/proxy', [ContactsController::class, 'proxy']);
+            $group->get('/mail/unmatched', [UnmatchedController::class, 'index']);
+            $group->post('/mail/unmatched/{id:[0-9]+}/delete', [UnmatchedController::class, 'delete']);
             $group->get('/drills/new', [DrillsController::class, 'create']);
             $group->post('/drills', [DrillsController::class, 'store']);
             $group->post('/feed/acknowledge', [FeedNoticeController::class, 'acknowledge']);

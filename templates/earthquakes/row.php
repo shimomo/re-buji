@@ -18,3 +18,4 @@
 <?php if ($check): ?>
 <form method="post" action="<?= $this->e($this->url('/contacts/' . $row->contactId . '/check')) ?>"><?= $this->csrf() ?><button type="submit">確認済みにする</button></form>
 <?php endif ?>
+<p class="muted"><a href="<?= $this->e($this->url('/contacts/' . $row->contactId . '/proxy')) ?>">代理で記録</a></p>
