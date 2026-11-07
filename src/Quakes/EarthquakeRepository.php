@@ -86,6 +86,11 @@ final class EarthquakeRepository
         );
     }
 
+    public function markCancelled(int $id, DateTimeImmutable $at): void
+    {
+        $this->db->execute('UPDATE earthquakes SET cancelled_at = ?, updated_at = ? WHERE id = ?', [Time::format($at), Time::format($this->clock->now()), $id]);
+    }
+
     /**
      * @param array<string, mixed> $row
      */

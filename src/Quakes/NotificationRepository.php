@@ -99,6 +99,44 @@ final class NotificationRepository
     }
 
     /**
+     * Contacts of other quakes the person has not answered yet, to fold a related quake into (design 4).
+     *
+     * @return list<Notification>
+     */
+    public function unansweredQuakeContactsOf(int $employeeId, int $exceptEarthquakeId): array
+    {
+        $rows = $this->db->fetchAll(
+            'SELECT ' . self::prefixed('n') . ' FROM notifications n JOIN earthquakes e ON e.id = n.earthquake_id'
+            . ' WHERE n.employee_id = ? AND n.earthquake_id <> ? AND e.kind = ? AND e.cancelled_at IS NULL AND n.replied_at IS NULL AND n.state IN (?, ?, ?) ORDER BY n.id',
+            [$employeeId, $exceptEarthquakeId, Earthquake::KIND_QUAKE, Notification::PENDING, Notification::HELD, Notification::SENT],
+        );
+
+        return array_map(self::hydrate(...), $rows);
+    }
+
+    /**
+     * The quake was cancelled (design 4): nothing more goes out for it, people already reached get a short notice, and
+     * people folded into it get their own contact for the quake they were folded from.
+     */
+    public function cancelFor(int $earthquakeId): void
+    {
+        $now = Time::format($this->clock->now());
+        $this->db->execute(
+            'UPDATE notifications SET cancel_notice = ?, updated_at = ? WHERE earthquake_id = ? AND sent_count > 0 AND state IN (?, ?)'
+            . ' AND EXISTS (SELECT 1 FROM messages m WHERE m.notification_id = notifications.id AND m.sent = 1)',
+            ['pending', $now, $earthquakeId, Notification::SENT, Notification::FAILED],
+        );
+        $this->db->execute(
+            'UPDATE notifications SET state = ?, next_send_at = NULL, updated_at = ? WHERE earthquake_id = ? AND state IN (?, ?, ?, ?)',
+            [Notification::CANCELLED, $now, $earthquakeId, Notification::PENDING, Notification::HELD, Notification::SENT, Notification::FAILED],
+        );
+        $this->db->execute(
+            'UPDATE notifications SET state = ?, merged_into_id = NULL, not_before = ?, updated_at = ? WHERE state = ? AND merged_into_id IN (SELECT id FROM (SELECT id FROM notifications WHERE earthquake_id = ?) AS cancelled)',
+            [Notification::PENDING, $now, $now, Notification::MERGED, $earthquakeId],
+        );
+    }
+
+    /**
      * The number in the subject that replies are matched by (design 5.1): 8 hex digits, the same for every resend.
      */
     private function newToken(): string
@@ -108,6 +146,11 @@ final class NotificationRepository
         } while ($this->db->fetchValue('SELECT 1 FROM notifications WHERE token = ?', [$token]) !== null);
 
         return $token;
+    }
+
+    private static function prefixed(string $alias): string
+    {
+        return implode(', ', array_map(static fn(string $column): string => $alias . '.' . $column, explode(', ', self::COLUMNS)));
     }
 
     /**

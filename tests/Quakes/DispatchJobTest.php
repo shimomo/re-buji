@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\MatchedCity;
 use ReBuji\Quakes\Notification;
+use ReBuji\Tests\Support\JmaSamples;
 use ReBuji\Tests\Support\QuakeWorld;
 
 /**
@@ -27,6 +28,21 @@ final class DispatchJobTest extends TestCase
     private const string LATER_SHINDO = '32-35_07_05_100915_VXSE51.xml';
 
     private const string CITIES = '32-35_07_06_240613_VXSE53.xml';
+
+    private const string CANCELLED_EVENT = '20080614084350';
+
+    /**
+     * Both kinds of report of the 2008-06-14 earthquake, cancelled.
+     */
+    private const array CANCELLATIONS = ['32-35_06_02_100915_VXSE52.xml', '32-35_06_04_240613_VXSE53.xml', '32-35_06_05_240613_VXSE53.xml', '32-35_06_06_100915_VXSE53.xml'];
+
+    private const string EVENT_A = '20100705065511';
+
+    private const array QUAKE_A = ['32-35_08_01_100915_VXSE51.xml', '32-35_08_03_100915_VXSE51.xml', '32-35_08_05_100915_VXSE51.xml'];
+
+    private const string EVENT_B = '20100705065610';
+
+    private const string QUAKE_B = '32-35_08_02_100915_VXSE51.xml';
 
     #[Test]
     public function contactsPeopleWhoseMunicipalityReachedTheThreshold(): void
@@ -195,8 +211,153 @@ final class DispatchJobTest extends TestCase
         $this->assertSame([], $world->telegrams->unprocessedEventIds());
     }
 
+    #[Test]
+    public function cancelsContactsNotSentYet(): void
+    {
+        $world = self::cancelledWorld();
+        $oshu = $world->person('奥州 一子', '0321500', '自宅');
+        $world->receive('32-35_06_01_240613_VXSE52.xml', '32-35_06_03_240613_VXSE53.xml');
+        $quake = $world->quake(self::CANCELLED_EVENT);
+        $this->assertSame(Notification::PENDING, $world->notifications->findFor($quake->id, $oshu)?->state);
+
+        $world->receive(...self::CANCELLATIONS);
+
+        $contact = $world->notifications->findFor($quake->id, $oshu);
+        $this->assertNotNull($contact);
+        $this->assertSame(Notification::CANCELLED, $contact->state);
+        $this->assertNull($contact->cancelNotice);
+        $this->assertEquals($world->clock->now(), $world->quake(self::CANCELLED_EVENT)->cancelledAt);
+    }
+
+    #[Test]
+    public function queuesACancelNoticeForPeopleAlreadyContacted(): void
+    {
+        $world = self::cancelledWorld();
+        $oshu = $world->person('奥州 一子', '0321500', '自宅');
+        $world->receive('32-35_06_01_240613_VXSE52.xml', '32-35_06_03_240613_VXSE53.xml');
+        $quake = $world->quake(self::CANCELLED_EVENT);
+        $contact = $world->notifications->findFor($quake->id, $oshu);
+        $this->assertNotNull($contact);
+        $world->notifications->markSent($contact->id, $world->clock->now(), null);
+        $world->db->execute(
+            "INSERT INTO messages (notification_id, kind, address, message_id, sent, error, attempted_at) VALUES (?, 'first', 'person1@example.com', 'a@example.co.jp', 1, '', ?)",
+            [$contact->id, '2008-06-13T23:48:00Z'],
+        );
+
+        $world->receive(...self::CANCELLATIONS);
+
+        $cancelled = $world->notifications->find($contact->id);
+        $this->assertNotNull($cancelled);
+        $this->assertSame(Notification::CANCELLED, $cancelled->state);
+        $this->assertSame('pending', $cancelled->cancelNotice);
+    }
+
+    #[Test]
+    public function staysCancelledWhateverArrivesLater(): void
+    {
+        $world = self::cancelledWorld();
+        $oshu = $world->person('奥州 一子', '0321500', '自宅');
+        $world->receive('32-35_06_01_240613_VXSE52.xml', '32-35_06_03_240613_VXSE53.xml');
+        $world->receive(...self::CANCELLATIONS);
+        $kitakami = $world->person('北上 二郎', '0320600', '自宅');
+
+        // A 震源・震度に関する情報 issued again after the cancellation.
+        $world->telegrams->store(
+            'https://www.data.jma.go.jp/developer/xml/data/20080614001000_0_VXSE53_010000.xml',
+            JmaSamples::edited('32-35_06_05_240613_VXSE53.xml', ['<ReportDateTime>2008-06-14T09:01:00+09:00</ReportDateTime>' => '<ReportDateTime>2008-06-14T09:10:00+09:00</ReportDateTime>']),
+            $world->clock->now(),
+        );
+        $world->dispatch->run($world->clock->now());
+
+        $quake = $world->quake(self::CANCELLED_EVENT);
+        $this->assertTrue($quake->isCancelled());
+        $this->assertSame(Notification::CANCELLED, $world->notifications->findFor($quake->id, $oshu)?->state);
+        $this->assertNull($world->notifications->findFor($quake->id, $kitakami));
+    }
+
+    #[Test]
+    public function foldsARelatedQuakeIntoTheContactNotAnsweredYet(): void
+    {
+        $world = self::relatedWorld();
+        $person = $world->person('陸前 高田', '0321000', '自宅');
+        $world->receive(...self::QUAKE_A);
+
+        $world->receive(self::QUAKE_B);
+
+        $first = $world->notifications->findFor($world->quake(self::EVENT_A)->id, $person);
+        $second = $world->notifications->findFor($world->quake(self::EVENT_B)->id, $person);
+        $this->assertNotNull($first);
+        $this->assertNotNull($second);
+        $this->assertSame(Notification::PENDING, $first->state);
+        $this->assertSame(Notification::MERGED, $second->state);
+        $this->assertSame($first->id, $second->mergedIntoId);
+    }
+
+    #[Test]
+    public function contactsAgainForARelatedQuakeAfterAReply(): void
+    {
+        $world = self::relatedWorld();
+        $person = $world->person('陸前 高田', '0321000', '自宅');
+        $world->receive(...self::QUAKE_A);
+        $world->db->execute('UPDATE notifications SET replied_at = ?', ['2010-07-04T21:59:00Z']);
+
+        $world->receive(self::QUAKE_B);
+
+        $second = $world->notifications->findFor($world->quake(self::EVENT_B)->id, $person);
+        $this->assertNotNull($second);
+        $this->assertSame(Notification::PENDING, $second->state);
+        $this->assertNull($second->mergedIntoId);
+    }
+
+    #[Test]
+    public function contactsPeopleFoldedIntoAQuakeThatWasCancelled(): void
+    {
+        $world = self::relatedWorld();
+        $person = $world->person('陸前 高田', '0321000', '自宅');
+        $world->receive(...self::QUAKE_A);
+        $world->receive(self::QUAKE_B);
+        $world->clock->advance('+3 minutes');
+        $world->telegrams->store(
+            'https://www.data.jma.go.jp/developer/xml/data/20100704220000_0_VXSE51_010000.xml',
+            JmaSamples::edited('32-35_08_05_100915_VXSE51.xml', [
+                '<InfoType>発表</InfoType>' => '<InfoType>取消</InfoType>',
+                '<ReportDateTime>2010-07-05T06:59:00+09:00</ReportDateTime>' => '<ReportDateTime>2010-07-05T07:00:00+09:00</ReportDateTime>',
+            ]),
+            $world->clock->now(),
+        );
+
+        $world->dispatch->run($world->clock->now());
+
+        $first = $world->notifications->findFor($world->quake(self::EVENT_A)->id, $person);
+        $second = $world->notifications->findFor($world->quake(self::EVENT_B)->id, $person);
+        $this->assertSame(Notification::CANCELLED, $first?->state);
+        $this->assertNotNull($second);
+        $this->assertSame(Notification::PENDING, $second->state);
+        $this->assertNull($second->mergedIntoId);
+        $this->assertEquals($world->clock->now(), $second->notBefore);
+    }
+
     private static function world(): QuakeWorld
     {
         return new QuakeWorld('2009-08-10T20:12:00Z');
+    }
+
+    /**
+     * Five minutes after the 2008-06-14 earthquake (detected 2008-06-13T23:43:00Z) that JMA later cancelled.
+     */
+    private static function cancelledWorld(): QuakeWorld
+    {
+        return new QuakeWorld('2008-06-13T23:48:00Z');
+    }
+
+    /**
+     * Two quakes a minute apart on 2010-07-05 (A detected 21:55Z, B 21:56Z), both shaking 岩手県沿岸南部 at 4.
+     */
+    private static function relatedWorld(): QuakeWorld
+    {
+        $world = new QuakeWorld('2010-07-04T22:00:00Z');
+        $world->settings->save(['threshold' => '4']);
+
+        return $world;
     }
 }

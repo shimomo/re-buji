@@ -30,6 +30,18 @@ use Throwable;
  */
 final class DispatchJob implements CronJob
 {
+    /**
+     * Seconds between detections within which another quake may be the same shaking (jmaxml/earthquake's default).
+     */
+    public const int RELATED_WITHIN_SECONDS = 300;
+
+    /**
+     * Events rebuilt during this run, by EventID, to compare with related quakes.
+     *
+     * @var array<string, EarthquakeEvent>
+     */
+    private array $events = [];
+
     public function __construct(
         private readonly Database $db,
         private readonly TelegramRepository $telegrams,
@@ -52,6 +64,7 @@ final class DispatchJob implements CronJob
     public function run(DateTimeImmutable $now): void
     {
         $failure = null;
+        $this->events = [];
 
         foreach ($this->telegrams->unprocessedEventIds() as $eventId) {
             try {
@@ -74,10 +87,20 @@ final class DispatchJob implements CronJob
 
     private function judge(string $eventId, DateTimeImmutable $now): void
     {
-        $event = EarthquakeEvent::fromReports($this->telegrams->reportsOf($eventId));
+        $event = $this->event($eventId);
         $quake = $this->earthquakes->findByEventId($eventId);
 
-        if (($quake !== null && $quake->isCancelled()) || $event->isCancelled()) {
+        // Once cancelled, a quake stays cancelled even if JMA issued it again: people were told no reply was needed.
+        if ($quake !== null && $quake->isCancelled()) {
+            return;
+        }
+
+        if ($event->isCancelled()) {
+            if ($quake !== null) {
+                $this->earthquakes->markCancelled($quake->id, $now);
+                $this->notifications->cancelFor($quake->id);
+            }
+
             return;
         }
 
@@ -121,8 +144,41 @@ final class DispatchJob implements CronJob
             $notBefore = $quake->delivery === Earthquake::RELEASED
                 ? $now
                 : $quake->detectedAt->modify('+' . $this->settings->int('delay_minutes') . ' minutes');
-            $this->notifications->create($quake->id, $employee, $cities, $priority, $state, $notBefore);
+            $foldedInto = $state === Notification::PENDING ? $this->unansweredRelatedContact($employee, $quake, $event) : null;
+
+            if ($foldedInto !== null) {
+                $state = Notification::MERGED;
+            }
+
+            $this->notifications->create($quake->id, $employee, $cities, $priority, $state, $notBefore, $foldedInto);
         }
+    }
+
+    /**
+     * A person who has not answered a contact for a quake moments before, likely the same shaking, gets no second
+     * mail: this quake is folded into that contact (design 4). A main shock some time later is a quake of its own.
+     */
+    private function unansweredRelatedContact(Employee $employee, Earthquake $quake, EarthquakeEvent $event): ?int
+    {
+        foreach ($this->notifications->unansweredQuakeContactsOf($employee->id, $quake->id) as $other) {
+            $otherQuake = $this->earthquakes->find($other->earthquakeId);
+            $otherEventId = $otherQuake?->eventId;
+
+            if ($otherQuake === null || $otherEventId === null || abs($otherQuake->detectedAt->getTimestamp() - $quake->detectedAt->getTimestamp()) > self::RELATED_WITHIN_SECONDS) {
+                continue;
+            }
+
+            if ($event->isPossiblyRelatedTo($this->event($otherEventId), self::RELATED_WITHIN_SECONDS)) {
+                return $other->mergedIntoId ?? $other->id;
+            }
+        }
+
+        return null;
+    }
+
+    private function event(string $eventId): EarthquakeEvent
+    {
+        return $this->events[$eventId] ??= EarthquakeEvent::fromReports($this->telegrams->reportsOf($eventId));
     }
 
     /**
