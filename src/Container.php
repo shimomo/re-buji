@@ -28,6 +28,9 @@ use ReBuji\Http\NativeSession;
 use ReBuji\Http\Session;
 use ReBuji\Http\Url;
 use ReBuji\Log\FileLogger;
+use ReBuji\Mail\MailSender;
+use ReBuji\Mail\SmtpMailSender;
+use ReBuji\Settings\Settings;
 use Slim\Csrf\Guard;
 use Slim\Psr7\Factory\ResponseFactory;
 use Symfony\Component\HttpClient\HttpClient;
@@ -85,6 +88,12 @@ final class Container
                 assert($http instanceof ClientInterface && $requests instanceof RequestFactoryInterface && $store instanceof StateStore);
 
                 return new FeedClient($http, $requests, $store, self::clock($c), 'Re-Buji/' . Version::CURRENT . ' (+https://github.com/shimomo/re-buji)');
+            },
+            MailSender::class => static function (ContainerInterface $c): MailSender {
+                $settings = $c->get(Settings::class);
+                assert($settings instanceof Settings);
+
+                return new SmtpMailSender($settings->smtp());
             },
             SystemState::class => static function (ContainerInterface $c): SystemState {
                 $db = $c->get(Database::class);

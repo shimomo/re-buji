@@ -12,5 +12,9 @@
         <directory name="src"/>
         <directory name="migrations"/>
         <directory name="tests"/>
+        <ignoreFiles>
+            <!-- A standalone script run in its own process, like the ones in bin/. -->
+            <file name="tests/Support/fake-smtp-server.php"/>
+        </ignoreFiles>
     </projectFiles>
 </psalm>
