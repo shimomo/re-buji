@@ -15,6 +15,7 @@
         <ignoreFiles>
             <!-- A standalone script run in its own process, like the ones in bin/. -->
             <file name="tests/Support/fake-smtp-server.php"/>
+            <file name="tests/Support/fake-imap-server.php"/>
         </ignoreFiles>
     </projectFiles>
 </psalm>
