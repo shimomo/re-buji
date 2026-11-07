@@ -67,6 +67,29 @@ final readonly class MatchedCity
     }
 
     /**
+     * The municipalities of two judgements together; where both have the same one, the stronger stays.
+     *
+     * @param list<self> $kept
+     * @param list<self> $added
+     *
+     * @return list<self>
+     */
+    public static function merge(array $kept, array $added): array
+    {
+        $byCode = [];
+
+        foreach ([...$kept, ...$added] as $city) {
+            $known = $byCode[$city->code] ?? null;
+
+            if ($known === null || $city->rank() >= $known->rank()) {
+                $byCode[$city->code] = $city;
+            }
+        }
+
+        return array_values($byCode);
+    }
+
+    /**
      * The strength used to order sending: a municipality not received yet counts as 5弱, the least it may have been.
      */
     public function rank(): int

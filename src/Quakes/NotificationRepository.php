@@ -163,6 +163,27 @@ final class NotificationRepository
         );
     }
 
+    /**
+     * Tries a first contact again later (its address was refused for now), behind the others.
+     */
+    public function postpone(int $id, DateTimeImmutable $until): void
+    {
+        $this->db->execute('UPDATE notifications SET not_before = ?, updated_at = ? WHERE id = ?', [Time::format($until), Time::format($this->clock->now()), $id]);
+    }
+
+    /**
+     * Tries a resend again later.
+     */
+    public function postponeResend(int $id, DateTimeImmutable $until): void
+    {
+        $this->db->execute('UPDATE notifications SET next_send_at = ?, updated_at = ? WHERE id = ?', [Time::format($until), Time::format($this->clock->now()), $id]);
+    }
+
+    public function markCancelled(int $id): void
+    {
+        $this->setState($id, Notification::CANCELLED);
+    }
+
     public function markFailed(int $id): void
     {
         $this->setState($id, Notification::FAILED);
@@ -184,7 +205,8 @@ final class NotificationRepository
     }
 
     /**
-     * Contacts of other quakes the person has not answered yet, to fold a related quake into (design 4).
+     * Contacts of other quakes the person has not answered yet, to fold a related quake into (design 4). A contact held
+     * for an admin's decision is not one: if the admin chose not to send it, the folded quake would reach nobody.
      *
      * @return list<Notification>
      */
@@ -192,8 +214,8 @@ final class NotificationRepository
     {
         $rows = $this->db->fetchAll(
             'SELECT ' . self::prefixed('n') . ' FROM notifications n JOIN earthquakes e ON e.id = n.earthquake_id'
-            . ' WHERE n.employee_id = ? AND n.earthquake_id <> ? AND e.kind = ? AND e.cancelled_at IS NULL AND n.replied_at IS NULL AND n.state IN (?, ?, ?) ORDER BY n.id',
-            [$employeeId, $exceptEarthquakeId, Earthquake::KIND_QUAKE, Notification::PENDING, Notification::HELD, Notification::SENT],
+            . ' WHERE n.employee_id = ? AND n.earthquake_id <> ? AND e.kind = ? AND e.cancelled_at IS NULL AND n.replied_at IS NULL AND n.state IN (?, ?) ORDER BY n.id',
+            [$employeeId, $exceptEarthquakeId, Earthquake::KIND_QUAKE, Notification::PENDING, Notification::SENT],
         );
 
         return array_map(self::hydrate(...), $rows);
@@ -212,8 +234,8 @@ final class NotificationRepository
             ['pending', $now, $earthquakeId, Notification::SENT, Notification::FAILED],
         );
         $this->db->execute(
-            'UPDATE notifications SET state = ?, next_send_at = NULL, updated_at = ? WHERE earthquake_id = ? AND state IN (?, ?, ?, ?)',
-            [Notification::CANCELLED, $now, $earthquakeId, Notification::PENDING, Notification::HELD, Notification::SENT, Notification::FAILED],
+            'UPDATE notifications SET state = ?, next_send_at = NULL, updated_at = ? WHERE earthquake_id = ? AND state IN (?, ?, ?, ?, ?)',
+            [Notification::CANCELLED, $now, $earthquakeId, Notification::PENDING, Notification::HELD, Notification::SENT, Notification::FAILED, Notification::MERGED],
         );
         $this->db->execute(
             'UPDATE notifications SET state = ?, merged_into_id = NULL, not_before = ?, updated_at = ? WHERE state = ? AND merged_into_id IN (SELECT id FROM (SELECT id FROM notifications WHERE earthquake_id = ?) AS cancelled)',

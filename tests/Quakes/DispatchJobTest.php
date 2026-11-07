@@ -337,6 +337,85 @@ final class DispatchJobTest extends TestCase
         $this->assertEquals($world->clock->now(), $second->notBefore);
     }
 
+    #[Test]
+    public function doesNotFoldIntoAQuakeWaitingForADecision(): void
+    {
+        // A arrived just over an hour after it was detected and is held; B, a minute younger, is still on time.
+        $world = new QuakeWorld('2010-07-04T22:55:30Z');
+        $world->settings->save(['threshold' => '4', 'late_after_hours' => '1']);
+        $person = $world->person('陸前 高田', '0321000', '自宅');
+        $world->receive(...self::QUAKE_A);
+        $world->receive(self::QUAKE_B);
+        $this->assertSame(Earthquake::HELD, $world->quake(self::EVENT_A)->delivery);
+
+        $world->notifications->dismiss($world->quake(self::EVENT_A)->id);
+        $world->sender()->sendFirstContacts();
+
+        $second = $world->notifications->findFor($world->quake(self::EVENT_B)->id, $person);
+        $this->assertNotNull($second);
+        $this->assertNull($second->mergedIntoId);
+        $this->assertSame(Notification::SENT, $second->state);
+        $this->assertSame(['person1@example.com'], $world->mailer->recipients());
+    }
+
+    #[Test]
+    public function keepsAFoldedContactCancelledWithItsQuake(): void
+    {
+        $world = self::relatedWorld();
+        $person = $world->person('陸前 高田', '0321000', '自宅');
+        $world->receive(...self::QUAKE_A);
+        $world->receive(self::QUAKE_B);
+        $world->telegrams->store(
+            'https://www.data.jma.go.jp/developer/xml/data/20100704220100_0_VXSE51_010000.xml',
+            JmaSamples::edited(self::QUAKE_B, [
+                '<InfoType>発表</InfoType>' => '<InfoType>取消</InfoType>',
+                '<ReportDateTime>2010-07-05T06:57:00+09:00</ReportDateTime>' => '<ReportDateTime>2010-07-05T07:01:00+09:00</ReportDateTime>',
+            ]),
+            $world->clock->now(),
+        );
+        $world->dispatch->run($world->clock->now());
+        $world->telegrams->store(
+            'https://www.data.jma.go.jp/developer/xml/data/20100704220200_0_VXSE51_010000.xml',
+            JmaSamples::edited('32-35_08_05_100915_VXSE51.xml', [
+                '<InfoType>発表</InfoType>' => '<InfoType>取消</InfoType>',
+                '<ReportDateTime>2010-07-05T06:59:00+09:00</ReportDateTime>' => '<ReportDateTime>2010-07-05T07:02:00+09:00</ReportDateTime>',
+            ]),
+            $world->clock->now(),
+        );
+
+        $world->dispatch->run($world->clock->now());
+        $world->sender()->sendFirstContacts();
+
+        $this->assertSame(Notification::CANCELLED, $world->notifications->findFor($world->quake(self::EVENT_B)->id, $person)?->state);
+        $this->assertSame([], $world->mailer->sent);
+    }
+
+    #[Test]
+    public function foldsTheStrongerShakingIntoTheContact(): void
+    {
+        // A contact still waiting for the delay takes the main shock's intensity and its place in the queue.
+        $world = self::relatedWorld();
+        $world->settings->save(['delay_minutes' => '10']);
+        $person = $world->person('陸前 高田', '0321000', '自宅');
+        $world->receive(...self::QUAKE_A);
+        $first = $world->notifications->findFor($world->quake(self::EVENT_A)->id, $person);
+        $this->assertNotNull($first);
+        $this->assertSame(4, $first->priority);
+
+        $world->telegrams->store(
+            JmaSamples::url(self::QUAKE_B),
+            JmaSamples::edited(self::QUAKE_B, ['<Area><Name>岩手県沿岸南部</Name><Code>211</Code><MaxInt>4</MaxInt></Area>' => '<Area><Name>岩手県沿岸南部</Name><Code>211</Code><MaxInt>6-</MaxInt></Area>']),
+            $world->clock->now(),
+        );
+        $world->dispatch->run($world->clock->now());
+
+        $this->assertSame(Notification::MERGED, $world->notifications->findFor($world->quake(self::EVENT_B)->id, $person)?->state);
+        $folded = $world->notifications->find($first->id);
+        $this->assertNotNull($folded);
+        $this->assertSame(7, $folded->priority);
+        $this->assertSame(['6-'], array_map(static fn(MatchedCity $city): ?string => $city->intensity, $folded->cities));
+    }
+
     private static function world(): QuakeWorld
     {
         return new QuakeWorld('2009-08-10T20:12:00Z');

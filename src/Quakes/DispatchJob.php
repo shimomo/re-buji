@@ -148,6 +148,12 @@ final class DispatchJob implements CronJob
 
             if ($foldedInto !== null) {
                 $state = Notification::MERGED;
+                $target = $this->notifications->find($foldedInto);
+
+                // The contact that goes out carries this quake's shaking too, and its place in the queue if stronger.
+                if ($target !== null) {
+                    $this->notifications->updateCities($target->id, MatchedCity::merge($target->cities, $cities), $priority);
+                }
             }
 
             $this->notifications->create($quake->id, $employee, $cities, $priority, $state, $notBefore, $foldedInto);
