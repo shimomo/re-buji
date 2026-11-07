@@ -99,6 +99,68 @@ final class NotificationRepository
     }
 
     /**
+     * First contacts that may go now: the strongest shaking first, then in registration order (design 5.3).
+     *
+     * @return list<Notification>
+     */
+    public function dueFirstContacts(DateTimeImmutable $now): array
+    {
+        return array_map(self::hydrate(...), $this->db->fetchAll(
+            'SELECT ' . self::COLUMNS . ' FROM notifications WHERE state = ? AND (not_before IS NULL OR not_before <= ?) ORDER BY priority DESC, employee_id, id',
+            [Notification::PENDING, Time::format($now)],
+        ));
+    }
+
+    public function countWaiting(DateTimeImmutable $now): int
+    {
+        return (int) $this->db->fetchValue(
+            'SELECT COUNT(*) FROM notifications WHERE state = ? AND (not_before IS NULL OR not_before <= ?)',
+            [Notification::PENDING, Time::format($now)],
+        );
+    }
+
+    /**
+     * @return list<Notification>
+     */
+    public function dueCancelNotices(): array
+    {
+        return array_map(self::hydrate(...), $this->db->fetchAll('SELECT ' . self::COLUMNS . " FROM notifications WHERE cancel_notice = 'pending' ORDER BY id"));
+    }
+
+    /**
+     * Contacts sent but not answered whose next resend is due.
+     *
+     * @return list<Notification>
+     */
+    public function dueResends(DateTimeImmutable $now): array
+    {
+        return array_map(self::hydrate(...), $this->db->fetchAll(
+            'SELECT ' . self::COLUMNS . ' FROM notifications WHERE state = ? AND replied_at IS NULL AND next_send_at IS NOT NULL AND next_send_at <= ? ORDER BY next_send_at, id',
+            [Notification::SENT, Time::format($now)],
+        ));
+    }
+
+    public function markFailed(int $id): void
+    {
+        $this->setState($id, Notification::FAILED);
+    }
+
+    public function markSkipped(int $id): void
+    {
+        $this->setState($id, Notification::SKIPPED);
+    }
+
+    public function markCancelNoticeSent(int $id): void
+    {
+        $this->db->execute("UPDATE notifications SET cancel_notice = 'sent', updated_at = ? WHERE id = ?", [Time::format($this->clock->now()), $id]);
+    }
+
+    public function stopResending(int $id): void
+    {
+        $this->db->execute('UPDATE notifications SET next_send_at = NULL, updated_at = ? WHERE id = ?', [Time::format($this->clock->now()), $id]);
+    }
+
+    /**
      * Contacts of other quakes the person has not answered yet, to fold a related quake into (design 4).
      *
      * @return list<Notification>
@@ -146,6 +208,11 @@ final class NotificationRepository
         } while ($this->db->fetchValue('SELECT 1 FROM notifications WHERE token = ?', [$token]) !== null);
 
         return $token;
+    }
+
+    private function setState(int $id, string $state): void
+    {
+        $this->db->execute('UPDATE notifications SET state = ?, next_send_at = NULL, updated_at = ? WHERE id = ?', [$state, Time::format($this->clock->now()), $id]);
     }
 
     private static function prefixed(string $alias): string

@@ -48,6 +48,11 @@ final class RecordingMailSender implements MailSender
         $this->sent[] = $mail;
     }
 
+    public function clear(): void
+    {
+        $this->sent = [];
+    }
+
     /**
      * @return list<string>
      */
