@@ -61,6 +61,8 @@ final class HomeController
             'heldQuakes' => $this->earthquakes->countHeld(),
             'unmatchedMails' => $this->replies->countUnmatched(),
             'smtpMissing' => $this->settings->smtp() === null,
+            'imapMissing' => $this->settings->imap() === null,
+            'imapError' => (string) $this->state->get('imap.last_error'),
             'mailError' => (string) $this->state->get('mail.last_error'),
             'waiting' => $this->notifications->countWaiting($now),
             'nextSlot' => $nextSlot?->setTimezone($tokyo)->format('H:i'),

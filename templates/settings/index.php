@@ -6,6 +6,7 @@
 /** @var list<string> $errors */
 /** @var list<array{value: string, label: string}> $thresholds */
 /** @var bool $hasPassword */
+/** @var bool $hasImapPassword */
 /** @var list<string> $placeholders */
 $this->layout('layout', ['title' => $title]);
 ?>
@@ -75,7 +76,28 @@ $this->layout('layout', ['title' => $title]);
         <label>送信元のアドレス <input type="text" inputmode="email" name="mail_from_address" value="<?= $this->e($values['mail_from_address']) ?>" autocomplete="off"></label>
         <label>送信元の名前 <input name="mail_from_name" value="<?= $this->e($values['mail_from_name']) ?>" maxlength="50"></label>
     </fieldset>
+    <fieldset>
+        <legend>返信を受けるアカウント（IMAP。上の送信元のアドレスに届いた返信を読みます）</legend>
+        <label>IMAP のサーバー名 <input name="imap_host" value="<?= $this->e($values['imap_host']) ?>" autocomplete="off"></label>
+        <div class="row">
+            <label>ポート番号 <input name="imap_port" inputmode="numeric" value="<?= $this->e($values['imap_port']) ?>"></label>
+            <label>暗号化
+                <select name="imap_encryption">
+                    <option value="ssl"<?= $values['imap_encryption'] === 'ssl' ? ' selected' : '' ?>>SSL/TLS（ふつうは 993 番）</option>
+                    <option value="starttls"<?= $values['imap_encryption'] === 'starttls' ? ' selected' : '' ?>>STARTTLS（ふつうは 143 番）</option>
+                </select>
+            </label>
+        </div>
+        <label>ユーザー名（空なら送信と同じ） <input name="imap_username" value="<?= $this->e($values['imap_username']) ?>" autocomplete="off"></label>
+        <label>パスワード（空なら送信と同じ<?= $hasImapPassword ? '。保存してあるものを変えるときだけ入れてください' : '' ?>） <input type="password" name="imap_password" value="" autocomplete="new-password"></label>
+    </fieldset>
     <button type="submit">保存する</button>
+</form>
+<h2>受信の確認</h2>
+<p>保存した設定で、返信を受けるメールボックスにログインできるかを確かめます。</p>
+<form method="post" action="<?= $this->e($this->url('/settings/test-imap')) ?>">
+    <?= $this->csrf() ?>
+    <button type="submit">受信を確かめる</button>
 </form>
 <h2>テストメール</h2>
 <p>保存した設定で、あなた（<?= $this->e($admin['email']) ?>）にテストメールを送ります。1 時間の上限に数えます。</p>

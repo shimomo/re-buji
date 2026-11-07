@@ -195,4 +195,28 @@ final class HomeTest extends TestCase
             TemporaryDirectory::remove($root);
         }
     }
+
+    #[Test]
+    public function warnsWhenRepliesCannotBeRead(): void
+    {
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => new FrozenClock()]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $this->assertStringContainsString('返信を読む設定（IMAP）がありません。「設定」で登録してください。', (string) $app->handle(TestApp::request('GET', '/'))->getBody());
+
+            $settings = $container->get(Settings::class);
+            $state = $container->get(SystemState::class);
+            $this->assertInstanceOf(Settings::class, $settings);
+            $this->assertInstanceOf(SystemState::class, $state);
+            $settings->save(['imap.host' => 'imap.example.co.jp']);
+            $state->set('imap.last_error', 'IMAP のサーバーが断りました：NO [AUTHENTICATIONFAILED]');
+            $body = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+
+            $this->assertStringNotContainsString('返信を読む設定（IMAP）がありません', $body);
+            $this->assertStringContainsString('返信を読めていません：IMAP のサーバーが断りました：NO [AUTHENTICATIONFAILED]', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
 }

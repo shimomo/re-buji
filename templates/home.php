@@ -11,6 +11,8 @@
 /** @var int $heldQuakes */
 /** @var int $unmatchedMails */
 /** @var bool $smtpMissing */
+/** @var bool $imapMissing */
+/** @var string $imapError */
 /** @var string $mailError */
 /** @var int $waiting */
 /** @var string|null $nextSlot */
@@ -27,6 +29,11 @@ $this->layout('layout', ['title' => $title]);
 <?php endif ?>
 <?php if ($smtpMissing): ?>
 <p class="error">メールの送信の設定がありません。「設定」で SMTP を登録してください。<a href="<?= $this->e($this->url('/settings')) ?>">設定</a></p>
+<?php endif ?>
+<?php if ($imapMissing): ?>
+<p class="error">返信を読む設定（IMAP）がありません。「設定」で登録してください。<a href="<?= $this->e($this->url('/settings')) ?>">設定</a></p>
+<?php elseif ($imapError !== ''): ?>
+<p class="error">返信を読めていません：<?= $this->e($imapError) ?></p>
 <?php endif ?>
 <?php if ($mailError !== ''): ?>
 <p class="error">メールを送れていません：<?= $this->e($mailError) ?></p>

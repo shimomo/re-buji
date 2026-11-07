@@ -6,10 +6,16 @@ namespace ReBuji\Tests\Settings;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use ReBuji\Database\Database;
+use ReBuji\Mail\Imap\ImapSettings;
+use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\MailSender;
 use ReBuji\Settings\Settings;
+use ReBuji\SystemState;
+use ReBuji\Tests\Support\FakeMailbox;
+use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\RecordingMailSender;
 use ReBuji\Tests\Support\TemporaryDirectory;
 use ReBuji\Tests\Support\TestApp;
@@ -197,6 +203,73 @@ final class SettingsPagesTest extends TestCase
         }
     }
 
+    #[Test]
+    public function savesTheImapAccount(): void
+    {
+        [$app, $container, $root] = self::loggedIn(new RecordingMailSender());
+
+        try {
+            $app->handle(TestApp::request('POST', '/settings', self::imap() + self::form() + TestApp::csrf($container)));
+
+            $this->assertEquals(new ImapSettings('imap.example.co.jp', 993, 'ssl', 'anpi@example.co.jp', 'anpi-password'), self::settings($container)->imap());
+            $state = $container->get(SystemState::class);
+            $this->assertInstanceOf(SystemState::class, $state);
+            $this->assertSame('2026-11-05T03:12:00Z', $state->get('imap.since'));
+            $this->assertStringContainsString('name="imap_host" value="imap.example.co.jp"', (string) $app->handle(TestApp::request('GET', '/settings'))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function refusesAnImapPortOutOfRange(): void
+    {
+        [$app, $container, $root] = self::loggedIn(new RecordingMailSender());
+
+        try {
+            $page = (string) $app->handle(TestApp::request('POST', '/settings', ['imap_port' => '0', 'imap_encryption' => 'plain'] + self::imap() + self::form() + TestApp::csrf($container)))->getBody();
+
+            $this->assertStringContainsString('IMAP のポート番号は 1〜65535 にしてください。', $page);
+            $this->assertStringContainsString('受信の暗号化の方式を選んでください。', $page);
+            $this->assertNull(self::settings($container)->imap());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function checksTheMailbox(): void
+    {
+        $mailbox = new FakeMailbox();
+        [$app, $container, $root] = TestApp::installed([MailSender::class => new RecordingMailSender(), Mailbox::class => $mailbox, ClockInterface::class => new FrozenClock()]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $response = $app->handle(TestApp::request('POST', '/settings/test-imap', TestApp::csrf($container)));
+
+            $this->assertSame(302, $response->getStatusCode());
+            $this->assertStringContainsString('受信できました。', (string) $app->handle(TestApp::request('GET', '/settings'))->getBody());
+
+            $mailbox->unavailable = true;
+            $failed = $app->handle(TestApp::request('POST', '/settings/test-imap', TestApp::csrf($container)));
+
+            $this->assertSame(200, $failed->getStatusCode());
+            $this->assertStringContainsString('メールを受信できませんでした：Connection to imap.example.co.jp:993 timed out', (string) $failed->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    /**
+     * The reply mailbox's fields, with the user name and password left to the sending account's.
+     *
+     * @return array<string, string>
+     */
+    private static function imap(): array
+    {
+        return ['imap_host' => 'imap.example.co.jp', 'imap_port' => '993', 'imap_encryption' => 'ssl', 'imap_username' => '', 'imap_password' => ''];
+    }
+
     /**
      * Every field of the form, filled in as an admin would.
      *
@@ -228,7 +301,7 @@ final class SettingsPagesTest extends TestCase
      */
     private static function loggedIn(RecordingMailSender $mailer): array
     {
-        [$app, $container, $root] = TestApp::installed([MailSender::class => $mailer]);
+        [$app, $container, $root] = TestApp::installed([MailSender::class => $mailer, ClockInterface::class => new FrozenClock()]);
         TestApp::logIn($app, $container);
 
         return [$app, $container, $root];

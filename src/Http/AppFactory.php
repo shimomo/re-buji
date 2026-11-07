@@ -103,6 +103,7 @@ final class AppFactory
             $group->get('/settings', [SettingsController::class, 'show']);
             $group->post('/settings', [SettingsController::class, 'save']);
             $group->post('/settings/test-mail', [SettingsController::class, 'testMail']);
+            $group->post('/settings/test-imap', [SettingsController::class, 'testImap']);
         })->add(PendingMigrationsGate::class)->add(AuthMiddleware::class);
 
         $app->get('/status/{token}', [StatusController::class, 'show']);
