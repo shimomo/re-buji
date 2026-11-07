@@ -36,6 +36,9 @@ final class InstallFlowTest extends TestCase
             $this->post($app, $container, '/install/key', ['install_key' => $this->installKey($app, $root)]);
             $this->post($app, $container, '/install/database', ['driver' => 'sqlite']);
             $this->post($app, $container, '/install/admin', $this->admin());
+            $this->post($app, $container, '/install/mail', TestApp::mailSettings());
+            TestApp::replyToTheTestMail($container);
+            $this->post($app, $container, '/install/reply');
             $this->post($app, $container, '/install/exposure', ['base_url' => 'https://example.com']);
             $finish = $app->handle(TestApp::request('GET', '/install/finish'));
             $this->assertStringContainsString($root . '/bin/cron.php', (string) $finish->getBody());
@@ -342,6 +345,9 @@ final class InstallFlowTest extends TestCase
         $this->post($app, $container, '/install/key', ['install_key' => $this->installKey($app, $root)]);
         $this->post($app, $container, '/install/database', ['driver' => 'sqlite']);
         $this->post($app, $container, '/install/admin', $this->admin());
+        $this->post($app, $container, '/install/mail', TestApp::mailSettings());
+        TestApp::replyToTheTestMail($container);
+        $this->post($app, $container, '/install/reply');
     }
 
     /**

@@ -85,6 +85,19 @@ final class NotificationMail
         return self::mail($this->account(), $to, '[Re:無事] 確かめてほしいことがあります', "Re:無事 の管理者の皆さん\n\n次のことが起きています。管理画面のホームで確かめてください。\n\n" . $lines . "\n");
     }
 
+    /**
+     * The installer's test mail (design 6.3, 3): its reply proves that replies can be read.
+     */
+    public function setupMail(string $to, string $name, string $number): OutgoingMail
+    {
+        return self::mail(
+            $this->account(),
+            $to,
+            '[Re:無事 の確認 #' . $number . '] このメールに返信してください',
+            $name . " さん\n\nRe:無事 の設定の確認です。このメールに、そのまま返信してください（本文は空で構いません）。\n返信したら、初期設定の画面で「返信を確かめる」を押してください。\n",
+        );
+    }
+
     public function testMail(string $to): OutgoingMail
     {
         return self::mail($this->account(), $to, 'Re:無事 のテストメール', 'Re:無事 からのテストメールです。このメールが届いていれば、送信の設定は正しく動いています。');
