@@ -92,6 +92,7 @@ final class AppFactory
             $group->get('/earthquakes/{id:[0-9]+}', [EarthquakesController::class, 'show']);
             $group->post('/earthquakes/{id:[0-9]+}/release', [EarthquakesController::class, 'release']);
             $group->post('/earthquakes/{id:[0-9]+}/dismiss', [EarthquakesController::class, 'dismiss']);
+            $group->post('/earthquakes/{id:[0-9]+}/delete', [EarthquakesController::class, 'delete']);
             $group->post('/contacts/{id:[0-9]+}/check', [ContactsController::class, 'check']);
             $group->get('/contacts/{id:[0-9]+}/proxy', [ContactsController::class, 'proxyForm']);
             $group->post('/contacts/{id:[0-9]+}/proxy', [ContactsController::class, 'proxy']);

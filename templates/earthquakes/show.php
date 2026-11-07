@@ -55,3 +55,10 @@ $shown = 20;
 <?php endforeach ?>
 </details>
 <?php endif ?>
+
+<h2>記録の削除</h2>
+<p class="muted">古い地震の記録は、個人の情報を残しすぎないように消せます（連絡、送ったメール、返信、気象庁の電文）。</p>
+<form method="post" action="<?= $this->e($this->url('/earthquakes/' . $quake->id . '/delete')) ?>" data-confirm="この地震の連絡と返信の記録をすべて消します。元に戻せません。消しますか？" onsubmit="return confirm(this.dataset.confirm)">
+    <?= $this->csrf() ?>
+    <button type="submit">この地震の記録を消す</button>
+</form>

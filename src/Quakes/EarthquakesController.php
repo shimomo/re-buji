@@ -12,6 +12,7 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ReBuji\Database\Database;
+use ReBuji\Feed\TelegramRepository;
 use ReBuji\Http\Flash;
 use ReBuji\Http\Url;
 use ReBuji\Quakes\Board\QuakeBoard;
@@ -34,6 +35,7 @@ final class EarthquakesController
         private readonly Flash $flash,
         private readonly ClockInterface $clock,
         private readonly QuakeBoard $board,
+        private readonly TelegramRepository $telegrams,
     ) {
         //
     }
@@ -111,6 +113,26 @@ final class EarthquakesController
             $this->notifications->dismiss($quake->id);
         });
         $this->flash->put('遅れて届いた地震の連絡を送らないことにしました。');
+
+        return $this->redirect();
+    }
+
+    /**
+     * Deletes an old quake's records (design 6.5): personal data is kept no longer than it is needed.
+     *
+     * @param array<string, string> $args
+     */
+    public function delete(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $quake = $this->earthquakes->find((int) ($args['id'] ?? '0')) ?? throw new HttpNotFoundException($request);
+        $this->db->transaction(function () use ($quake): void {
+            $this->earthquakes->delete($quake->id);
+
+            if ($quake->eventId !== null) {
+                $this->telegrams->deleteEvent($quake->eventId);
+            }
+        });
+        $this->flash->put('地震の記録を消しました。');
 
         return $this->redirect();
     }
