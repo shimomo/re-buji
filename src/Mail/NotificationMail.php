@@ -73,6 +73,18 @@ final class NotificationMail
         return self::mail($account, $to, $subject, $body);
     }
 
+    /**
+     * Tells an admin about problems the home page shows (design 6.2).
+     *
+     * @param list<string> $problems
+     */
+    public function watchMail(string $to, array $problems): OutgoingMail
+    {
+        $lines = implode("\n", array_map(static fn(string $problem): string => '・' . $problem, $problems));
+
+        return self::mail($this->account(), $to, '[Re:無事] 確かめてほしいことがあります', "Re:無事 の管理者の皆さん\n\n次のことが起きています。管理画面のホームで確かめてください。\n\n" . $lines . "\n");
+    }
+
     public function testMail(string $to): OutgoingMail
     {
         return self::mail($this->account(), $to, 'Re:無事 のテストメール', 'Re:無事 からのテストメールです。このメールが届いていれば、送信の設定は正しく動いています。');

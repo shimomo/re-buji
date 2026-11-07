@@ -190,13 +190,14 @@ final class SettingsPagesTest extends TestCase
         try {
             $app->handle(TestApp::request('POST', '/settings', ['hourly_limit' => '10'] + self::form() + TestApp::csrf($container)));
 
-            for ($i = 0; $i < 10; $i++) {
+            // One of the 10 is kept back for the admin's notice (RateLimit), so test mails get 9.
+            for ($i = 0; $i < 9; $i++) {
                 $app->handle(TestApp::request('POST', '/settings/test-mail', TestApp::csrf($container)));
             }
 
             $page = (string) $app->handle(TestApp::request('POST', '/settings/test-mail', TestApp::csrf($container)))->getBody();
 
-            $this->assertCount(10, $mailer->sent);
+            $this->assertCount(9, $mailer->sent);
             $this->assertStringContainsString('1 時間の上限に達しているため、テストメールを送れません。', $page);
         } finally {
             TemporaryDirectory::remove($root);

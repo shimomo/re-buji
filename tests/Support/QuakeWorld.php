@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use LogicException;
 use Psr\Clock\ClockInterface;
 use Psr\Log\NullLogger;
+use ReBuji\Auth\AdminRepository;
 use ReBuji\Database\Database;
 use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
@@ -101,7 +102,7 @@ final class QuakeWorld
             $this->earthquakes,
             $this->employees,
             $this->messages,
-            new RateLimit($this->messages, $this->settings),
+            new RateLimit($this->messages, $this->settings, new AdminRepository($this->db, $this->clock)),
             new NotificationMail($this->settings, $this->clock),
             $this->mailer,
             $this->settings,
@@ -158,7 +159,7 @@ final class QuakeWorld
 
     public function board(): QuakeBoard
     {
-        return new QuakeBoard($this->notifications, $this->earthquakes, $this->replies, new RateLimit($this->messages, $this->settings), $this->clock);
+        return new QuakeBoard($this->notifications, $this->earthquakes, $this->replies, new RateLimit($this->messages, $this->settings, new AdminRepository($this->db, $this->clock)), $this->clock);
     }
 
     public function matcher(): ReplyMatcher

@@ -8,6 +8,7 @@ use Psr\Container\ContainerInterface;
 use ReBuji\Feed\FeedJob;
 use ReBuji\Mail\ResendJob;
 use ReBuji\Mail\SendJob;
+use ReBuji\Monitor\WatchJob;
 use ReBuji\Quakes\DispatchJob;
 use ReBuji\Replies\ReplyJob;
 
@@ -27,7 +28,7 @@ final class CronJobs
         $jobs = [];
 
         // Design 6.1's order. Later plans insert their jobs between these.
-        foreach ([FeedJob::class, DispatchJob::class, SendJob::class, ReplyJob::class, ResendJob::class] as $class) {
+        foreach ([FeedJob::class, DispatchJob::class, SendJob::class, ReplyJob::class, ResendJob::class, WatchJob::class] as $class) {
             $job = $container->get($class);
             assert($job instanceof CronJob);
             $jobs[] = $job;
