@@ -8,9 +8,11 @@ use DateTimeImmutable;
 use LogicException;
 use Psr\Clock\ClockInterface;
 use Psr\Log\NullLogger;
+use ReBuji\Auth\AdminRepository;
 use ReBuji\Database\Database;
 use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
+use ReBuji\Employees\Cities;
 use ReBuji\Employees\EmployeeCity;
 use ReBuji\Employees\EmployeeInput;
 use ReBuji\Employees\EmployeeRepository;
@@ -19,12 +21,18 @@ use ReBuji\Mail\MessageRepository;
 use ReBuji\Mail\NotificationMail;
 use ReBuji\Mail\NotificationSender;
 use ReBuji\Mail\RateLimit;
+use ReBuji\Quakes\Board\QuakeBoard;
 use ReBuji\Quakes\DispatchJob;
 use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\EarthquakeRepository;
+use ReBuji\Quakes\MatchedCity;
 use ReBuji\Quakes\Notification;
 use ReBuji\Quakes\NotificationRepository;
 use ReBuji\Quakes\QuakeSnapshot;
+use ReBuji\Replies\ReplyJob;
+use ReBuji\Replies\ReplyMatcher;
+use ReBuji\Replies\ReplyRecorder;
+use ReBuji\Replies\ReplyRepository;
 use ReBuji\Settings\Settings;
 use ReBuji\SystemState;
 
@@ -57,6 +65,10 @@ final class QuakeWorld
 
     public readonly RecordingMailSender $mailer;
 
+    public readonly ReplyRepository $replies;
+
+    public readonly FakeMailbox $mailbox;
+
     private int $people = 0;
 
     private ?int $quake = null;
@@ -75,6 +87,8 @@ final class QuakeWorld
         $this->messages = new MessageRepository($this->db);
         $this->state = new SystemState($this->db, $this->clock);
         $this->mailer = new RecordingMailSender();
+        $this->replies = new ReplyRepository($this->db, $this->clock);
+        $this->mailbox = new FakeMailbox();
         $this->settings->save(['smtp.host' => 'smtp.example.co.jp', 'mail.from_address' => 'anpi@example.co.jp']);
     }
 
@@ -88,7 +102,7 @@ final class QuakeWorld
             $this->earthquakes,
             $this->employees,
             $this->messages,
-            new RateLimit($this->messages, $this->settings),
+            new RateLimit($this->messages, $this->settings, new AdminRepository($this->db, $this->clock)),
             new NotificationMail($this->settings, $this->clock),
             $this->mailer,
             $this->settings,
@@ -99,9 +113,9 @@ final class QuakeWorld
     }
 
     /**
-     * A contact for one shared quake, as the dispatch job would make it.
+     * A contact for one shared quake (or the given one), as the dispatch job would make it.
      */
-    public function contact(int $employeeId, int $priority = 5, string $state = Notification::PENDING, ?DateTimeImmutable $notBefore = null): int
+    public function contact(int $employeeId, int $priority = 5, string $state = Notification::PENDING, ?DateTimeImmutable $notBefore = null, ?int $quake = null): int
     {
         $this->quake ??= $this->earthquakes->createQuake(
             '20090811050711',
@@ -113,7 +127,51 @@ final class QuakeWorld
         );
         $employee = $this->employees->find($employeeId) ?? throw new LogicException('No employee ' . $employeeId);
 
-        return $this->notifications->create($this->quake, $employee, [], $priority, $state, $notBefore ?? $this->clock->now());
+        $cities = array_map(
+            static fn(EmployeeCity $city): MatchedCity => new MatchedCity($city->code, $city->label, Cities::find($city->code)?->label() ?? $city->code, '5-', false, MatchedCity::BASIS_CITY),
+            $employee->cities,
+        );
+
+        return $this->notifications->create($quake ?? $this->quake, $employee, $cities, $priority, $state, $notBefore ?? $this->clock->now());
+    }
+
+    /**
+     * Another quake to make contacts for.
+     */
+    public function otherQuake(string $eventId, string $title = '岩手県沖・最大震度5強'): int
+    {
+        return $this->earthquakes->createQuake($eventId, new QuakeSnapshot($title, null, null, '5+', null, null, null), '5-', Earthquake::AUTO, false, $this->clock->now());
+    }
+
+    /**
+     * The Message-ID of the last mail sent to the address.
+     */
+    public function messageIdSentTo(string $address): string
+    {
+        foreach (array_reverse($this->mailer->sent) as $mail) {
+            if ($mail->to === $address) {
+                return $mail->messageId;
+            }
+        }
+
+        throw new LogicException('Nothing was sent to ' . $address);
+    }
+
+    public function board(): QuakeBoard
+    {
+        return new QuakeBoard($this->notifications, $this->earthquakes, $this->replies, new RateLimit($this->messages, $this->settings, new AdminRepository($this->db, $this->clock)), $this->clock);
+    }
+
+    public function matcher(): ReplyMatcher
+    {
+        return new ReplyMatcher($this->db, $this->messages);
+    }
+
+    public function replyJob(?ClockInterface $clock = null): ReplyJob
+    {
+        $recorder = new ReplyRecorder($this->db, $this->matcher(), $this->replies, $this->notifications, $this->messages, $this->clock);
+
+        return new ReplyJob($this->mailbox, $recorder, $this->replies, $this->settings, $this->state, $clock ?? $this->clock, new NullLogger());
     }
 
     public function contactNow(int $id): Notification

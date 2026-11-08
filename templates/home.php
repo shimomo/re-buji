@@ -9,7 +9,11 @@
 /** @var array{all: int, active: int} $employeeCounts */
 /** @var list<array{employee_id: int, name: string, code: string}> $unknownCities */
 /** @var int $heldQuakes */
+/** @var int $unmatchedMails */
 /** @var bool $smtpMissing */
+/** @var bool $imapMissing */
+/** @var string $imapError */
+/** @var string|null $imapStale */
 /** @var string $mailError */
 /** @var int $waiting */
 /** @var string|null $nextSlot */
@@ -21,8 +25,18 @@ $this->layout('layout', ['title' => $title]);
 <?php if ($heldQuakes > 0): ?>
 <p class="error">遅れて届いた地震が <?= $heldQuakes ?> 件あります。送るかどうかを決めてください。<a href="<?= $this->e($this->url('/earthquakes')) ?>">地震の一覧</a></p>
 <?php endif ?>
+<?php if ($unmatchedMails > 0): ?>
+<p class="warning">照合できなかったメールが <?= $unmatchedMails ?> 通あります。<a href="<?= $this->e($this->url('/mail/unmatched')) ?>">一覧</a></p>
+<?php endif ?>
 <?php if ($smtpMissing): ?>
 <p class="error">メールの送信の設定がありません。「設定」で SMTP を登録してください。<a href="<?= $this->e($this->url('/settings')) ?>">設定</a></p>
+<?php endif ?>
+<?php if ($imapMissing): ?>
+<p class="error">返信を読む設定（IMAP）がありません。「設定」で登録してください。<a href="<?= $this->e($this->url('/settings')) ?>">設定</a></p>
+<?php elseif ($imapError !== ''): ?>
+<p class="error">返信を読めていません：<?= $this->e($imapError) ?></p>
+<?php elseif ($imapStale !== null): ?>
+<p class="error"><?= $this->e($imapStale) ?></p>
 <?php endif ?>
 <?php if ($mailError !== ''): ?>
 <p class="error">メールを送れていません：<?= $this->e($mailError) ?></p>

@@ -42,21 +42,22 @@ final class NotificationMail
         $account = $this->account();
         $prefix = '[安否確認 #' . $notification->token . '] ';
 
-        if ($kind === self::CANCEL) {
-            return self::mail(
-                $account,
-                $to,
-                $prefix . '先ほどの連絡は取り消されました',
-                $notification->employeeName . " さん\n\n先ほどお送りした安否確認の連絡は、気象庁が地震の情報を取り消したため、取り消します。返信は不要です。\n",
-            );
-        }
-
         $values = [
             '{名前}' => $notification->employeeName,
             '{発生時刻}' => $quake->detectedAt->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('n月j日 G時i分'),
             '{地震}' => $quake->title,
             '{市町村と震度}' => implode("\n", array_map(self::cityLine(...), $notification->cities)),
         ];
+
+        // The notice names the quake: someone contacted twice must know which contact it takes back.
+        if ($kind === self::CANCEL) {
+            return self::mail(
+                $account,
+                $to,
+                $prefix . '先ほどの連絡は取り消されました',
+                strtr("{名前} さん\n\n{発生時刻}ごろの地震（{地震}）について先ほどお送りした安否確認の連絡は、気象庁が地震の情報を取り消したため、取り消します。返信は不要です。\n", $values),
+            );
+        }
         $subject = $prefix . ($kind === self::RESEND ? '【再送】' : '') . ($quake->isDrill() ? '【訓練】' : '') . strtr($this->settings->get('mail.subject'), $values);
         $body = strtr($this->settings->get('mail.body'), $values);
 
@@ -70,6 +71,31 @@ final class NotificationMail
         }
 
         return self::mail($account, $to, $subject, $body);
+    }
+
+    /**
+     * Tells an admin about problems the home page shows (design 6.2).
+     *
+     * @param list<string> $problems
+     */
+    public function watchMail(string $to, array $problems): OutgoingMail
+    {
+        $lines = implode("\n", array_map(static fn(string $problem): string => '・' . $problem, $problems));
+
+        return self::mail($this->account(), $to, '[Re:無事] 確かめてほしいことがあります', "Re:無事 の管理者の皆さん\n\n次のことが起きています。管理画面のホームで確かめてください。\n\n" . $lines . "\n");
+    }
+
+    /**
+     * The installer's test mail (design 6.3, 3): its reply proves that replies can be read.
+     */
+    public function setupMail(string $to, string $name, string $number): OutgoingMail
+    {
+        return self::mail(
+            $this->account(),
+            $to,
+            '[Re:無事 の確認 #' . $number . '] このメールに返信してください',
+            $name . " さん\n\nRe:無事 の設定の確認です。このメールに、そのまま返信してください（本文は空で構いません）。\n返信したら、初期設定の画面で「返信を確かめる」を押してください。\n",
+        );
     }
 
     public function testMail(string $to): OutgoingMail

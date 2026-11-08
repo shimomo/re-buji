@@ -17,6 +17,8 @@ use ReBuji\Mail\RateLimit;
 use ReBuji\Monitor\Health;
 use ReBuji\Quakes\EarthquakeRepository;
 use ReBuji\Quakes\NotificationRepository;
+use ReBuji\Replies\ReplyReading;
+use ReBuji\Replies\ReplyRepository;
 use ReBuji\Settings\Settings;
 
 /**
@@ -39,6 +41,8 @@ final class HomeController
         private readonly Settings $settings,
         private readonly SystemState $state,
         private readonly ClockInterface $clock,
+        private readonly ReplyRepository $replies,
+        private readonly ReplyReading $reading,
     ) {
         //
     }
@@ -57,7 +61,11 @@ final class HomeController
         $response = $this->responses->createResponse(200);
         $response->getBody()->write($this->templates->render('home', [
             'heldQuakes' => $this->earthquakes->countHeld(),
+            'unmatchedMails' => $this->replies->countUnmatched(),
             'smtpMissing' => $this->settings->smtp() === null,
+            'imapMissing' => $this->settings->imap() === null,
+            'imapError' => (string) $this->state->get('imap.last_error'),
+            'imapStale' => $this->reading->staleWarning($now),
             'mailError' => (string) $this->state->get('mail.last_error'),
             'waiting' => $this->notifications->countWaiting($now),
             'nextSlot' => $nextSlot?->setTimezone($tokyo)->format('H:i'),

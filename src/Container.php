@@ -28,6 +28,8 @@ use ReBuji\Http\NativeSession;
 use ReBuji\Http\Session;
 use ReBuji\Http\Url;
 use ReBuji\Log\FileLogger;
+use ReBuji\Mail\Imap\ImapMailbox;
+use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\MailSender;
 use ReBuji\Mail\SmtpMailSender;
 use ReBuji\Settings\Settings;
@@ -88,6 +90,12 @@ final class Container
                 assert($http instanceof ClientInterface && $requests instanceof RequestFactoryInterface && $store instanceof StateStore);
 
                 return new FeedClient($http, $requests, $store, self::clock($c), 'Re-Buji/' . Version::CURRENT . ' (+https://github.com/shimomo/re-buji)');
+            },
+            Mailbox::class => static function (ContainerInterface $c): Mailbox {
+                $settings = $c->get(Settings::class);
+                assert($settings instanceof Settings);
+
+                return new ImapMailbox($settings->imap());
             },
             MailSender::class => static function (ContainerInterface $c): MailSender {
                 $settings = $c->get(Settings::class);

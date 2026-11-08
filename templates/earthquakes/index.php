@@ -15,7 +15,7 @@ $this->layout('layout', ['title' => $title]);
 <?php foreach ($rows as $row): ?>
         <tr>
             <td><?= $this->e($row['detected']) ?></td>
-            <td><?= $this->e($row['title']) ?></td>
+            <td><a href="<?= $this->e($this->url('/earthquakes/' . $row['id'])) ?>"><?= $this->e($row['title']) ?></a></td>
             <td><?= $row['total'] ?></td><td><?= $row['sent'] ?></td><td><?= $row['waiting'] ?></td><td><?= $row['failed'] ?></td>
             <td>
 <?php if ($row['cancelled']): ?>

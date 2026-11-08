@@ -12,6 +12,8 @@ use ReBuji\Install\Steps\EnvironmentStep;
 use ReBuji\Install\Steps\ExposureStep;
 use ReBuji\Install\Steps\FinishStep;
 use ReBuji\Install\Steps\KeyStep;
+use ReBuji\Install\Steps\MailStep;
+use ReBuji\Install\Steps\ReplyStep;
 use ReBuji\Paths;
 
 /**
@@ -37,6 +39,8 @@ final class InstallSteps
             new KeyStep($key, $exposure),
             new DatabaseStep($clock),
             new AdminStep($clock),
+            new MailStep($clock),
+            new ReplyStep($clock),
             new ExposureStep($exposure),
             new FinishStep($key, $clock),
         ];

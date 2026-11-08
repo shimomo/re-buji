@@ -12,6 +12,7 @@ use PHPUnit\Framework\TestCase;
 use ReBuji\Database\Database;
 use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
+use ReBuji\Mail\Imap\ImapSettings;
 use ReBuji\Settings\Settings;
 use ReBuji\Settings\SmtpSettings;
 use ReBuji\Tests\Support\FrozenClock;
@@ -94,6 +95,24 @@ final class SettingsTest extends TestCase
         $settings->save(['mail.from_address' => 'anpi@example.co.jp', 'smtp.username' => 'anpi', 'smtp.password' => 'secret']);
 
         $this->assertEquals(new SmtpSettings('smtp.example.co.jp', 587, 'starttls', 'anpi', 'secret', 'anpi@example.co.jp', '安否確認'), $settings->smtp());
+    }
+
+    #[Test]
+    #[DataProvider('drivers')]
+    public function hasImapOnceTheHostIsSaved(string $driver): void
+    {
+        $settings = new Settings($this->migrated($driver), new FrozenClock());
+        $settings->save(['smtp.username' => 'anpi', 'smtp.password' => 'secret']);
+
+        $this->assertNull($settings->imap());
+
+        $settings->save(['imap.host' => 'imap.example.co.jp']);
+
+        $this->assertEquals(new ImapSettings('imap.example.co.jp', 993, 'ssl', 'anpi', 'secret'), $settings->imap());
+
+        $settings->save(['imap.username' => 'reply', 'imap.password' => 'other', 'imap.port' => '143', 'imap.encryption' => 'starttls']);
+
+        $this->assertEquals(new ImapSettings('imap.example.co.jp', 143, 'starttls', 'reply', 'other'), $settings->imap());
     }
 
     /**

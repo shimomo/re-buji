@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReBuji\Auth\AdminRepository;
 use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
 use ReBuji\Mail\MessageRepository;
@@ -49,6 +50,25 @@ final class RateLimitTest extends TestCase
         $this->assertEquals(new DateTimeImmutable('2009-08-10T21:12:00Z'), $limit->nextSlotAt($now));
     }
 
+    #[Test]
+    #[DataProvider('drivers')]
+    public function keepsRoomForTheAdminsNotices(string $driver): void
+    {
+        [$limit, $messages, $admins] = self::limitWithAdmins($driver);
+        $admins->create('安否 太郎', 'admin@example.com', 'correct-horse-battery');
+        $admins->create('安否 花子', 'hanako@example.com', 'correct-horse-battery');
+        $now = new DateTimeImmutable('2009-08-10T21:00:00Z');
+        self::sent($messages, $now->modify('-10 minutes'), 7);
+
+        $this->assertSame(1, $limit->remaining($now));
+        $this->assertSame(3, $limit->remainingForNotices($now));
+
+        self::sent($messages, $now->modify('-5 minutes'), 1);
+
+        $this->assertSame(0, $limit->remaining($now));
+        $this->assertEquals(new DateTimeImmutable('2009-08-10T21:50:00Z'), $limit->nextSlotAt($now));
+    }
+
     /**
      * @return iterable<string, array{string}>
      */
@@ -62,14 +82,25 @@ final class RateLimitTest extends TestCase
      */
     private static function limit(string $driver): array
     {
+        [$limit, $messages] = self::limitWithAdmins($driver);
+
+        return [$limit, $messages];
+    }
+
+    /**
+     * @return array{RateLimit, MessageRepository, AdminRepository}
+     */
+    private static function limitWithAdmins(string $driver): array
+    {
         $db = TestDatabase::open($driver);
         $clock = new FrozenClock();
         (new Migrator($db, Migrations::all(), $clock))->migrate();
         $settings = new Settings($db, $clock);
         $settings->save(['hourly_limit' => '10']);
         $messages = new MessageRepository($db);
+        $admins = new AdminRepository($db, $clock);
 
-        return [new RateLimit($messages, $settings), $messages];
+        return [new RateLimit($messages, $settings, $admins), $messages, $admins];
     }
 
     private static function sent(MessageRepository $messages, DateTimeImmutable $at, int $count): void

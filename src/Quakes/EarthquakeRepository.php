@@ -137,6 +137,14 @@ final class EarthquakeRepository
         $this->db->execute('UPDATE earthquakes SET delivery = ?, updated_at = ? WHERE id = ?', [$delivery, Time::format($this->clock->now()), $id]);
     }
 
+    /**
+     * Deletes the quake with its contacts, the mails sent for them and their replies (ON DELETE CASCADE).
+     */
+    public function delete(int $id): void
+    {
+        $this->db->execute('DELETE FROM earthquakes WHERE id = ?', [$id]);
+    }
+
     public function markCancelled(int $id, DateTimeImmutable $at): void
     {
         $this->db->execute('UPDATE earthquakes SET cancelled_at = ?, updated_at = ? WHERE id = ?', [Time::format($at), Time::format($this->clock->now()), $id]);

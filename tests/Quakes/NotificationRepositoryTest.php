@@ -61,6 +61,10 @@ final class NotificationRepositoryTest extends TestCase
         $this->assertEquals(new DateTimeImmutable('2009-08-10T20:07:00Z'), $contact->notBefore);
         $this->assertMatchesRegularExpression('/^[0-9a-f]{8}$/', $contact->token);
         $this->assertSame(0, $contact->sentCount);
+        $this->assertNull($contact->answer);
+        $this->assertNull($contact->answerSource);
+        $this->assertNull($contact->autoRepliedAt);
+        $this->assertNull($contact->checkedAt);
         $this->assertEquals($contact, $notifications->findFor($quake, $employee->id));
 
         $notifications->updateCities($id, [$cities[0]], 5);

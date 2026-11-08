@@ -12,8 +12,8 @@ namespace ReBuji\Settings;
 final readonly class SmtpSettings
 {
     /**
-     * @param 'ssl'|'starttls'|string $encryption ssl for an encrypted connection from the start (465), starttls to
-     *                                            upgrade when the server offers it (587)
+     * @param 'ssl'|'starttls'|'none'|string $encryption ssl for an encrypted connection from the start (465), starttls
+     *                                                   to upgrade, required (587); none only for the test servers
      */
     public function __construct(
         public string $host,

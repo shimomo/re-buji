@@ -84,6 +84,11 @@ final class TelegramRepository
         $this->db->execute('UPDATE telegrams SET processed_at = ? WHERE event_id = ? AND processed_at IS NULL', [Time::format($now), $eventId]);
     }
 
+    public function deleteEvent(string $eventId): void
+    {
+        $this->db->execute('DELETE FROM telegrams WHERE event_id = ?', [$eventId]);
+    }
+
     /**
      * Deletes processed telegrams older than KEEP_DAYS whose event has no quake record.
      */

@@ -50,7 +50,18 @@ final readonly class Notification
     public const string SKIPPED = 'skipped';
 
     /**
+     * A safe answer: an empty reply, or an admin's record on the person's behalf.
+     */
+    public const string SAFE = 'safe';
+
+    /**
+     * A reply with words in it, or an admin's record that someone needs looking after (design 5.6).
+     */
+    public const string NEEDS_CHECK = 'needs_check';
+
+    /**
      * @param list<MatchedCity> $cities
+     * @param string|null $answer self::SAFE, self::NEEDS_CHECK, or null while nobody has answered
      */
     public function __construct(
         public int $id,
@@ -70,6 +81,13 @@ final readonly class Notification
         public ?DateTimeImmutable $repliedAt,
         public ?string $cancelNotice,
         public ?int $mergedIntoId,
+        public ?string $answer = null,
+        public ?string $answerSource = null,
+        public ?string $answeredBy = null,
+        public ?string $proxyNote = null,
+        public ?DateTimeImmutable $autoRepliedAt = null,
+        public ?DateTimeImmutable $checkedAt = null,
+        public ?string $checkedBy = null,
     ) {
         //
     }

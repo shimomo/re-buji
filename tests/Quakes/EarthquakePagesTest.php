@@ -40,7 +40,7 @@ final class EarthquakePagesTest extends TestCase
 
             $page = (string) $app->handle(TestApp::request('GET', '/earthquakes'))->getBody();
 
-            $drill = strpos($page, '訓練</td>');
+            $drill = strpos($page, '訓練</a></td>');
             $quake = strpos($page, '駿河湾・最大震度6弱');
             $old = strpos($page, '岩手県内陸南部・最大震度6強');
             $this->assertNotFalse($drill);

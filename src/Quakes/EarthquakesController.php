@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace ReBuji\Quakes;
 
 use DateTimeZone;
+use JmaXml\Earthquake\SeismicIntensity;
 use League\Plates\Engine;
 use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ReBuji\Database\Database;
+use ReBuji\Feed\TelegramRepository;
 use ReBuji\Http\Flash;
 use ReBuji\Http\Url;
+use ReBuji\Quakes\Board\QuakeBoard;
 use Slim\Exception\HttpNotFoundException;
 
 /**
@@ -31,6 +34,8 @@ final class EarthquakesController
         private readonly Url $url,
         private readonly Flash $flash,
         private readonly ClockInterface $clock,
+        private readonly QuakeBoard $board,
+        private readonly TelegramRepository $telegrams,
     ) {
         //
     }
@@ -59,6 +64,27 @@ final class EarthquakesController
         ]));
 
         return $response;
+    }
+
+    /**
+     * The manager screen of one quake (design 5.6).
+     *
+     * @param array<string, string> $args
+     */
+    public function show(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $quake = $this->earthquakes->find((int) ($args['id'] ?? '0')) ?? throw new HttpNotFoundException($request);
+        $page = $this->responses->createResponse(200);
+        $page->getBody()->write($this->templates->render('earthquakes/show', [
+            'title' => $quake->title,
+            'admin' => $request->getAttribute('admin'),
+            'quake' => $quake,
+            'heading' => self::heading($quake),
+            'basis' => self::basis($quake),
+            'board' => $this->board->build($quake),
+        ]));
+
+        return $page;
     }
 
     /**
@@ -92,6 +118,26 @@ final class EarthquakesController
     }
 
     /**
+     * Deletes an old quake's records (design 6.5): personal data is kept no longer than it is needed.
+     *
+     * @param array<string, string> $args
+     */
+    public function delete(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $quake = $this->earthquakes->find((int) ($args['id'] ?? '0')) ?? throw new HttpNotFoundException($request);
+        $this->db->transaction(function () use ($quake): void {
+            $this->earthquakes->delete($quake->id);
+
+            if ($quake->eventId !== null) {
+                $this->telegrams->deleteEvent($quake->eventId);
+            }
+        });
+        $this->flash->put('地震の記録を消しました。');
+
+        return $this->redirect();
+    }
+
+    /**
      * The late quake waiting for a decision, or 404: a quake decided already (or never held) cannot be decided again.
      *
      * @param array<string, string> $args
@@ -105,6 +151,37 @@ final class EarthquakesController
         }
 
         return $quake;
+    }
+
+    /**
+     * "11月5日 3:12 ごろ　宮城県沖（M6.8）最大震度6弱", leaving out what is not known yet.
+     */
+    private static function heading(Earthquake $quake): string
+    {
+        $when = $quake->detectedAt->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('n月j日 G:i');
+
+        if ($quake->isDrill()) {
+            return $when . '　訓練';
+        }
+
+        $where = ($quake->hypocenter ?? '') . ($quake->magnitude === null ? '' : '（M' . $quake->magnitude . '）');
+        $strongest = SeismicIntensity::tryFrom($quake->maxIntensity ?? '')?->label();
+
+        return trim($when . ' ごろ　' . $where . ($strongest === null ? '' : '最大' . $strongest));
+    }
+
+    private static function basis(Earthquake $quake): ?string
+    {
+        if ($quake->isDrill()) {
+            return null;
+        }
+
+        $threshold = SeismicIntensity::tryFrom($quake->threshold ?? '')?->label() ?? '基準の震度';
+        $source = $quake->basisTitle === null ? '' : $quake->basisTitle
+            . ($quake->basisReportedAt === null ? '' : '（' . $quake->basisReportedAt->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('G:i') . ' 発表）')
+            . 'をもとに判定　｜　';
+
+        return $source . '対象：' . $threshold . '以上の市町村に登録した人';
     }
 
     private function redirect(): ResponseInterface

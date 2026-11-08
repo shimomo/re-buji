@@ -19,6 +19,8 @@ use ReBuji\Database\Migrator;
 use ReBuji\Http\AppFactory;
 use ReBuji\Http\ArraySession;
 use ReBuji\Http\Session;
+use ReBuji\Mail\Imap\Mailbox;
+use ReBuji\Mail\MailSender;
 use ReBuji\Paths;
 use Slim\App;
 use Slim\Csrf\Guard;
@@ -70,8 +72,14 @@ final class TestApp
      */
     public static function build(string $root, array $overrides = []): array
     {
-        // Tests never reach the network: by default every self-check request is answered with 403 (protected).
-        $container = Container::build(new Paths($root), $overrides + [Session::class => new ArraySession(), ClientInterface::class => new FakeHttpClient()]);
+        // Tests never reach the network: by default every self-check request is answered with 403 (protected), mail is
+        // only recorded and the reply mailbox is in memory.
+        $container = Container::build(new Paths($root), $overrides + [
+            Session::class => new ArraySession(),
+            ClientInterface::class => new FakeHttpClient(),
+            MailSender::class => new RecordingMailSender(),
+            Mailbox::class => new FakeMailbox(),
+        ]);
 
         return [AppFactory::create($container), $container];
     }
@@ -129,6 +137,49 @@ final class TestApp
             'status.token' => str_repeat('a', 32),
             'installed_at' => '2026-11-05T03:00:00Z',
         ]);
+    }
+
+    /**
+     * The installer's mail settings, as an owner would fill them in (the test servers have no TLS).
+     *
+     * @return array<string, string>
+     */
+    public static function mailSettings(): array
+    {
+        return [
+            'threshold' => '5-',
+            'hourly_limit' => '100',
+            'smtp_host' => 'smtp.example.co.jp',
+            'smtp_port' => '587',
+            'smtp_encryption' => 'starttls',
+            'smtp_username' => 'anpi@example.co.jp',
+            'smtp_password' => 'anpi-password',
+            'mail_from_address' => 'anpi@example.co.jp',
+            'mail_from_name' => '安否確認',
+            'imap_host' => 'imap.example.co.jp',
+            'imap_port' => '993',
+            'imap_encryption' => 'ssl',
+            'imap_username' => '',
+            'imap_password' => '',
+        ];
+    }
+
+    /**
+     * Answers the installer's test mail in the fake mailbox, as the admin would from their mail program.
+     */
+    public static function replyToTheTestMail(ContainerInterface $container): void
+    {
+        $sender = $container->get(MailSender::class);
+        $mailbox = $container->get(Mailbox::class);
+        assert($sender instanceof RecordingMailSender && $mailbox instanceof FakeMailbox);
+        $last = array_key_last($sender->sent);
+
+        if ($last === null) {
+            throw new \LogicException('No test mail was sent');
+        }
+
+        $sent = $sender->sent[$last];
+        $mailbox->add(MailFixtures::reply($sent->to, '', $sent->messageId, 'Re: ' . $sent->subject));
     }
 
     /**
