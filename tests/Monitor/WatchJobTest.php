@@ -111,20 +111,42 @@ final class WatchJobTest extends TestCase
     }
 
     #[Test]
-    public function tellsAboutContactsHeldBackByTheLimitOnce(): void
+    public function tellsAsManyAdminsAsTheLimitAllows(): void
     {
         $world = self::world();
         $world->settings->save(['hourly_limit' => '10']);
+        $admins = new AdminRepository($world->db, $world->clock);
 
-        for ($i = 0; $i < 7; $i++) {
+        for ($i = 1; $i <= 10; $i++) {
+            $admins->create('管理者 ' . $i, 'admin' . $i . '@example.com', 'correct-horse-battery');
+        }
+
+        for ($i = 0; $i < 9; $i++) {
+            $world->messages->record(null, 'test', 'admin@example.com', bin2hex(random_bytes(16)) . '@example.co.jp', true, '', $world->clock->now()->modify('-10 minutes'));
+        }
+
+        $world->state->set('feed.gap_since', '2009-08-10T19:00:00Z');
+
+        self::job($world)->run($world->clock->now());
+
+        $this->assertSame(['admin@example.com'], $world->mailer->recipients());
+    }
+
+    #[Test]
+    public function tellsAboutContactsHeldBackByTheLimitOnce(): void
+    {
+        $world = self::world();
+        $world->settings->save(['hourly_limit' => '20']);
+
+        for ($i = 0; $i < 17; $i++) {
             $world->messages->record(null, 'test', 'admin@example.com', 'm' . $i . '@example.co.jp', true, '', new DateTimeImmutable('2009-08-10T20:05:00Z'));
         }
 
         $world->contact($world->person('山田 花子', '2221300'), notBefore: new DateTimeImmutable('2009-08-10T20:07:00Z'));
         $world->contact($world->person('佐藤 一郎', '2221300'), notBefore: new DateTimeImmutable('2009-08-10T20:07:00Z'));
-        $world->messages->record(null, 'test', 'admin@example.com', 'm8@example.co.jp', true, '', new DateTimeImmutable('2009-08-10T20:06:00Z'));
+        $world->messages->record(null, 'test', 'admin@example.com', 'late@example.co.jp', true, '', new DateTimeImmutable('2009-08-10T20:06:00Z'));
 
-        // Contacts have used their share (8 of 10); the 2 kept back are for the two admins' notice.
+        // Contacts have used their share (18 of 20); the 2 kept back are for the two admins' notice.
         self::job($world)->run($world->clock->now());
 
         $this->assertCount(2, $world->mailer->sent);
@@ -155,12 +177,12 @@ final class WatchJobTest extends TestCase
     }
 
     #[Test]
-    public function leavesTheLimitToContacts(): void
+    public function waitsWhenTheLimitIsUsedUp(): void
     {
         $world = self::world();
         $world->settings->save(['hourly_limit' => '10']);
 
-        for ($i = 0; $i < 9; $i++) {
+        for ($i = 0; $i < 10; $i++) {
             $world->messages->record(null, 'test', 'admin@example.com', 'm' . $i . '@example.co.jp', true, '', new DateTimeImmutable('2009-08-10T20:05:00Z'));
         }
 

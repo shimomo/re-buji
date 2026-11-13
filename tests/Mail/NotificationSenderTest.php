@@ -7,6 +7,7 @@ namespace ReBuji\Tests\Mail;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReBuji\Auth\AdminRepository;
 use ReBuji\Employees\EmployeeCity;
 use ReBuji\Employees\EmployeeInput;
 use ReBuji\Mail\OutgoingMail;
@@ -57,6 +58,24 @@ final class NotificationSenderTest extends TestCase
 
         $this->assertCount(12, $world->mailer->sent);
         $this->assertSame(Notification::SENT, $world->contactNow($contacts[2])->state);
+    }
+
+    #[Test]
+    public function sendsWhenThereAreAsManyAdminsAsTheLimit(): void
+    {
+        $world = self::world();
+        $world->settings->save(['hourly_limit' => '10']);
+        $admins = new AdminRepository($world->db, $world->clock);
+
+        for ($i = 1; $i <= 10; $i++) {
+            $admins->create('管理者 ' . $i, 'admin' . $i . '@example.com', 'correct-horse-battery');
+        }
+
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+
+        $world->sender()->sendFirstContacts();
+
+        $this->assertSame(Notification::SENT, $world->contactNow($contact)->state);
     }
 
     #[Test]
