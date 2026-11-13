@@ -11,6 +11,7 @@ use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use ReBuji\Feed\TelegramRepository;
 use ReBuji\Mail\MessageRepository;
+use ReBuji\Quakes\DispatchJob;
 use ReBuji\Quakes\Notification;
 use ReBuji\Replies\ReplyRepository;
 use ReBuji\Tests\Support\FrozenClock;
@@ -60,6 +61,31 @@ final class QuakeDeletionTest extends TestCase
             $this->assertNotNull($records->earthquakes->find($other));
             $this->assertSame(1, $replies->countUnmatched());
             $this->assertStringContainsString('地震の記録を消しました。', (string) $app->handle(TestApp::request('GET', '/earthquakes'))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function doesNotBringADeletedQuakeBack(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = $records->quake('20090811050711', '駿河湾・最大震度6弱', '2026-11-05T03:12:00Z');
+            $records->contact($quake, Notification::SENT);
+            $telegrams = self::get($container, TelegramRepository::class);
+            $at = new DateTimeImmutable('2026-11-05T03:12:00Z');
+            JmaSamples::store($telegrams, $at, '32-35_07_01_100915_VXSE51.xml');
+            $telegrams->markProcessed('20090811050711', $at);
+            $app->handle(TestApp::request('POST', '/earthquakes/' . $quake . '/delete', TestApp::csrf($container)));
+
+            JmaSamples::store($telegrams, $at, '32-35_07_06_240613_VXSE53.xml');
+            self::get($container, DispatchJob::class)->run($at);
+
+            $this->assertNull($records->earthquakes->findByEventId('20090811050711'));
+            $this->assertSame(0, (int) $records->db->fetchValue('SELECT COUNT(*) FROM notifications'));
         } finally {
             TemporaryDirectory::remove($root);
         }

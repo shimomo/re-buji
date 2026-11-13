@@ -16,6 +16,7 @@ use ReBuji\Database\Database;
 use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
 use ReBuji\Feed\DatabaseStateStore;
+use ReBuji\Feed\FailedTelegrams;
 use ReBuji\Feed\FeedJob;
 use ReBuji\Feed\TelegramRepository;
 use ReBuji\SystemState;
@@ -220,7 +221,7 @@ final class FeedJobTest extends TestCase
         $store = new DatabaseStateStore($db);
         $state = new SystemState($db, $clock);
         $client = new FeedClient($server, new Psr17Factory(), $store, $clock, 'Re-Buji/test');
-        $job = new FeedJob($client, $db, $store, new TelegramRepository($db), $state, new NullLogger());
+        $job = new FeedJob($client, $db, $store, new TelegramRepository($db), $state, new FailedTelegrams($state), new NullLogger());
 
         return [$job, $db, $server, $clock, $state, $root];
     }

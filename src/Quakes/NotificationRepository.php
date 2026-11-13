@@ -180,14 +180,24 @@ final class NotificationRepository
     }
 
     /**
-     * Records a reply, or an admin's record on the person's behalf. The first answer's time stays, an answer that needs
-     * checking never turns back to safe, and new words to read clear an earlier "checked". Resends stop.
+     * Records a reply, or an admin's record on the person's behalf. The first answer's time stays, and new words to read
+     * clear an earlier "checked". Resends stop.
+     *
+     * A reply that needs checking is never turned back to safe by a later empty reply, but an admin's record decides:
+     * they checked by phone or in person. A reply with words after it needs checking again.
      */
     public function recordAnswer(int $id, string $answer, string $source, ?string $by, ?string $note, DateTimeImmutable $at): void
     {
         // The conditions are decided here: SQLite compares a bound parameter as text, so "? = 1" would never hold.
-        $set = ['answer = CASE WHEN answer = ? THEN answer ELSE ? END', 'answer_source = ?', 'replied_at = COALESCE(replied_at, ?)', 'next_send_at = NULL', 'updated_at = ?'];
-        $params = [Notification::NEEDS_CHECK, $answer, $source, Time::format($at), Time::format($this->clock->now())];
+        // An empty reply leaves an answer that needs checking as it is, and whoever recorded it stays its source.
+        [$set, $params] = $source === 'mail' && $answer === Notification::SAFE
+            ? [
+                ['answer_source = CASE WHEN answer = ? THEN answer_source ELSE ? END', 'answer = CASE WHEN answer = ? THEN answer ELSE ? END'],
+                [Notification::NEEDS_CHECK, $source, Notification::NEEDS_CHECK, $answer],
+            ]
+            : [['answer_source = ?', 'answer = ?'], [$source, $answer]];
+        array_push($set, 'replied_at = COALESCE(replied_at, ?)', 'next_send_at = NULL', 'updated_at = ?');
+        array_push($params, Time::format($at), Time::format($this->clock->now()));
 
         if ($source === 'proxy') {
             $set[] = 'answered_by = ?';

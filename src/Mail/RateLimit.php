@@ -19,6 +19,12 @@ use ReBuji\Settings\Settings;
  */
 final class RateLimit
 {
+    /**
+     * The admins' notices keep at most a tenth of the hourly limit back. The limit is 10 or more, so contacts always
+     * have room.
+     */
+    public const int RESERVE_SHARE = 10;
+
     public function __construct(private readonly MessageRepository $messages, private readonly Settings $settings, private readonly AdminRepository $admins)
     {
         //
@@ -29,7 +35,15 @@ final class RateLimit
      */
     public function remaining(DateTimeImmutable $now): int
     {
-        return $this->remainingForNotices($now) - $this->admins->count();
+        return $this->remainingForNotices($now) - $this->reserve();
+    }
+
+    /**
+     * Mails kept back for the admins' notices: one for each admin, but no more than a tenth of the limit.
+     */
+    public function reserve(): int
+    {
+        return min($this->admins->count(), intdiv($this->settings->int('hourly_limit'), self::RESERVE_SHARE));
     }
 
     /**

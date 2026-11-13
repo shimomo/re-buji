@@ -3,6 +3,7 @@
 /** @var string $title */
 /** @var array{id: int, name: string, email: string} $admin */
 /** @var ReBuji\Quakes\Notification $contact */
+/** @var string $record */
 /** @var ReBuji\Quakes\Earthquake|null $quake */
 /** @var list<string> $errors */
 /** @var array{answer: string, note: string} $values */
@@ -17,6 +18,7 @@ $this->layout('layout', ['title' => $title]);
 </ul>
 <?php endif ?>
 <p><?= $this->e($contact->employeeName) ?> さん（<?= $this->e($quake?->title ?? '') ?>）</p>
+<p><?= $this->e($record) ?></p>
 <p class="muted">電話などで確かめた状態を、本人の代わりに記録します。記録したのが誰かも残ります。記録すると再送は止まります。</p>
 <form method="post" action="<?= $this->e($this->url('/contacts/' . $contact->id . '/proxy')) ?>">
     <?= $this->csrf() ?>

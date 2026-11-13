@@ -70,10 +70,11 @@ final class WatchJob implements CronJob
         }
 
         $new = array_filter($problems, fn(string $text, string $key): bool => (string) $this->state->get('watch.sent.' . $key) !== $text, ARRAY_FILTER_USE_BOTH);
-        $admins = $this->admins->all();
+        // When the limit leaves no room for every admin, the first ones are told: someone hears of it.
+        $admins = array_slice($this->admins->all(), 0, max(0, $this->limit->remainingForNotices($now)));
         $lastAttempt = (string) $this->state->get('watch.last_attempt_at');
 
-        if ($new === [] || $admins === [] || $this->limit->remainingForNotices($now) < count($admins)) {
+        if ($new === [] || $admins === []) {
             return;
         }
 
@@ -127,7 +128,7 @@ final class WatchJob implements CronJob
         }
 
         if ($failed > 0) {
-            $problems['feed_failed'] = '取れなかった電文が ' . $failed . ' 通あります。';
+            $problems['feed_failed'] = '取れなかったか読めなかった電文が ' . $failed . ' 通あります。';
         }
 
         if ($mail !== '') {

@@ -8,6 +8,7 @@ use ReBuji\Migrations\M0001CreateFoundationTables;
 use ReBuji\Migrations\M0002CreateEmployeeTables;
 use ReBuji\Migrations\M0003CreateQuakeTables;
 use ReBuji\Migrations\M0004CreateReplyTables;
+use ReBuji\Migrations\M0005CreateDeletedEvents;
 
 /**
  * Every migration, in version order. Later plans append theirs here.
@@ -26,6 +27,7 @@ final class Migrations
             new M0002CreateEmployeeTables(),
             new M0003CreateQuakeTables(),
             new M0004CreateReplyTables(),
+            new M0005CreateDeletedEvents(),
         ];
     }
 }

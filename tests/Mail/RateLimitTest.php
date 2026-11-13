@@ -54,11 +54,12 @@ final class RateLimitTest extends TestCase
     #[DataProvider('drivers')]
     public function keepsRoomForTheAdminsNotices(string $driver): void
     {
-        [$limit, $messages, $admins] = self::limitWithAdmins($driver);
+        // A limit of 20 keeps back up to 2, one for each admin.
+        [$limit, $messages, $admins] = self::limitWithAdmins($driver, 20);
         $admins->create('安否 太郎', 'admin@example.com', 'correct-horse-battery');
         $admins->create('安否 花子', 'hanako@example.com', 'correct-horse-battery');
         $now = new DateTimeImmutable('2009-08-10T21:00:00Z');
-        self::sent($messages, $now->modify('-10 minutes'), 7);
+        self::sent($messages, $now->modify('-10 minutes'), 17);
 
         $this->assertSame(1, $limit->remaining($now));
         $this->assertSame(3, $limit->remainingForNotices($now));
@@ -67,6 +68,28 @@ final class RateLimitTest extends TestCase
 
         $this->assertSame(0, $limit->remaining($now));
         $this->assertEquals(new DateTimeImmutable('2009-08-10T21:50:00Z'), $limit->nextSlotAt($now));
+    }
+
+    #[Test]
+    #[DataProvider('drivers')]
+    public function keepsAtMostATenthOfTheLimitBack(string $driver): void
+    {
+        [$limit, , $admins] = self::limitWithAdmins($driver);
+
+        for ($i = 1; $i <= 12; $i++) {
+            $admins->create('管理者 ' . $i, 'admin' . $i . '@example.com', 'correct-horse-battery');
+        }
+
+        $now = new DateTimeImmutable('2009-08-10T21:00:00Z');
+
+        $this->assertSame(9, $limit->remaining($now));
+        $this->assertSame(10, $limit->remainingForNotices($now));
+
+        [$limit, , $admins] = self::limitWithAdmins($driver, 100);
+        $admins->create('安否 太郎', 'admin@example.com', 'correct-horse-battery');
+        $admins->create('安否 花子', 'hanako@example.com', 'correct-horse-battery');
+
+        $this->assertSame(98, $limit->remaining($now));
     }
 
     /**
@@ -90,13 +113,13 @@ final class RateLimitTest extends TestCase
     /**
      * @return array{RateLimit, MessageRepository, AdminRepository}
      */
-    private static function limitWithAdmins(string $driver): array
+    private static function limitWithAdmins(string $driver, int $hourly = 10): array
     {
         $db = TestDatabase::open($driver);
         $clock = new FrozenClock();
         (new Migrator($db, Migrations::all(), $clock))->migrate();
         $settings = new Settings($db, $clock);
-        $settings->save(['hourly_limit' => '10']);
+        $settings->save(['hourly_limit' => (string) $hourly]);
         $messages = new MessageRepository($db);
         $admins = new AdminRepository($db, $clock);
 

@@ -129,7 +129,7 @@ final class EarthquakesController
             $this->earthquakes->delete($quake->id);
 
             if ($quake->eventId !== null) {
-                $this->telegrams->deleteEvent($quake->eventId);
+                $this->telegrams->forgetEvent($quake->eventId, $this->clock->now());
             }
         });
         $this->flash->put('地震の記録を消しました。');

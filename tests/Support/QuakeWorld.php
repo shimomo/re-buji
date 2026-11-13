@@ -16,6 +16,7 @@ use ReBuji\Employees\Cities;
 use ReBuji\Employees\EmployeeCity;
 use ReBuji\Employees\EmployeeInput;
 use ReBuji\Employees\EmployeeRepository;
+use ReBuji\Feed\FailedTelegrams;
 use ReBuji\Feed\TelegramRepository;
 use ReBuji\Mail\MessageRepository;
 use ReBuji\Mail\NotificationMail;
@@ -43,6 +44,11 @@ use ReBuji\SystemState;
  */
 final class QuakeWorld
 {
+    /**
+     * 'mysql' or 'sqlite', for the few tests that must speak the database's own SQL.
+     */
+    public readonly string $driver;
+
     public readonly Database $db;
 
     public readonly FrozenClock $clock;
@@ -75,7 +81,8 @@ final class QuakeWorld
 
     public function __construct(string $now)
     {
-        $this->db = Database::sqliteInMemory();
+        $this->driver = TestDatabase::quakeDriver();
+        $this->db = TestDatabase::open($this->driver);
         $this->clock = new FrozenClock(new DateTimeImmutable($now));
         (new Migrator($this->db, Migrations::all(), $this->clock))->migrate();
         $this->employees = new EmployeeRepository($this->db, $this->clock);
@@ -83,9 +90,9 @@ final class QuakeWorld
         $this->earthquakes = new EarthquakeRepository($this->db, $this->clock);
         $this->notifications = new NotificationRepository($this->db, $this->clock);
         $this->settings = new Settings($this->db, $this->clock);
-        $this->dispatch = new DispatchJob($this->db, $this->telegrams, $this->earthquakes, $this->notifications, $this->employees, $this->settings, new NullLogger());
-        $this->messages = new MessageRepository($this->db);
         $this->state = new SystemState($this->db, $this->clock);
+        $this->dispatch = new DispatchJob($this->db, $this->telegrams, $this->earthquakes, $this->notifications, $this->employees, $this->settings, new NullLogger(), new FailedTelegrams($this->state));
+        $this->messages = new MessageRepository($this->db);
         $this->mailer = new RecordingMailSender();
         $this->replies = new ReplyRepository($this->db, $this->clock);
         $this->mailbox = new FakeMailbox();

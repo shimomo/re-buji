@@ -9,6 +9,7 @@ use JmaXml\Envelope;
 use JmaXml\Report;
 use ReBuji\Database\Database;
 use ReBuji\Time;
+use Throwable;
 
 /**
  * Earthquake telegrams the feed returned. Events are rebuilt from them on every new telegram (jmaxml/earthquake keeps
@@ -25,6 +26,9 @@ final class TelegramRepository
         //
     }
 
+    /**
+     * A telegram of a quake an admin deleted is not kept: it would make the quake again.
+     */
     public function store(string $url, string $xml, DateTimeImmutable $receivedAt): void
     {
         if ($this->db->fetchValue('SELECT 1 FROM telegrams WHERE url = ?', [$url]) !== null) {
@@ -32,6 +36,10 @@ final class TelegramRepository
         }
 
         $envelope = Envelope::fromString($xml);
+
+        if ($this->db->fetchValue('SELECT 1 FROM deleted_events WHERE event_id = ?', [$envelope->head->eventID]) !== null) {
+            return;
+        }
         $this->db->execute(
             'INSERT INTO telegrams (url, event_id, status, title, info_type, reported_at, received_at, processed_at, xml) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)',
             [
@@ -58,13 +66,29 @@ final class TelegramRepository
     }
 
     /**
+     * The telegrams of the event that can be read. One that cannot is skipped, so the rest still decide who to contact,
+     * and handed to $unreadable while it is new: once processed, it was reported, and an admin who acknowledged it
+     * does not see it again when the quake is judged again.
+     *
+     * @param (callable(string, string, string): void)|null $unreadable called with the URL, the title and the reason
+     *
      * @return list<Report>
      */
-    public function reportsOf(string $eventId): array
+    public function reportsOf(string $eventId, ?callable $unreadable = null): array
     {
-        $rows = $this->db->fetchAll('SELECT xml FROM telegrams WHERE event_id = ? ORDER BY id', [$eventId]);
+        $reports = [];
 
-        return array_map(static fn(array $row): Report => Report::fromString((string) $row['xml']), $rows);
+        foreach ($this->db->fetchAll('SELECT url, title, xml, processed_at FROM telegrams WHERE event_id = ? ORDER BY id', [$eventId]) as $row) {
+            try {
+                $reports[] = Report::fromString((string) $row['xml']);
+            } catch (Throwable $exception) {
+                if ($unreadable !== null && $row['processed_at'] === null) {
+                    $unreadable((string) $row['url'], (string) $row['title'], $exception->getMessage());
+                }
+            }
+        }
+
+        return $reports;
     }
 
     /**
@@ -84,9 +108,16 @@ final class TelegramRepository
         $this->db->execute('UPDATE telegrams SET processed_at = ? WHERE event_id = ? AND processed_at IS NULL', [Time::format($now), $eventId]);
     }
 
-    public function deleteEvent(string $eventId): void
+    /**
+     * Deletes the event's telegrams and keeps them from being stored again.
+     */
+    public function forgetEvent(string $eventId, DateTimeImmutable $at): void
     {
         $this->db->execute('DELETE FROM telegrams WHERE event_id = ?', [$eventId]);
+
+        if ($this->db->fetchValue('SELECT 1 FROM deleted_events WHERE event_id = ?', [$eventId]) === null) {
+            $this->db->execute('INSERT INTO deleted_events (event_id, deleted_at) VALUES (?, ?)', [$eventId, Time::format($at)]);
+        }
     }
 
     /**

@@ -197,6 +197,30 @@ final class HomeTest extends TestCase
     }
 
     #[Test]
+    public function saysWhichTelegramsCouldNotBeRead(): void
+    {
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => new FrozenClock()]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $state = $container->get(SystemState::class);
+            $this->assertInstanceOf(SystemState::class, $state);
+            $state->set('feed.failed_telegrams', json_encode([
+                ['kind' => 'read', 'title' => '震源・震度に関する情報', 'url' => 'https://example.com/broken.xml', 'reason' => 'not a JMA telegram', 'at' => '2026-11-05T03:05:00Z'],
+                ['title' => '震度速報', 'url' => 'https://www.data.jma.go.jp/developer/xml/data/x.xml', 'reason' => 'HTTP 404', 'at' => '2026-11-05T03:06:00Z'],
+            ], JSON_THROW_ON_ERROR));
+
+            $body = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+
+            $this->assertStringContainsString('読めなかった電文があります：震源・震度に関する情報（11月5日 12時05分）', $body);
+            $this->assertStringContainsString('取れなかった電文があります：震度速報（11月5日 12時06分）', $body);
+            $this->assertStringNotContainsString('取れなかった電文があります：震源・震度に関する情報', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function warnsWhenRepliesCannotBeRead(): void
     {
         [$app, $container, $root] = TestApp::installed([ClockInterface::class => new FrozenClock()]);

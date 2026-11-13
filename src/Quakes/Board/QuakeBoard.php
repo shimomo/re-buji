@@ -66,7 +66,8 @@ final class QuakeBoard
                 $reason,
                 $answering->repliedAt === null ? null : self::time($answering->repliedAt),
                 $this->bodies($answering),
-                $answering->answeredBy === null ? null : $answering->answeredBy . ' さんが代理で記録',
+                // Once the person's own reply decides, the admin's earlier record is no longer what stands.
+                $answering->answerSource === 'proxy' && $answering->answeredBy !== null ? $answering->answeredBy . ' さんが代理で記録' : null,
                 $foldedInto,
             );
 

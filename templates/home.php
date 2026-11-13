@@ -18,7 +18,7 @@
 /** @var int $waiting */
 /** @var string|null $nextSlot */
 /** @var string|null $feedGap */
-/** @var list<array{title: string, at: string}> $failedTelegrams */
+/** @var list<array{title: string, at: string, unreadable: bool}> $failedTelegrams */
 $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
@@ -51,7 +51,7 @@ $this->layout('layout', ['title' => $title]);
 <p class="error">気象庁の情報に抜けがあります（<?= $this->e($feedGap) ?> 以降）。この間の地震は連絡されていない可能性があります。</p>
 <?php endif ?>
 <?php foreach ($failedTelegrams as $failed): ?>
-<p class="warning">取れなかった電文があります：<?= $this->e($failed['title']) ?>（<?= $this->e($failed['at']) ?>）</p>
+<p class="warning"><?= $failed['unreadable'] ? '読めなかった' : '取れなかった' ?>電文があります：<?= $this->e($failed['title']) ?>（<?= $this->e($failed['at']) ?>）</p>
 <?php endforeach ?>
 <form method="post" action="<?= $this->e($this->url('/feed/acknowledge')) ?>">
     <?= $this->csrf() ?>

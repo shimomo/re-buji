@@ -18,6 +18,11 @@ use RuntimeException;
 final class TestDatabase
 {
     /**
+     * MySQL 8.4's default, set here so that a local MariaDB is as strict as the CI job.
+     */
+    private const string MYSQL_SQL_MODE = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+
+    /**
      * @return iterable<string, array{string}>
      */
     public static function each(): iterable
@@ -27,6 +32,14 @@ final class TestDatabase
         if (self::env('REBUJI_TEST_MYSQL_DSN') !== null) {
             yield 'mysql' => ['mysql'];
         }
+    }
+
+    /**
+     * The database the quake, sending and reply tests run on: MySQL in the CI job that has it, SQLite elsewhere.
+     */
+    public static function quakeDriver(): string
+    {
+        return self::env('REBUJI_TEST_MYSQL_DSN') !== null ? 'mysql' : 'sqlite';
     }
 
     public static function open(string $driver): Database
@@ -44,6 +57,7 @@ final class TestDatabase
         }
 
         $db->execute('SET FOREIGN_KEY_CHECKS = 1');
+        $db->execute("SET SESSION sql_mode = '" . self::MYSQL_SQL_MODE . "'");
 
         return $db;
     }

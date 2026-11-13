@@ -86,9 +86,7 @@ final class ContactsController
             return $this->renderProxy($request, $contact, $errors, ['answer' => $answer, 'note' => $note]);
         }
 
-        // A folded person's answer belongs to the contact they were folded into, which is the one that went out.
-        $answering = $contact->state === Notification::MERGED && $contact->mergedIntoId !== null ? ($this->notifications->find($contact->mergedIntoId) ?? $contact) : $contact;
-        $this->notifications->recordAnswer($answering->id, $answer, 'proxy', self::adminName($request), $note === '' ? null : $note, $this->clock->now());
+        $this->notifications->recordAnswer($this->answering($contact)->id, $answer, 'proxy', self::adminName($request), $note === '' ? null : $note, $this->clock->now());
         $this->flash->put('代理の記録を残しました。');
 
         return $this->backTo($contact);
@@ -113,12 +111,39 @@ final class ContactsController
             'title' => '代理で記録',
             'admin' => $request->getAttribute('admin'),
             'contact' => $contact,
+            'record' => self::record($this->answering($contact)),
             'quake' => $this->earthquakes->find($contact->earthquakeId),
             'errors' => $errors,
             'values' => $values,
         ]));
 
         return $response;
+    }
+
+    /**
+     * A folded person's answer belongs to the contact they were folded into, which is the one that went out.
+     */
+    private function answering(Notification $contact): Notification
+    {
+        return $contact->state === Notification::MERGED && $contact->mergedIntoId !== null ? ($this->notifications->find($contact->mergedIntoId) ?? $contact) : $contact;
+    }
+
+    /**
+     * What is on record now, so the admin sees what their record replaces.
+     */
+    private static function record(Notification $contact): string
+    {
+        if ($contact->answer === null) {
+            return '今の記録：まだ答えがありません';
+        }
+
+        $how = $contact->answerSource === 'proxy' ? ($contact->answeredBy ?? '管理者') . ' さんが代理で記録' : '本人のメール';
+
+        if ($contact->answer === Notification::NEEDS_CHECK && $contact->checkedAt !== null) {
+            $how .= '、確認済み';
+        }
+
+        return '今の記録：' . ($contact->answer === Notification::SAFE ? '無事' : '要確認') . '（' . $how . '）';
     }
 
     private function backTo(Notification $contact): ResponseInterface
