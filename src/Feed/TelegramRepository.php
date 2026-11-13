@@ -26,6 +26,9 @@ final class TelegramRepository
         //
     }
 
+    /**
+     * A telegram of a quake an admin deleted is not kept: it would make the quake again.
+     */
     public function store(string $url, string $xml, DateTimeImmutable $receivedAt): void
     {
         if ($this->db->fetchValue('SELECT 1 FROM telegrams WHERE url = ?', [$url]) !== null) {
@@ -33,6 +36,10 @@ final class TelegramRepository
         }
 
         $envelope = Envelope::fromString($xml);
+
+        if ($this->db->fetchValue('SELECT 1 FROM deleted_events WHERE event_id = ?', [$envelope->head->eventID]) !== null) {
+            return;
+        }
         $this->db->execute(
             'INSERT INTO telegrams (url, event_id, status, title, info_type, reported_at, received_at, processed_at, xml) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)',
             [
@@ -100,9 +107,16 @@ final class TelegramRepository
         $this->db->execute('UPDATE telegrams SET processed_at = ? WHERE event_id = ? AND processed_at IS NULL', [Time::format($now), $eventId]);
     }
 
-    public function deleteEvent(string $eventId): void
+    /**
+     * Deletes the event's telegrams and keeps them from being stored again.
+     */
+    public function forgetEvent(string $eventId, DateTimeImmutable $at): void
     {
         $this->db->execute('DELETE FROM telegrams WHERE event_id = ?', [$eventId]);
+
+        if ($this->db->fetchValue('SELECT 1 FROM deleted_events WHERE event_id = ?', [$eventId]) === null) {
+            $this->db->execute('INSERT INTO deleted_events (event_id, deleted_at) VALUES (?, ?)', [$eventId, Time::format($at)]);
+        }
     }
 
     /**

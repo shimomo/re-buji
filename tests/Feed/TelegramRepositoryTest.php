@@ -93,6 +93,26 @@ final class TelegramRepositoryTest extends TestCase
         $this->assertSame(0, $telegrams->prune($now));
     }
 
+    #[Test]
+    #[DataProvider('drivers')]
+    public function ignoresTelegramsOfAForgottenEvent(string $driver): void
+    {
+        $db = $this->migrated($driver);
+        $telegrams = new TelegramRepository($db);
+        $at = new DateTimeImmutable('2009-08-10T20:12:00Z');
+        JmaSamples::store($telegrams, $at, '32-35_07_01_100915_VXSE51.xml');
+
+        $telegrams->forgetEvent('20090811050711', $at);
+        JmaSamples::store($telegrams, $at, '32-35_07_06_240613_VXSE53.xml');
+
+        $this->assertSame(0, (int) $db->fetchValue("SELECT COUNT(*) FROM telegrams WHERE event_id = '20090811050711'"));
+        $this->assertSame([], $telegrams->unprocessedEventIds());
+
+        JmaSamples::store($telegrams, $at, '32-35_08_02_100915_VXSE51.xml');
+
+        $this->assertSame(['20100705065610'], $telegrams->unprocessedEventIds());
+    }
+
     /**
      * @return iterable<string, array{string}>
      */
