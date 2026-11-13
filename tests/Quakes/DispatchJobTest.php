@@ -12,6 +12,7 @@ use ReBuji\Quakes\MatchedCity;
 use ReBuji\Quakes\Notification;
 use ReBuji\Tests\Support\JmaSamples;
 use ReBuji\Tests\Support\QuakeWorld;
+use ReBuji\Time;
 
 /**
  * Judges the Suruga Bay earthquake of 2009-08-11 (EventID 20090811050711, detected 2009-08-10T20:07:00Z, up to 6弱),
@@ -416,6 +417,43 @@ final class DispatchJobTest extends TestCase
         $this->assertSame(['6-'], array_map(static fn(MatchedCity $city): ?string => $city->intensity, $folded->cities));
     }
 
+    #[Test]
+    public function judgesWithTheTelegramsItCanRead(): void
+    {
+        $world = self::world();
+        $yamada = $world->person('山田 花子', '2221300', '勤務地');
+        JmaSamples::store($world->telegrams, $world->clock->now(), self::FIRST);
+        self::storeUnreadable($world);
+
+        $world->dispatch->run($world->clock->now());
+
+        $this->assertNotNull($world->notifications->findFor($world->quake(self::EVENT)->id, $yamada));
+        $this->assertSame([], $world->telegrams->unprocessedEventIds());
+        $failed = self::failedTelegrams($world);
+        $this->assertCount(1, $failed);
+        $this->assertSame('read', $failed[0]['kind']);
+        $this->assertSame('https://example.com/broken.xml', $failed[0]['url']);
+        $this->assertSame('震源・震度に関する情報', $failed[0]['title']);
+    }
+
+    #[Test]
+    public function listsAnUnreadableTelegramOnce(): void
+    {
+        $world = self::world();
+        $world->person('山田 花子', '2221300', '勤務地');
+        self::storeUnreadable($world);
+
+        $world->dispatch->run($world->clock->now());
+
+        $this->assertNull($world->earthquakes->findByEventId(self::EVENT));
+        $this->assertSame([], $world->telegrams->unprocessedEventIds());
+
+        $world->receive(self::FIRST);
+
+        $this->assertSame('最大震度6弱', $world->quake(self::EVENT)->title);
+        $this->assertCount(1, self::failedTelegrams($world));
+    }
+
     private static function world(): QuakeWorld
     {
         return new QuakeWorld('2009-08-10T20:12:00Z');
@@ -438,5 +476,25 @@ final class DispatchJobTest extends TestCase
         $world->settings->save(['threshold' => '4']);
 
         return $world;
+    }
+
+    /**
+     * A telegram of the event that came in whole but cannot be read.
+     */
+    private static function storeUnreadable(QuakeWorld $world): void
+    {
+        $now = Time::format($world->clock->now());
+        $world->db->execute(
+            'INSERT INTO telegrams (url, event_id, status, title, info_type, reported_at, received_at, processed_at, xml) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)',
+            ['https://example.com/broken.xml', self::EVENT, '通常', '震源・震度に関する情報', '発表', $now, $now, '<Report>'],
+        );
+    }
+
+    /**
+     * @return list<array<array-key, mixed>>
+     */
+    private static function failedTelegrams(QuakeWorld $world): array
+    {
+        return array_values(array_filter((array) json_decode((string) $world->state->get('feed.failed_telegrams'), true), 'is_array'));
     }
 }

@@ -26,14 +26,13 @@ use ReBuji\Time;
  */
 final class FeedJob implements CronJob
 {
-    public const int FAILED_TELEGRAMS_KEPT = 10;
-
     public function __construct(
         private readonly FeedClient $client,
         private readonly Database $db,
         private readonly DatabaseStateStore $store,
         private readonly TelegramRepository $telegrams,
         private readonly SystemState $state,
+        private readonly FailedTelegrams $failed,
         private readonly LoggerInterface $logger,
     ) {
         //
@@ -102,8 +101,6 @@ final class FeedJob implements CronJob
 
     private function recordFailures(PollResult $result, DateTimeImmutable $now): void
     {
-        $failed = [];
-
         foreach ($result->failures as $failure) {
             if ($failure->willRetry) {
                 $this->logger->info('feed: will retry ' . $failure->entry->url . ': ' . $failure->reason);
@@ -112,22 +109,7 @@ final class FeedJob implements CronJob
             }
 
             $this->logger->error('feed: gave up on ' . $failure->entry->url . ': ' . $failure->reason);
-            $failed[] = ['title' => $failure->entry->title, 'url' => $failure->entry->url, 'reason' => $failure->reason, 'at' => Time::format($now)];
+            $this->failed->add(FailedTelegrams::FETCH, $failure->entry->title, $failure->entry->url, $failure->reason, $now);
         }
-
-        if ($failed === []) {
-            return;
-        }
-
-        $all = [...self::listOf(json_decode((string) $this->state->get('feed.failed_telegrams'), true)), ...$failed];
-        $this->state->set('feed.failed_telegrams', json_encode(array_slice($all, -self::FAILED_TELEGRAMS_KEPT), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-    }
-
-    /**
-     * @return list<mixed>
-     */
-    private static function listOf(mixed $value): array
-    {
-        return is_array($value) ? array_values($value) : [];
     }
 }

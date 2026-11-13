@@ -127,7 +127,7 @@ final class WatchJob implements CronJob
         }
 
         if ($failed > 0) {
-            $problems['feed_failed'] = '取れなかった電文が ' . $failed . ' 通あります。';
+            $problems['feed_failed'] = '取れなかったか読めなかった電文が ' . $failed . ' 通あります。';
         }
 
         if ($mail !== '') {

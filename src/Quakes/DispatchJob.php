@@ -14,6 +14,7 @@ use ReBuji\Cron\CronJob;
 use ReBuji\Database\Database;
 use ReBuji\Employees\Employee;
 use ReBuji\Employees\EmployeeRepository;
+use ReBuji\Feed\FailedTelegrams;
 use ReBuji\Feed\TelegramRepository;
 use ReBuji\Settings\Settings;
 use RuntimeException;
@@ -36,9 +37,10 @@ final class DispatchJob implements CronJob
     public const int RELATED_WITHIN_SECONDS = 300;
 
     /**
-     * Events rebuilt during this run, by EventID, to compare with related quakes.
+     * Events rebuilt during this run, by EventID, to compare with related quakes: null when none of the telegrams can
+     * be read.
      *
-     * @var array<string, EarthquakeEvent>
+     * @var array<string, EarthquakeEvent|null>
      */
     private array $events = [];
 
@@ -50,6 +52,7 @@ final class DispatchJob implements CronJob
         private readonly EmployeeRepository $employees,
         private readonly Settings $settings,
         private readonly LoggerInterface $logger,
+        private readonly FailedTelegrams $failed,
     ) {
         //
     }
@@ -87,7 +90,13 @@ final class DispatchJob implements CronJob
 
     private function judge(string $eventId, DateTimeImmutable $now): void
     {
-        $event = $this->event($eventId);
+        $event = $this->event($eventId, $now);
+
+        // Nothing to judge until a telegram that can be read arrives; the ones that cannot are listed for the admins.
+        if ($event === null) {
+            return;
+        }
+
         $quake = $this->earthquakes->findByEventId($eventId);
 
         // Once cancelled, a quake stays cancelled even if JMA issued it again: people were told no reply was needed.
@@ -144,7 +153,7 @@ final class DispatchJob implements CronJob
             $notBefore = $quake->delivery === Earthquake::RELEASED
                 ? $now
                 : $quake->detectedAt->modify('+' . $this->settings->int('delay_minutes') . ' minutes');
-            $foldedInto = $state === Notification::PENDING ? $this->unansweredRelatedContact($employee, $quake, $event) : null;
+            $foldedInto = $state === Notification::PENDING ? $this->unansweredRelatedContact($employee, $quake, $event, $now) : null;
 
             if ($foldedInto !== null) {
                 $state = Notification::MERGED;
@@ -164,7 +173,7 @@ final class DispatchJob implements CronJob
      * A person who has not answered a contact for a quake moments before, likely the same shaking, gets no second
      * mail: this quake is folded into that contact (design 4). A main shock some time later is a quake of its own.
      */
-    private function unansweredRelatedContact(Employee $employee, Earthquake $quake, EarthquakeEvent $event): ?int
+    private function unansweredRelatedContact(Employee $employee, Earthquake $quake, EarthquakeEvent $event, DateTimeImmutable $now): ?int
     {
         foreach ($this->notifications->unansweredQuakeContactsOf($employee->id, $quake->id) as $other) {
             $otherQuake = $this->earthquakes->find($other->earthquakeId);
@@ -174,7 +183,9 @@ final class DispatchJob implements CronJob
                 continue;
             }
 
-            if ($event->isPossiblyRelatedTo($this->event($otherEventId), self::RELATED_WITHIN_SECONDS)) {
+            $otherEvent = $this->event($otherEventId, $now);
+
+            if ($otherEvent !== null && $event->isPossiblyRelatedTo($otherEvent, self::RELATED_WITHIN_SECONDS)) {
                 return $other->mergedIntoId ?? $other->id;
             }
         }
@@ -182,9 +193,17 @@ final class DispatchJob implements CronJob
         return null;
     }
 
-    private function event(string $eventId): EarthquakeEvent
+    private function event(string $eventId, DateTimeImmutable $now): ?EarthquakeEvent
     {
-        return $this->events[$eventId] ??= EarthquakeEvent::fromReports($this->telegrams->reportsOf($eventId));
+        if (!array_key_exists($eventId, $this->events)) {
+            $reports = $this->telegrams->reportsOf($eventId, function (string $url, string $title, string $reason) use ($eventId, $now): void {
+                $this->logger->error('dispatch: cannot read a telegram of event ' . $eventId . ' (' . $url . '): ' . $reason);
+                $this->failed->add(FailedTelegrams::READ, $title, $url, $reason, $now);
+            });
+            $this->events[$eventId] = $reports === [] ? null : EarthquakeEvent::fromReports($reports);
+        }
+
+        return $this->events[$eventId];
     }
 
     /**

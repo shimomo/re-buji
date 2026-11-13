@@ -9,6 +9,7 @@ use JmaXml\Envelope;
 use JmaXml\Report;
 use ReBuji\Database\Database;
 use ReBuji\Time;
+use Throwable;
 
 /**
  * Earthquake telegrams the feed returned. Events are rebuilt from them on every new telegram (jmaxml/earthquake keeps
@@ -58,13 +59,28 @@ final class TelegramRepository
     }
 
     /**
+     * The telegrams of the event that can be read. One that cannot is skipped and handed to $unreadable, so the rest
+     * still decide who to contact.
+     *
+     * @param (callable(string, string, string): void)|null $unreadable called with the URL, the title and the reason
+     *
      * @return list<Report>
      */
-    public function reportsOf(string $eventId): array
+    public function reportsOf(string $eventId, ?callable $unreadable = null): array
     {
-        $rows = $this->db->fetchAll('SELECT xml FROM telegrams WHERE event_id = ? ORDER BY id', [$eventId]);
+        $reports = [];
 
-        return array_map(static fn(array $row): Report => Report::fromString((string) $row['xml']), $rows);
+        foreach ($this->db->fetchAll('SELECT url, title, xml FROM telegrams WHERE event_id = ? ORDER BY id', [$eventId]) as $row) {
+            try {
+                $reports[] = Report::fromString((string) $row['xml']);
+            } catch (Throwable $exception) {
+                if ($unreadable !== null) {
+                    $unreadable((string) $row['url'], (string) $row['title'], $exception->getMessage());
+                }
+            }
+        }
+
+        return $reports;
     }
 
     /**

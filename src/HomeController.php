@@ -12,6 +12,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ReBuji\Config\ConfigFile;
 use ReBuji\Employees\EmployeeRepository;
+use ReBuji\Feed\FailedTelegrams;
 use ReBuji\Http\Url;
 use ReBuji\Mail\RateLimit;
 use ReBuji\Monitor\Health;
@@ -85,14 +86,20 @@ final class HomeController
     }
 
     /**
-     * @return list<array{title: string, at: string}>
+     * Entries written before telegrams could fail to be read have no kind: they were all fetch failures.
+     *
+     * @return list<array{title: string, at: string, unreadable: bool}>
      */
     private static function failedTelegrams(string $json, DateTimeZone $tokyo): array
     {
         return array_map(static function (array $entry) use ($tokyo): array {
             $at = self::text($entry['at'] ?? null);
 
-            return ['title' => self::text($entry['title'] ?? null), 'at' => $at === '' ? '' : Time::parse($at)->setTimezone($tokyo)->format('n月j日 G時i分')];
+            return [
+                'title' => self::text($entry['title'] ?? null),
+                'at' => $at === '' ? '' : Time::parse($at)->setTimezone($tokyo)->format('n月j日 G時i分'),
+                'unreadable' => ($entry['kind'] ?? null) === FailedTelegrams::READ,
+            ];
         }, self::arraysIn(json_decode($json, true)));
     }
 

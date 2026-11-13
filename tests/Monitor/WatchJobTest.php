@@ -100,6 +100,17 @@ final class WatchJobTest extends TestCase
     }
 
     #[Test]
+    public function tellsAboutTelegramsItCouldNotFetchOrRead(): void
+    {
+        $world = self::world();
+        $world->state->set('feed.failed_telegrams', json_encode([['kind' => 'read', 'title' => '震源・震度に関する情報', 'url' => 'https://example.com/broken.xml', 'reason' => 'not a JMA telegram', 'at' => '2009-08-10T20:10:00Z']], JSON_THROW_ON_ERROR));
+
+        self::job($world)->run($world->clock->now());
+
+        $this->assertStringContainsString('・取れなかったか読めなかった電文が 1 通あります。', $world->mailer->sent[0]->body);
+    }
+
+    #[Test]
     public function tellsAboutContactsHeldBackByTheLimitOnce(): void
     {
         $world = self::world();
