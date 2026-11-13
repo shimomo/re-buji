@@ -103,6 +103,33 @@ final class ProxyAnswerTest extends TestCase
     }
 
     #[Test]
+    public function namesWhoseRecordStands(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = $records->quake('20261105121200', '宮城県沖・最大震度6弱', '2026-11-05T03:12:00Z');
+            $toCheck = $records->contact($quake, Notification::SENT);
+            $safe = $records->contact($quake, Notification::SENT);
+            $at = new DateTimeImmutable('2026-11-05T03:20:00Z');
+            $records->notifications->recordAnswer($toCheck, Notification::NEEDS_CHECK, 'proxy', '安否 太郎', '足をけが', $at);
+            $records->notifications->recordAnswer($safe, Notification::SAFE, 'proxy', '安否 太郎', null, $at);
+
+            // An empty reply leaves the admin's 要確認; words in a reply decide over the admin's 無事.
+            $records->notifications->recordAnswer($toCheck, Notification::SAFE, 'mail', null, null, $at);
+            $records->notifications->recordAnswer($safe, Notification::NEEDS_CHECK, 'mail', null, null, $at);
+
+            $this->assertStringContainsString('今の記録：要確認（安否 太郎 さんが代理で記録）', self::proxyForm($app, $toCheck));
+            $this->assertStringContainsString('今の記録：要確認（本人のメール）', self::proxyForm($app, $safe));
+            $page = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody();
+            $this->assertSame(1, substr_count($page, '安否 太郎 さんが代理で記録'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function keepsTheNoteOfAPersonToCheck(): void
     {
         [$app, $container, $root] = self::loggedIn();

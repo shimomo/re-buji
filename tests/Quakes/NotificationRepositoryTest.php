@@ -110,6 +110,31 @@ final class NotificationRepositoryTest extends TestCase
         $this->assertSame(Notification::NEEDS_CHECK, $notifications->find($id)?->answer);
     }
 
+    #[Test]
+    #[DataProvider('drivers')]
+    public function keepsTheAdminAsTheSourceOfAnAnswerAnEmptyReplyLeaves(string $driver): void
+    {
+        $db = TestDatabase::open($driver);
+        $clock = new FrozenClock(new DateTimeImmutable('2009-08-10T20:12:00Z'));
+        (new Migrator($db, Migrations::all(), $clock))->migrate();
+        $employees = new EmployeeRepository($db, $clock);
+        $employee = $employees->find($employees->create(new EmployeeInput('山田 花子', '', ['hanako@example.com'], [new EmployeeCity('2221300', '')], '', true)));
+        $this->assertNotNull($employee);
+        $quake = (new EarthquakeRepository($db, $clock))->createQuake('20090811050711', new QuakeSnapshot('駿河湾・最大震度6弱', null, null, null, null, null, null), '5-', Earthquake::AUTO, false, new DateTimeImmutable('2009-08-10T20:07:00Z'));
+        $notifications = new NotificationRepository($db, $clock);
+        $id = $notifications->create($quake, $employee, [], 7, Notification::SENT, $clock->now());
+        $notifications->recordAnswer($id, Notification::NEEDS_CHECK, 'proxy', '安否 太郎', '足をけが', $clock->now());
+
+        $notifications->recordAnswer($id, Notification::SAFE, 'mail', null, null, $clock->now());
+
+        $this->assertSame(Notification::NEEDS_CHECK, $notifications->find($id)?->answer);
+        $this->assertSame('proxy', $notifications->find($id)?->answerSource);
+
+        $notifications->recordAnswer($id, Notification::NEEDS_CHECK, 'mail', null, null, $clock->now());
+
+        $this->assertSame('mail', $notifications->find($id)?->answerSource);
+    }
+
     /**
      * @return iterable<string, array{string}>
      */

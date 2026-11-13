@@ -66,8 +66,9 @@ final class TelegramRepository
     }
 
     /**
-     * The telegrams of the event that can be read. One that cannot is skipped and handed to $unreadable, so the rest
-     * still decide who to contact.
+     * The telegrams of the event that can be read. One that cannot is skipped, so the rest still decide who to contact,
+     * and handed to $unreadable while it is new: once processed, it was reported, and an admin who acknowledged it
+     * does not see it again when the quake is judged again.
      *
      * @param (callable(string, string, string): void)|null $unreadable called with the URL, the title and the reason
      *
@@ -77,11 +78,11 @@ final class TelegramRepository
     {
         $reports = [];
 
-        foreach ($this->db->fetchAll('SELECT url, title, xml FROM telegrams WHERE event_id = ? ORDER BY id', [$eventId]) as $row) {
+        foreach ($this->db->fetchAll('SELECT url, title, xml, processed_at FROM telegrams WHERE event_id = ? ORDER BY id', [$eventId]) as $row) {
             try {
                 $reports[] = Report::fromString((string) $row['xml']);
             } catch (Throwable $exception) {
-                if ($unreadable !== null) {
+                if ($unreadable !== null && $row['processed_at'] === null) {
                     $unreadable((string) $row['url'], (string) $row['title'], $exception->getMessage());
                 }
             }

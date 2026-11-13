@@ -189,11 +189,15 @@ final class NotificationRepository
     public function recordAnswer(int $id, string $answer, string $source, ?string $by, ?string $note, DateTimeImmutable $at): void
     {
         // The conditions are decided here: SQLite compares a bound parameter as text, so "? = 1" would never hold.
-        [$set, $params] = $source === 'proxy'
-            ? [['answer = ?'], [$answer]]
-            : [['answer = CASE WHEN answer = ? THEN answer ELSE ? END'], [Notification::NEEDS_CHECK, $answer]];
-        array_push($set, 'answer_source = ?', 'replied_at = COALESCE(replied_at, ?)', 'next_send_at = NULL', 'updated_at = ?');
-        array_push($params, $source, Time::format($at), Time::format($this->clock->now()));
+        // An empty reply leaves an answer that needs checking as it is, and whoever recorded it stays its source.
+        [$set, $params] = $source === 'mail' && $answer === Notification::SAFE
+            ? [
+                ['answer_source = CASE WHEN answer = ? THEN answer_source ELSE ? END', 'answer = CASE WHEN answer = ? THEN answer ELSE ? END'],
+                [Notification::NEEDS_CHECK, $source, Notification::NEEDS_CHECK, $answer],
+            ]
+            : [['answer_source = ?', 'answer = ?'], [$source, $answer]];
+        array_push($set, 'replied_at = COALESCE(replied_at, ?)', 'next_send_at = NULL', 'updated_at = ?');
+        array_push($params, Time::format($at), Time::format($this->clock->now()));
 
         if ($source === 'proxy') {
             $set[] = 'answered_by = ?';

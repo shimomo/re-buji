@@ -454,6 +454,21 @@ final class DispatchJobTest extends TestCase
         $this->assertCount(1, self::failedTelegrams($world));
     }
 
+    #[Test]
+    public function doesNotListAnAcknowledgedTelegramAgain(): void
+    {
+        $world = self::world();
+        $world->person('山田 花子', '2221300', '勤務地');
+        JmaSamples::store($world->telegrams, $world->clock->now(), self::FIRST);
+        self::storeUnreadable($world);
+        $world->dispatch->run($world->clock->now());
+        $world->state->set('feed.failed_telegrams', '');
+
+        $world->receive(self::LATER_SHINDO);
+
+        $this->assertSame([], self::failedTelegrams($world));
+    }
+
     private static function world(): QuakeWorld
     {
         return new QuakeWorld('2009-08-10T20:12:00Z');
