@@ -44,6 +44,11 @@ use ReBuji\SystemState;
  */
 final class QuakeWorld
 {
+    /**
+     * 'mysql' or 'sqlite', for the few tests that must speak the database's own SQL.
+     */
+    public readonly string $driver;
+
     public readonly Database $db;
 
     public readonly FrozenClock $clock;
@@ -76,7 +81,8 @@ final class QuakeWorld
 
     public function __construct(string $now)
     {
-        $this->db = Database::sqliteInMemory();
+        $this->driver = TestDatabase::quakeDriver();
+        $this->db = TestDatabase::open($this->driver);
         $this->clock = new FrozenClock(new DateTimeImmutable($now));
         (new Migrator($this->db, Migrations::all(), $this->clock))->migrate();
         $this->employees = new EmployeeRepository($this->db, $this->clock);

@@ -184,7 +184,9 @@ final class ReplyJobTest extends TestCase
     public function keepsReadingPastAMailItCannotRecord(): void
     {
         [$world, $contact] = self::sent();
-        $world->db->execute("CREATE TRIGGER refuse_poison BEFORE INSERT ON replies WHEN NEW.subject = 'poison' BEGIN SELECT RAISE(ABORT, 'disk full'); END");
+        $world->db->execute($world->driver === 'mysql'
+            ? "CREATE TRIGGER refuse_poison BEFORE INSERT ON replies FOR EACH ROW BEGIN IF NEW.subject = 'poison' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'disk full'; END IF; END"
+            : "CREATE TRIGGER refuse_poison BEFORE INSERT ON replies WHEN NEW.subject = 'poison' BEGIN SELECT RAISE(ABORT, 'disk full'); END");
         $poison = $world->mailbox->add(MailFixtures::reply('stranger@example.net', '', null, 'poison'));
         $world->mailbox->add(MailFixtures::reply('person1@example.com', '', $world->messageIdSentTo('person1@example.com'), 'Re: ' . $world->mailer->sent[0]->subject));
 

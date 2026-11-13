@@ -495,6 +495,14 @@ final class DispatchJobTest extends TestCase
      */
     private static function failedTelegrams(QuakeWorld $world): array
     {
-        return array_values(array_filter((array) json_decode((string) $world->state->get('feed.failed_telegrams'), true), 'is_array'));
+        return self::arraysIn(json_decode((string) $world->state->get('feed.failed_telegrams'), true));
+    }
+
+    /**
+     * @return list<array<array-key, mixed>>
+     */
+    private static function arraysIn(mixed $value): array
+    {
+        return is_array($value) ? array_values(array_filter($value, 'is_array')) : [];
     }
 }
