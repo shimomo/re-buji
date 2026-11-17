@@ -17,6 +17,21 @@ use ReBuji\Tests\Support\QuakeWorld;
 final class ReplyMatcherTest extends TestCase
 {
     #[Test]
+    public function matchesTheSenderOnlyToAContactSentWithinAWeek(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        $world->sender()->sendFirstContacts();
+        $mail = IncomingMail::parse(MailFixtures::reply('person1@example.com', '無事です', null, 'こんにちは'));
+
+        $world->clock->advance('+6 days');
+        $this->assertEquals(new ReplyMatch($contact, 'sender'), $world->matcher()->match($mail));
+
+        $world->clock->advance('+2 days');
+        $this->assertNull($world->matcher()->match($mail));
+    }
+
+    #[Test]
     public function matchesTheThreadFirst(): void
     {
         $world = self::world();
