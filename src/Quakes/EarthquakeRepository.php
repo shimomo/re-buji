@@ -127,9 +127,12 @@ final class EarthquakeRepository
         ], $rows);
     }
 
+    /**
+     * Late quakes still waiting for an admin's decision. One JMA cancelled needs none: nothing of it is sent.
+     */
     public function countHeld(): int
     {
-        return (int) $this->db->fetchValue('SELECT COUNT(*) FROM earthquakes WHERE delivery = ?', [Earthquake::HELD]);
+        return (int) $this->db->fetchValue('SELECT COUNT(*) FROM earthquakes WHERE delivery = ? AND cancelled_at IS NULL', [Earthquake::HELD]);
     }
 
     public function setDelivery(int $id, string $delivery): void

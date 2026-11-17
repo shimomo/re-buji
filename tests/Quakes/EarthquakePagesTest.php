@@ -124,6 +124,26 @@ final class EarthquakePagesTest extends TestCase
     }
 
     #[Test]
+    public function refusesToDecideACancelledLateQuake(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $late = $records->quake('20090811050711', '駿河湾・最大震度6弱', '2026-11-04T20:00:00Z', Earthquake::HELD);
+            $contact = $records->contact($late, Notification::HELD, '2026-11-04T20:00:00Z');
+            $records->earthquakes->markCancelled($late, new DateTimeImmutable('2026-11-05T00:00:00Z'));
+
+            $this->assertSame(404, $app->handle(TestApp::request('POST', '/earthquakes/' . $late . '/release', TestApp::csrf($container)))->getStatusCode());
+            $this->assertSame(404, $app->handle(TestApp::request('POST', '/earthquakes/' . $late . '/dismiss', TestApp::csrf($container)))->getStatusCode());
+            $this->assertSame(Earthquake::HELD, $records->earthquakes->find($late)?->delivery);
+            $this->assertSame(Notification::HELD, $records->notifications->find($contact)?->state);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function saysWhenThereAreNoQuakes(): void
     {
         [$app, , $root] = self::loggedIn();

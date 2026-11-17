@@ -138,7 +138,8 @@ final class EarthquakesController
     }
 
     /**
-     * The late quake waiting for a decision, or 404: a quake decided already (or never held) cannot be decided again.
+     * The late quake waiting for a decision, or 404: a quake decided already (or never held) cannot be decided again,
+     * and one JMA cancelled has nothing left to send.
      *
      * @param array<string, string> $args
      */
@@ -146,7 +147,7 @@ final class EarthquakesController
     {
         $quake = $this->earthquakes->find((int) ($args['id'] ?? '0'));
 
-        if ($quake === null || $quake->delivery !== Earthquake::HELD) {
+        if ($quake === null || $quake->delivery !== Earthquake::HELD || $quake->isCancelled()) {
             throw new HttpNotFoundException($request);
         }
 
