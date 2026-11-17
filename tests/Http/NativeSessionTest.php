@@ -61,4 +61,40 @@ final class NativeSessionTest extends TestCase
             TemporaryDirectory::remove($directory);
         }
     }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function refusesASessionIdItDidNotIssue(): void
+    {
+        $directory = TemporaryDirectory::create();
+
+        try {
+            $_COOKIE['rebuji_session'] = 'chosenbyattacker0123456789abcdef';
+            $session = new NativeSession($directory, false);
+            $session->set('a', 1);
+
+            $this->assertNotSame('chosenbyattacker0123456789abcdef', session_id());
+            $this->assertFileDoesNotExist($directory . '/sess_chosenbyattacker0123456789abcdef');
+        } finally {
+            session_write_close();
+            TemporaryDirectory::remove($directory);
+        }
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function scopesTheCookieToTheAppsPath(): void
+    {
+        $directory = TemporaryDirectory::create();
+
+        try {
+            $session = new NativeSession($directory, false, '/re-buji/');
+            $session->set('a', 1);
+
+            $this->assertSame('/re-buji/', session_get_cookie_params()['path']);
+        } finally {
+            session_write_close();
+            TemporaryDirectory::remove($directory);
+        }
+    }
 }

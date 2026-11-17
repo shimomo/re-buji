@@ -59,7 +59,13 @@ final class Container
             ConfigFile::class => static fn(): ConfigFile => new ConfigFile($paths->storage('config.php')),
             ClockInterface::class => static fn(): ClockInterface => new SystemClock(),
             LoggerInterface::class => static fn(ContainerInterface $c): LoggerInterface => new FileLogger($paths->storage('logs/re-buji.log'), self::clock($c)),
-            Session::class => static fn(): Session => new NativeSession($paths->storage('sessions'), self::isHttps()),
+            Session::class => static function (ContainerInterface $c) use ($paths): Session {
+                $url = $c->get(Url::class);
+                assert($url instanceof Url);
+
+                // '/re-buji/' for a copy at /re-buji, '/' at the top of the domain.
+                return new NativeSession($paths->storage('sessions'), self::isHttps(), rtrim($url->basePath(), '/') . '/');
+            },
             ResponseFactoryInterface::class => static fn(): ResponseFactoryInterface => new ResponseFactory(),
             RequestFactoryInterface::class => static fn(): RequestFactoryInterface => new Psr17Factory(),
             ClientInterface::class => static fn(): ClientInterface => new Psr18Client(HttpClient::create(['timeout' => 10, 'max_redirects' => 0]), new Psr17Factory(), new Psr17Factory()),

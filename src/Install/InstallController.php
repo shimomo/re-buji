@@ -70,6 +70,11 @@ final class InstallController
             return $this->render($step, $context, $result->errors);
         }
 
+        // The key is what grants setup: from here on, the session runs under an id nobody could have chosen.
+        if ($step->key() === 'key') {
+            $context->renewSession();
+        }
+
         $context->markCompleted($step->key());
         $next = $this->next($step);
 

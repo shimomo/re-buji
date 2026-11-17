@@ -18,7 +18,10 @@ final class NativeSession implements Session
 {
     private const string NAME = 'rebuji_session';
 
-    public function __construct(private readonly string $savePath, private readonly bool $secure)
+    /**
+     * @param string $cookiePath where the app lives, so the cookie goes to no other app on the same domain
+     */
+    public function __construct(private readonly string $savePath, private readonly bool $secure, private readonly string $cookiePath = '/')
     {
         //
     }
@@ -105,10 +108,14 @@ final class NativeSession implements Session
 
         session_save_path($this->savePath);
         session_name(self::NAME);
-        session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => $this->secure, 'httponly' => true, 'samesite' => 'Lax']);
+        session_set_cookie_params(['lifetime' => 0, 'path' => $this->cookiePath, 'secure' => $this->secure, 'httponly' => true, 'samesite' => 'Lax']);
 
         // One start in a hundred removes files idle for longer than IDLE_SECONDS (Debian-based PHP ships with 0).
-        if (!session_start(['gc_maxlifetime' => self::IDLE_SECONDS, 'gc_probability' => 1, 'gc_divisor' => 100])) {
+        // Strict mode refuses an id this app did not issue, so nobody can hand someone a session id chosen in advance;
+        // set here rather than left to the host's settings.
+        $options = ['gc_maxlifetime' => self::IDLE_SECONDS, 'gc_probability' => 1, 'gc_divisor' => 100, 'use_strict_mode' => 1, 'use_only_cookies' => 1, 'use_trans_sid' => 0];
+
+        if (!session_start($options)) {
             throw new RuntimeException('Cannot start the session');
         }
     }
