@@ -31,7 +31,8 @@ use ReBuji\Time;
 final class WatchJob implements CronJob
 {
     /**
-     * Attempts are at most this far apart: while sending fails, every attempt would wait for the same timeout.
+     * After an attempt that could not send, the next waits this long: while sending fails, every attempt would wait
+     * for the same timeout. After a mail went out, a new problem is told on the next run.
      */
     public const int RETRY_MINUTES = 60;
 
@@ -107,6 +108,8 @@ final class WatchJob implements CronJob
         foreach ($new as $key => $text) {
             $this->state->set('watch.sent.' . $key, $text);
         }
+
+        $this->state->set('watch.last_attempt_at', '');
     }
 
     /**
@@ -121,7 +124,7 @@ final class WatchJob implements CronJob
         $gap = (string) $this->state->get('feed.gap_since');
         $failed = self::count(json_decode((string) $this->state->get('feed.failed_telegrams'), true));
         $mail = (string) $this->state->get('mail.last_error');
-        $imap = (string) $this->state->get('imap.last_error');
+        $imap = $this->reading->lastingError($now);
 
         if ($gap !== '') {
             $problems['feed_gap'] = '気象庁の情報に抜けがあります（' . Time::parse($gap)->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('n月j日 G時i分') . ' 以降）。この間の地震は連絡されていない可能性があります。';
@@ -135,7 +138,7 @@ final class WatchJob implements CronJob
             $problems['mail'] = 'メールを送れていません：' . $mail;
         }
 
-        if ($imap !== '') {
+        if ($imap !== null) {
             $problems['imap'] = '返信を読めていません：' . $imap;
         }
 

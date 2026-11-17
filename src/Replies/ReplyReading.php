@@ -35,9 +35,9 @@ final class ReplyReading
         }
 
         $last = (string) $this->state->get('imap.last_checked_at');
-        $since = $last !== '' ? $last : (string) $this->state->get('imap.since');
+        $since = $this->lastRead();
 
-        if ($since === '' || $now->getTimestamp() - Time::parse($since)->getTimestamp() <= self::STALE_MINUTES * 60) {
+        if ($since === '' || $this->isRecent($since, $now)) {
             return null;
         }
 
@@ -46,5 +46,37 @@ final class ReplyReading
             : '最後は ' . Time::parse($last)->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('n月j日 G時i分');
 
         return '返信を ' . self::STALE_MINUTES . ' 分以上読めていません（' . $when . '）。';
+    }
+
+    /**
+     * The IMAP error once replies have gone unread for STALE_MINUTES, or null: a single failed run between good ones
+     * (a timeout, say) is not worth a mail to every admin. With no time to go by, before reading ever started, the
+     * error is told at once.
+     */
+    public function lastingError(DateTimeImmutable $now): ?string
+    {
+        $error = (string) $this->state->get('imap.last_error');
+        $since = $this->lastRead();
+
+        if ($error === '' || ($since !== '' && $this->isRecent($since, $now))) {
+            return null;
+        }
+
+        return $error;
+    }
+
+    /**
+     * When replies were last read, or when reading started if they never were; '' before that.
+     */
+    private function lastRead(): string
+    {
+        $last = (string) $this->state->get('imap.last_checked_at');
+
+        return $last !== '' ? $last : (string) $this->state->get('imap.since');
+    }
+
+    private function isRecent(string $time, DateTimeImmutable $now): bool
+    {
+        return $now->getTimestamp() - Time::parse($time)->getTimestamp() <= self::STALE_MINUTES * 60;
     }
 }
