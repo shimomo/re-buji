@@ -44,8 +44,9 @@ final class AppFactory
 
         self::routes($app, $container);
 
-        // Added last runs first: errors → routing → installed gate → CSRF. Routing comes before the gate, so an unknown
-        // path is a 404 even before setup; the exposure check relies on it when only public/ is served.
+        // Added last runs first: headers → errors → routing → installed gate → CSRF. Routing comes before the gate, so an
+        // unknown path is a 404 even before setup; the exposure check relies on it when only public/ is served. The
+        // headers wrap the error handling, so error pages carry them too.
         $gate = $container->get(InstalledGate::class);
         $errorHandler = $container->get(ErrorHandler::class);
         assert($gate instanceof InstalledGate && $errorHandler instanceof ErrorHandler);
@@ -55,6 +56,7 @@ final class AppFactory
         $app->addRoutingMiddleware();
         $errors = $app->addErrorMiddleware(false, false, false);
         $errors->setDefaultErrorHandler($errorHandler);
+        $app->add(new SecurityHeaders());
 
         return $app;
     }
