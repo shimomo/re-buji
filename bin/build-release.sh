@@ -15,6 +15,14 @@ app="$work/re-buji"
 mkdir -p "$app"
 git -C "$root" archive HEAD | tar -x -C "$app"
 
+# The zip carries the version its code says it is: it shows on the database update screen and goes to JMA.
+code=$(php -r 'require $argv[1]; echo ReBuji\Version::CURRENT;' "$app/src/Version.php")
+
+if [ "$code" != "$version" ]; then
+    echo "src/Version.php says $code, not $version; change it and commit first" >&2
+    exit 1
+fi
+
 (cd "$app" && composer install --no-dev --optimize-autoloader --classmap-authoritative --no-interaction --no-progress --quiet)
 
 rm -rf "$app/tests" "$app/docs" "$app/.github" "$app/build-files" \
