@@ -5,7 +5,7 @@
 気象庁防災情報XML（[jmaxml](https://github.com/shimomo/jmaxml-php)）を使います。**非公式**で、気象庁とは関係ありません。
 
 > [!NOTE]
-> v0.1 の準備中です。設計書の機能はそろいましたが、まだリリースしていません。設計は [docs/superpowers/specs/2026-11-05-re-buji-design.md](docs/superpowers/specs/2026-11-05-re-buji-design.md) にあります。
+> v0.1.0 が最初の版です。さくらのレンタルサーバで、設置から訓練の連絡への返信までを確かめました。ロリポップなど、ほかのサーバーではまだ試していません。設計は [docs/superpowers/specs/2026-11-05-re-buji-design.md](docs/superpowers/specs/2026-11-05-re-buji-design.md) にあります。
 
 ## 必要なもの
 
@@ -137,7 +137,7 @@ composer install
 composer test       # PHPUnit
 composer analyse    # Psalm
 composer lint       # Pint
-bin/build-release.sh 0.1.0   # build/re-buji-0.1.0.zip を作る
+bin/build-release.sh 0.1.0   # build/re-buji-0.1.0.zip を作る（版は src/Version.php と同じにし、コミットしてから）
 ```
 
 ## 出典と注意

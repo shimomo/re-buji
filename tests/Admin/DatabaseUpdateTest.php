@@ -11,6 +11,7 @@ use ReBuji\Database\Migration;
 use ReBuji\Database\Migrations;
 use ReBuji\Tests\Support\TemporaryDirectory;
 use ReBuji\Tests\Support\TestApp;
+use ReBuji\Version;
 
 /**
  * @author shimomo
@@ -29,7 +30,7 @@ final class DatabaseUpdateTest extends TestCase
             $before = (string) $app->handle(TestApp::request('GET', '/admin/database'))->getBody();
             $this->assertStringContainsString('9999', $before);
             $this->assertStringContainsString('テスト用の変更', $before);
-            $this->assertStringContainsString('0.1.0-dev', $before);
+            $this->assertStringContainsString(Version::CURRENT, $before);
 
             $applied = $app->handle(TestApp::request('POST', '/admin/database', TestApp::csrf($container)));
             $this->assertSame(200, $applied->getStatusCode());
