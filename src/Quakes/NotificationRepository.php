@@ -154,12 +154,13 @@ final class NotificationRepository
     }
 
     /**
-     * An admin chose not to send a late quake.
+     * An admin chose not to send a late quake. People already recorded on their behalf stay, with their record, on
+     * the quake's page (a skipped contact is left off it); being answered, they are not sent either way.
      */
     public function dismiss(int $earthquakeId): void
     {
         $this->db->execute(
-            'UPDATE notifications SET state = ?, updated_at = ? WHERE earthquake_id = ? AND state = ?',
+            'UPDATE notifications SET state = ?, updated_at = ? WHERE earthquake_id = ? AND state = ? AND answer IS NULL',
             [Notification::SKIPPED, Time::format($this->clock->now()), $earthquakeId, Notification::HELD],
         );
     }

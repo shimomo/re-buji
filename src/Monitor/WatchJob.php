@@ -26,13 +26,17 @@ use ReBuji\Time;
  * Design 6.2: mails the admins when the home page shows a new problem, since nobody may be looking at it. Each
  * problem is told once, and again only if it changes or comes back after clearing.
  *
+ * A problem is told at most once in RETRY_MINUTES, even when its words change every run (a different address deferred
+ * each time, in a big quake) or it keeps clearing and coming back: those mails would take the hour's room from the
+ * contacts. A problem not told within that time goes out on the next run.
+ *
  * @author shimomo
  */
 final class WatchJob implements CronJob
 {
     /**
-     * After an attempt that could not send, the next waits this long: while sending fails, every attempt would wait
-     * for the same timeout. After a mail went out, a new problem is told on the next run.
+     * How long a problem told waits before it is told again, changed or come back; and how long the next attempt
+     * waits after one that could not send (while sending fails, every attempt would wait for the same timeout).
      */
     public const int RETRY_MINUTES = 60;
 
@@ -70,16 +74,15 @@ final class WatchJob implements CronJob
             }
         }
 
-        $new = array_filter($problems, fn(string $text, string $key): bool => (string) $this->state->get('watch.sent.' . $key) !== $text, ARRAY_FILTER_USE_BOTH);
+        $new = array_filter(
+            $problems,
+            fn(string $text, string $key): bool => (string) $this->state->get('watch.sent.' . $key) !== $text && !$this->isRecent('watch.told_at.' . $key, $now),
+            ARRAY_FILTER_USE_BOTH,
+        );
         // When the limit leaves no room for every admin, the first ones are told: someone hears of it.
         $admins = array_slice($this->admins->all(), 0, max(0, $this->limit->remainingForNotices($now)));
-        $lastAttempt = (string) $this->state->get('watch.last_attempt_at');
 
-        if ($new === [] || $admins === []) {
-            return;
-        }
-
-        if ($lastAttempt !== '' && $now->getTimestamp() - Time::parse($lastAttempt)->getTimestamp() < self::RETRY_MINUTES * 60) {
+        if ($new === [] || $admins === [] || $this->isRecent('watch.last_attempt_at', $now)) {
             return;
         }
 
@@ -107,9 +110,20 @@ final class WatchJob implements CronJob
 
         foreach ($new as $key => $text) {
             $this->state->set('watch.sent.' . $key, $text);
+            $this->state->set('watch.told_at.' . $key, Time::format($now));
         }
 
         $this->state->set('watch.last_attempt_at', '');
+    }
+
+    /**
+     * Whether the time in the given state is less than RETRY_MINUTES old.
+     */
+    private function isRecent(string $name, DateTimeImmutable $now): bool
+    {
+        $at = (string) $this->state->get($name);
+
+        return $at !== '' && $now->getTimestamp() - Time::parse($at)->getTimestamp() < self::RETRY_MINUTES * 60;
     }
 
     /**
