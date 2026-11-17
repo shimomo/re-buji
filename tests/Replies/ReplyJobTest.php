@@ -92,6 +92,33 @@ final class ReplyJobTest extends TestCase
     }
 
     #[Test]
+    public function doesNotCountAReadReceipt(): void
+    {
+        [$world, $contact] = self::sent();
+        $uid = $world->mailbox->add(MailFixtures::receipt('person1@example.com', $world->messageIdSentTo('person1@example.com')));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $opened = $world->contactNow($contact);
+        $this->assertNull($opened->answer);
+        $this->assertNull($opened->repliedAt);
+        $this->assertNull($opened->autoRepliedAt);
+        $this->assertSame(['receipt'], array_column($world->replies->forNotification($contact), 'kind'));
+        $this->assertSame([$uid], $world->mailbox->seen);
+    }
+
+    #[Test]
+    public function listsAReceiptThatMatchesNobody(): void
+    {
+        [$world] = self::sent();
+        $world->mailbox->add(MailFixtures::receipt('stranger@example.net', null, '開封済み: お知らせ'));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame('receipt', $world->replies->unmatched()[0]['kind']);
+    }
+
+    #[Test]
     public function marksABouncedAddress(): void
     {
         $world = self::world();

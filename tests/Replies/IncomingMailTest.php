@@ -47,6 +47,17 @@ final class IncomingMailTest extends TestCase
     }
 
     #[Test]
+    public function readsAReadReceipt(): void
+    {
+        $mail = IncomingMail::parse(MailFixtures::receipt('person1@example.com'));
+
+        $this->assertSame('receipt', $mail->kind());
+        $this->assertTrue($mail->receipt);
+        $this->assertFalse($mail->autoReply);
+        $this->assertNull($mail->bounce);
+    }
+
+    #[Test]
     public function readsTheTextOfAnHtmlOnlyReply(): void
     {
         $raw = str_replace('Content-Type: text/plain; charset=UTF-8', 'Content-Type: text/html; charset=UTF-8', MailFixtures::reply('hanako@example.com', '<div>無事です<br>家族も</div>'));

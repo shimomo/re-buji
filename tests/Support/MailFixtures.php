@@ -68,6 +68,25 @@ final class MailFixtures
     }
 
     /**
+     * A read receipt (RFC 8098) in the shape mail clients send when someone opens the mail. It carries
+     * Auto-Submitted too, as many do.
+     */
+    public static function receipt(string $from, ?string $inReplyTo = null, string $subject = '開封済み: [安否確認 #a1b2c3d4] 地震がありました'): string
+    {
+        $thread = $inReplyTo === null ? '' : "In-Reply-To: <{$inReplyTo}>\r\nReferences: <{$inReplyTo}>\r\n";
+
+        return 'From: ' . $from . "\r\nTo: anpi@example.co.jp\r\nSubject: " . self::encodedWord($subject, 'UTF-8') . "\r\n"
+            . 'Message-ID: <' . bin2hex(random_bytes(8)) . "@phone.example>\r\nDate: " . self::DATE . "\r\n" . $thread
+            . "Auto-Submitted: auto-replied\r\nMIME-Version: 1.0\r\n"
+            . "Content-Type: multipart/report; report-type=disposition-notification; boundary=\"R\"\r\n"
+            . "\r\n--R\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . chunk_split(base64_encode('このメッセージは表示されました。'))
+            . "\r\n--R\r\nContent-Type: message/disposition-notification\r\n\r\nReporting-UA: phone.example; Mail\r\n"
+            . "Final-Recipient: rfc822; {$from}\r\nOriginal-Message-ID: <" . ($inReplyTo ?? 'unknown@example.co.jp') . ">\r\n"
+            . "Disposition: manual-action/MDN-sent-manually; displayed\r\n"
+            . "\r\n--R--\r\n";
+    }
+
+    /**
      * A notice that delivery is delayed, not failed.
      */
     public static function delay(string $recipient, string $originalMessageId): string

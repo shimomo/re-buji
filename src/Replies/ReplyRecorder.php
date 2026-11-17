@@ -52,6 +52,13 @@ final class ReplyRecorder
                 return;
             }
 
+            // Opened is not answered: the contact stays as it is, and resends go on.
+            if ($mail->receipt) {
+                $this->replies->record($match->notificationId, IncomingMail::RECEIPT, $match->by, $mail->fromAddress, $mail->subject, mb_substr($mail->text, 0, self::UNMATCHED_LENGTH), $mail->key, $receivedAt);
+
+                return;
+            }
+
             if ($mail->autoReply) {
                 $this->notifications->recordAutoReply($match->notificationId, $now);
                 $this->replies->record($match->notificationId, IncomingMail::AUTO_REPLY, $match->by, $mail->fromAddress, $mail->subject, mb_substr($mail->text, 0, self::UNMATCHED_LENGTH), $mail->key, $receivedAt);
