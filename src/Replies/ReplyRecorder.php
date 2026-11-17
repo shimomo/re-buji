@@ -47,14 +47,14 @@ final class ReplyRecorder
             $receivedAt = $mail->date ?? $now;
 
             if ($match === null) {
-                $this->replies->record(null, $mail->kind(), null, $mail->fromAddress, $mail->subject, mb_substr($mail->text, 0, self::UNMATCHED_LENGTH), $mail->messageId, $receivedAt);
+                $this->replies->record(null, $mail->kind(), null, $mail->fromAddress, $mail->subject, mb_substr($mail->text, 0, self::UNMATCHED_LENGTH), $mail->key, $receivedAt);
 
                 return;
             }
 
             if ($mail->autoReply) {
                 $this->notifications->recordAutoReply($match->notificationId, $now);
-                $this->replies->record($match->notificationId, IncomingMail::AUTO_REPLY, $match->by, $mail->fromAddress, $mail->subject, mb_substr($mail->text, 0, self::UNMATCHED_LENGTH), $mail->messageId, $receivedAt);
+                $this->replies->record($match->notificationId, IncomingMail::AUTO_REPLY, $match->by, $mail->fromAddress, $mail->subject, mb_substr($mail->text, 0, self::UNMATCHED_LENGTH), $mail->key, $receivedAt);
 
                 return;
             }
@@ -80,7 +80,7 @@ final class ReplyRecorder
 
             $body = implode("\n\n", $written);
             $this->notifications->recordAnswer($match->notificationId, $body === '' ? Notification::SAFE : Notification::NEEDS_CHECK, 'mail', null, null, $receivedAt);
-            $this->replies->record($match->notificationId, IncomingMail::REPLY, $match->by, $mail->fromAddress, $mail->subject, $body, $mail->messageId, $receivedAt);
+            $this->replies->record($match->notificationId, IncomingMail::REPLY, $match->by, $mail->fromAddress, $mail->subject, $body, $mail->key, $receivedAt);
         });
     }
 
@@ -151,6 +151,6 @@ final class ReplyRecorder
         }
 
         $first = array_key_first($contacts);
-        $this->replies->record($first, $mail->kind(), $first === null ? null : $by, $mail->fromAddress, $mail->subject, mb_substr($mail->text, 0, self::UNMATCHED_LENGTH), $mail->messageId, $mail->date ?? $now);
+        $this->replies->record($first, $mail->kind(), $first === null ? null : $by, $mail->fromAddress, $mail->subject, mb_substr($mail->text, 0, self::UNMATCHED_LENGTH), $mail->key, $mail->date ?? $now);
     }
 }

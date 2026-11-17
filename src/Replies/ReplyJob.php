@@ -76,15 +76,21 @@ final class ReplyJob implements CronJob
                 try {
                     $mail = IncomingMail::parse($raw->raw);
 
-                    // Recorded already: the run that read it stopped before marking it seen.
-                    if ($mail->messageId === null || !$this->replies->knows($mail->messageId)) {
+                    // Recorded already: the run that read it stopped before marking it seen, or the same mail came
+                    // twice. A mail without a Message-ID is known by its text.
+                    if (!$this->replies->knows($mail->key)) {
                         $this->recorder->record($mail);
                     }
                 } catch (MailboxUnavailable $exception) {
                     throw $exception;
                 } catch (Throwable $exception) {
                     $this->logger->warning('replies: unreadable mail ' . $raw->uid . ': ' . $exception->getMessage());
-                    $this->replies->record(null, 'unreadable', null, '', '（読めないメール）', '', null, $now);
+                    // Known by its text, so that reading it again (it fails the same way) lists it once.
+                    $key = IncomingMail::keyOf($raw->raw);
+
+                    if (!$this->replies->knows($key)) {
+                        $this->replies->record(null, 'unreadable', null, '', '（読めないメール）', '', $key, $now);
+                    }
                 }
 
                 $this->mailbox->markSeen($raw);

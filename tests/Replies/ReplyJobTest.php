@@ -225,6 +225,48 @@ final class ReplyJobTest extends TestCase
     }
 
     #[Test]
+    public function readsAMailWithoutMessageIdOnce(): void
+    {
+        [$world, $contact] = self::sent();
+        $reply = (string) preg_replace('/^Message-ID: .*\R/m', '', MailFixtures::reply('person1@example.com', '足を怪我しました', $world->messageIdSentTo('person1@example.com'), 'Re: ' . $world->mailer->sent[0]->subject));
+        $first = $world->mailbox->add($reply);
+        $second = $world->mailbox->add($reply);
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertCount(1, $world->replies->forNotification($contact));
+        $this->assertSame([$first, $second], $world->mailbox->seen);
+    }
+
+    #[Test]
+    public function readsAnUnreadableMailOnce(): void
+    {
+        [$world] = self::sent();
+        $world->mailbox->add('not a mail');
+        $world->mailbox->add('not a mail');
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame(1, $world->replies->countUnmatched());
+    }
+
+    #[Test]
+    public function recordsAMailItCannotRecordOnce(): void
+    {
+        [$world] = self::sent();
+        $world->db->execute($world->driver === 'mysql'
+            ? "CREATE TRIGGER refuse_poison BEFORE INSERT ON replies FOR EACH ROW BEGIN IF NEW.subject = 'poison' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'disk full'; END IF; END"
+            : "CREATE TRIGGER refuse_poison BEFORE INSERT ON replies WHEN NEW.subject = 'poison' BEGIN SELECT RAISE(ABORT, 'disk full'); END");
+        $poison = MailFixtures::reply('stranger@example.net', '', null, 'poison');
+        $world->mailbox->add($poison);
+        $world->mailbox->add($poison);
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertCount(1, array_filter($world->replies->unmatched(), static fn(array $mail): bool => $mail['kind'] === 'unreadable'));
+    }
+
+    #[Test]
     public function readsOnlyMailSinceTheSettings(): void
     {
         [$world] = self::sent();

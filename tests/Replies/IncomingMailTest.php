@@ -36,6 +36,17 @@ final class IncomingMailTest extends TestCase
     }
 
     #[Test]
+    public function keysAMailByItsMessageIdOrItsContent(): void
+    {
+        $raw = MailFixtures::reply('hanako@example.com', '無事です', messageId: 'r1@phone.example');
+        $withoutId = (string) preg_replace('/^Message-ID: .*\R/m', '', $raw);
+
+        $this->assertSame('r1@phone.example', IncomingMail::parse($raw)->key);
+        $this->assertSame('raw:' . hash('sha256', $withoutId), IncomingMail::parse($withoutId)->key);
+        $this->assertSame(IncomingMail::keyOf($withoutId), IncomingMail::parse($withoutId)->key);
+    }
+
+    #[Test]
     public function readsTheTextOfAnHtmlOnlyReply(): void
     {
         $raw = str_replace('Content-Type: text/plain; charset=UTF-8', 'Content-Type: text/html; charset=UTF-8', MailFixtures::reply('hanako@example.com', '<div>無事です<br>家族も</div>'));
