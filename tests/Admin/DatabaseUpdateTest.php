@@ -44,6 +44,32 @@ final class DatabaseUpdateTest extends TestCase
     }
 
     #[Test]
+    public function saysAnotherUpdateIsRunning(): void
+    {
+        [$app, $container, $root] = TestApp::installed(['migrations' => [...Migrations::all(), $this->testMigration()]]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $held = fopen($root . '/storage/migrate.lock', 'c');
+            $this->assertNotFalse($held);
+            flock($held, LOCK_EX);
+
+            $busy = $app->handle(TestApp::request('POST', '/admin/database', TestApp::csrf($container)));
+
+            $this->assertSame(200, $busy->getStatusCode());
+            $this->assertStringContainsString('ほかの画面で DB の更新が進んでいます。', (string) $busy->getBody());
+            $this->assertStringNotContainsString('DB を更新する', (string) $busy->getBody());
+
+            flock($held, LOCK_UN);
+            fclose($held);
+
+            $this->assertStringContainsString('当てました：9999', (string) $app->handle(TestApp::request('POST', '/admin/database', TestApp::csrf($container)))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function requiresLogin(): void
     {
         [$app, , $root] = TestApp::installed();
