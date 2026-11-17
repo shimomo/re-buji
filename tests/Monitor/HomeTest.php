@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ReBuji\Tests\Monitor;
 
+use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
@@ -105,6 +106,24 @@ final class HomeTest extends TestCase
 
             $this->assertStringContainsString('遅れて届いた地震が 1 件あります。送るかどうかを決めてください。', $body);
             $this->assertStringContainsString('href="/earthquakes"', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function forgetsALateQuakeThatWasCancelled(): void
+    {
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => new FrozenClock()]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $records = new QuakeRecords($container);
+            $late = $records->quake('20090811050711', '駿河湾・最大震度6弱', '2026-11-04T20:00:00Z', Earthquake::HELD);
+            $records->contact($late, Notification::HELD, '2026-11-04T20:00:00Z');
+            $records->earthquakes->markCancelled($late, new DateTimeImmutable('2026-11-05T00:00:00Z'));
+
+            $this->assertStringNotContainsString('遅れて届いた地震が', (string) $app->handle(TestApp::request('GET', '/'))->getBody());
         } finally {
             TemporaryDirectory::remove($root);
         }

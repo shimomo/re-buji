@@ -6,12 +6,17 @@ namespace ReBuji\Database;
 
 use Psr\Clock\ClockInterface;
 use ReBuji\Time;
+use RuntimeException;
 
 /**
  * Applies pending migrations and records each one in schema_migrations, which the migrator creates itself.
  *
- * MySQL commits DDL implicitly, so migrations are not wrapped in transactions; each version is applied and recorded in
- * turn.
+ * With a lock file, one update runs at a time: a second one (the update button pressed twice) is refused with
+ * MigrationInProgress instead of applying the same changes again and failing.
+ *
+ * On SQLite, a migration's statements and its record are applied in one transaction, so a migration that fails
+ * halfway leaves nothing behind. MySQL commits DDL implicitly (and PDO's commit() would then throw "There is no active
+ * transaction"), so there each statement is applied and the version recorded in turn.
  *
  * @author shimomo
  */
@@ -20,8 +25,12 @@ final class Migrator
     /**
      * @param list<Migration> $migrations
      */
-    public function __construct(private readonly Database $db, private readonly array $migrations, private readonly ClockInterface $clock)
-    {
+    public function __construct(
+        private readonly Database $db,
+        private readonly array $migrations,
+        private readonly ClockInterface $clock,
+        private readonly ?string $lockPath = null,
+    ) {
         //
     }
 
@@ -41,21 +50,65 @@ final class Migrator
 
     /**
      * @return list<string> the versions applied
+     *
+     * @throws MigrationInProgress while another update holds the lock
      */
     public function migrate(): array
+    {
+        if ($this->lockPath === null) {
+            return $this->applyPending();
+        }
+
+        $lock = fopen($this->lockPath, 'c');
+
+        if ($lock === false) {
+            throw new RuntimeException('Cannot open the migration lock: ' . $this->lockPath);
+        }
+
+        if (!flock($lock, LOCK_EX | LOCK_NB)) {
+            fclose($lock);
+
+            throw new MigrationInProgress('Another database update is running');
+        }
+
+        try {
+            // Read under the lock: the update that held it may have applied what this one was asked to.
+            return $this->applyPending();
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function applyPending(): array
     {
         $applied = [];
 
         foreach ($this->pending() as $migration) {
-            foreach ($migration->statements($this->db->driver()) as $statement) {
-                $this->db->execute($statement);
+            if ($this->db->driver() === 'sqlite') {
+                $this->db->transaction(function () use ($migration): void {
+                    $this->apply($migration);
+                });
+            } else {
+                $this->apply($migration);
             }
 
-            $this->db->execute('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)', [$migration->version(), Time::format($this->clock->now())]);
             $applied[] = $migration->version();
         }
 
         return $applied;
+    }
+
+    private function apply(Migration $migration): void
+    {
+        foreach ($migration->statements($this->db->driver()) as $statement) {
+            $this->db->execute($statement);
+        }
+
+        $this->db->execute('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)', [$migration->version(), Time::format($this->clock->now())]);
     }
 
     private function ensureTable(): void

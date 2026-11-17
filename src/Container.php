@@ -69,13 +69,13 @@ final class Container
 
                 return Database::fromConfig($configFile->load(), $paths);
             },
-            Migrator::class => static function (ContainerInterface $c): Migrator {
+            Migrator::class => static function (ContainerInterface $c) use ($paths): Migrator {
                 $db = $c->get(Database::class);
                 $migrations = $c->get('migrations');
                 assert($db instanceof Database && is_array($migrations));
 
                 /** @var list<\ReBuji\Database\Migration> $migrations */
-                return new Migrator($db, $migrations, self::clock($c));
+                return new Migrator($db, $migrations, self::clock($c), $paths->storage('migrate.lock'));
             },
             StateStore::class => static function (ContainerInterface $c): StateStore {
                 $store = $c->get(DatabaseStateStore::class);

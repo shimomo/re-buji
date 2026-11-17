@@ -48,6 +48,20 @@ final class QuakeBoardTest extends TestCase
     }
 
     #[Test]
+    public function keepsAProxyRecordOfALateQuakeNotSent(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'), state: Notification::HELD);
+        $world->notifications->recordAnswer($contact, Notification::NEEDS_CHECK, 'proxy', '安否 太郎', '電話で確認。足をけがしている', $world->clock->now());
+
+        $world->notifications->dismiss($world->contactNow($contact)->earthquakeId);
+        $board = $world->board()->build($world->quake('20090811050711'));
+
+        $this->assertCount(1, $board['needsCheck']);
+        $this->assertSame(1, $board['total']);
+    }
+
+    #[Test]
     public function explainsWhyThereIsNoReply(): void
     {
         $world = self::world();

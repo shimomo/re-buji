@@ -35,11 +35,13 @@ final readonly class IncomingMail
     private const string DELAY_SUBJECT = '/delay|遅延|遅れ/iu';
 
     /**
+     * @param string $key what the mail is known by among the mail read: its Message-ID, or keyOf() its text
      * @param list<string> $references Message-IDs this mail answers: In-Reply-To first, then References
      * @param list<string> $attachments the names of the files it carries
      */
     public function __construct(
         public ?string $messageId,
+        public string $key,
         public array $references,
         public string $subject,
         public string $fromAddress,
@@ -50,6 +52,14 @@ final readonly class IncomingMail
         public array $attachments = [],
     ) {
         //
+    }
+
+    /**
+     * What a mail without a Message-ID, or one that cannot be read, is known by: the same each time it is read again.
+     */
+    public static function keyOf(string $raw): string
+    {
+        return 'raw:' . hash('sha256', $raw);
     }
 
     public static function parse(string $raw): self
@@ -77,6 +87,7 @@ final readonly class IncomingMail
 
         return new self(
             $message->getMessageId(),
+            $message->getMessageId() ?? self::keyOf($raw),
             self::references($message),
             $subject,
             $fromAddress,

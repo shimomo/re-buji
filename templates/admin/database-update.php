@@ -5,6 +5,7 @@
 /** @var string $version */
 /** @var list<array{version: string, description: string}> $pending */
 /** @var list<string>|null $applied */
+/** @var bool $busy */
 $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
@@ -12,7 +13,9 @@ $this->layout('layout', ['title' => $title]);
 <?php if ($applied !== null): ?>
 <p><?= $applied === [] ? '当てる変更はありませんでした。' : '当てました：' . $this->e(implode('、', $applied)) ?></p>
 <?php endif ?>
-<?php if ($pending === []): ?>
+<?php if ($busy): ?>
+<p class="warning">ほかの画面で DB の更新が進んでいます。少し待ってから、この画面を開き直してください。</p>
+<?php elseif ($pending === []): ?>
 <p>DB は最新です。</p>
 <?php else: ?>
 <p class="warning">DB の更新を当てるまで、ほかの画面は開けません。</p>

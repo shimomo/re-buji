@@ -100,6 +100,81 @@ final class WatchJobTest extends TestCase
     }
 
     #[Test]
+    public function tellsANewProblemSoonAfterAMailWentOut(): void
+    {
+        $world = self::world();
+        $world->state->set('feed.gap_since', '2009-08-10T19:00:00Z');
+        self::job($world)->run($world->clock->now());
+
+        $this->assertCount(2, $world->mailer->sent);
+
+        $world->clock->advance('+5 minutes');
+        $world->state->set('mail.last_error', 'Connection timed out');
+        self::job($world)->run($world->clock->now());
+
+        $this->assertCount(4, $world->mailer->sent);
+        $this->assertStringContainsString('・メールを送れていません：Connection timed out', $world->mailer->sent[3]->body);
+    }
+
+    #[Test]
+    public function waitsBeforeTellingAboutABriefImapError(): void
+    {
+        $world = self::world();
+        $world->state->set('imap.last_checked_at', '2009-08-10T20:07:00Z');
+        $world->state->set('imap.last_error', 'Connection to imap.example.co.jp:993 timed out');
+        self::job($world)->run($world->clock->now());
+
+        $this->assertCount(0, $world->mailer->sent);
+
+        $world->clock->advance('+26 minutes');
+        self::job($world)->run($world->clock->now());
+
+        $this->assertCount(2, $world->mailer->sent);
+        $this->assertStringContainsString('・返信を読めていません：Connection to imap.example.co.jp:993 timed out', $world->mailer->sent[0]->body);
+    }
+
+    #[Test]
+    public function tellsAProblemWhoseWordsChangeAtMostHourly(): void
+    {
+        $world = self::world();
+
+        // A big quake: carriers defer a different address every run.
+        for ($i = 0; $i < 12; $i++) {
+            $world->state->set('mail.last_error', '一時的に送れない宛先があります：person' . $i . '@example.com');
+            self::job($world)->run($world->clock->now());
+            $world->clock->advance('+5 minutes');
+        }
+
+        $this->assertCount(2, $world->mailer->sent);
+
+        self::job($world)->run($world->clock->now());
+
+        $this->assertCount(4, $world->mailer->sent);
+        $this->assertStringContainsString('person11@example.com', $world->mailer->sent[3]->body);
+    }
+
+    #[Test]
+    public function waitsForAProblemThatComesBackSoon(): void
+    {
+        $world = self::world();
+        $world->state->set('mail.last_error', 'Connection timed out');
+        self::job($world)->run($world->clock->now());
+        $world->clock->advance('+5 minutes');
+        $world->state->set('mail.last_error', '');
+        self::job($world)->run($world->clock->now());
+        $world->clock->advance('+5 minutes');
+        $world->state->set('mail.last_error', 'Connection timed out');
+        self::job($world)->run($world->clock->now());
+
+        $this->assertCount(2, $world->mailer->sent);
+
+        $world->clock->advance('+50 minutes');
+        self::job($world)->run($world->clock->now());
+
+        $this->assertCount(4, $world->mailer->sent);
+    }
+
+    #[Test]
     public function tellsAboutTelegramsItCouldNotFetchOrRead(): void
     {
         $world = self::world();

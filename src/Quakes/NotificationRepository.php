@@ -99,14 +99,15 @@ final class NotificationRepository
     }
 
     /**
-     * First contacts that may go now: the strongest shaking first, then in registration order (design 5.3).
+     * First contacts that may go now: the strongest shaking first, then in registration order (design 5.3). A contact
+     * an admin answered before it went out (by phone, say) is not sent: the person needs no asking.
      *
      * @return list<Notification>
      */
     public function dueFirstContacts(DateTimeImmutable $now): array
     {
         return array_map(self::hydrate(...), $this->db->fetchAll(
-            'SELECT ' . self::COLUMNS . ' FROM notifications WHERE state = ? AND (not_before IS NULL OR not_before <= ?) ORDER BY priority DESC, employee_id, id',
+            'SELECT ' . self::COLUMNS . ' FROM notifications WHERE state = ? AND answer IS NULL AND (not_before IS NULL OR not_before <= ?) ORDER BY priority DESC, employee_id, id',
             [Notification::PENDING, Time::format($now)],
         ));
     }
@@ -114,7 +115,7 @@ final class NotificationRepository
     public function countWaiting(DateTimeImmutable $now): int
     {
         return (int) $this->db->fetchValue(
-            'SELECT COUNT(*) FROM notifications WHERE state = ? AND (not_before IS NULL OR not_before <= ?)',
+            'SELECT COUNT(*) FROM notifications WHERE state = ? AND answer IS NULL AND (not_before IS NULL OR not_before <= ?)',
             [Notification::PENDING, Time::format($now)],
         );
     }
@@ -153,12 +154,13 @@ final class NotificationRepository
     }
 
     /**
-     * An admin chose not to send a late quake.
+     * An admin chose not to send a late quake. People already recorded on their behalf stay, with their record, on
+     * the quake's page (a skipped contact is left off it); being answered, they are not sent either way.
      */
     public function dismiss(int $earthquakeId): void
     {
         $this->db->execute(
-            'UPDATE notifications SET state = ?, updated_at = ? WHERE earthquake_id = ? AND state = ?',
+            'UPDATE notifications SET state = ?, updated_at = ? WHERE earthquake_id = ? AND state = ? AND answer IS NULL',
             [Notification::SKIPPED, Time::format($this->clock->now()), $earthquakeId, Notification::HELD],
         );
     }
