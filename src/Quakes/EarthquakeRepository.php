@@ -111,7 +111,7 @@ final class EarthquakeRepository
             'SELECT ' . self::COLUMNS . ','
             . ' (SELECT COUNT(*) FROM notifications n WHERE n.earthquake_id = earthquakes.id) AS total,'
             . ' (SELECT COUNT(*) FROM notifications n WHERE n.earthquake_id = earthquakes.id AND n.sent_count > 0) AS sent,'
-            . " (SELECT COUNT(*) FROM notifications n WHERE n.earthquake_id = earthquakes.id AND n.state IN ('pending', 'held')) AS waiting,"
+            . " (SELECT COUNT(*) FROM notifications n WHERE n.earthquake_id = earthquakes.id AND n.state IN ('pending', 'held') AND n.answer IS NULL) AS waiting,"
             . " (SELECT COUNT(*) FROM notifications n WHERE n.earthquake_id = earthquakes.id AND n.state = 'failed') AS failed,"
             . " (SELECT COUNT(*) FROM notifications n WHERE n.earthquake_id = earthquakes.id AND n.state = 'merged') AS merged"
             . ' FROM earthquakes ORDER BY detected_at DESC, id DESC',

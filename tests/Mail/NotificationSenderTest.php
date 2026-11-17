@@ -379,6 +379,34 @@ final class NotificationSenderTest extends TestCase
         $this->assertSame(Notification::PENDING, $world->contactNow($contacts[2])->state);
     }
 
+    #[Test]
+    public function doesNotSendAContactAnsweredBeforeItWent(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        $world->notifications->recordAnswer($contact, Notification::SAFE, 'proxy', '安否 太郎', null, $world->clock->now());
+
+        $world->sender()->sendFirstContacts();
+
+        $this->assertCount(0, $world->mailer->sent);
+        $this->assertSame(0, $world->notifications->countWaiting($world->clock->now()));
+        $this->assertSame(0, $world->earthquakes->summaries()[0]['waiting']);
+        $this->assertSame(Notification::SAFE, $world->contactNow($contact)->answer);
+    }
+
+    #[Test]
+    public function doesNotSendAHeldContactAnsweredBeforeTheRelease(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'), state: Notification::HELD);
+        $world->notifications->recordAnswer($contact, Notification::NEEDS_CHECK, 'proxy', '安否 太郎', '電話で確認。足をけがしている', $world->clock->now());
+        $world->notifications->release($world->contactNow($contact)->earthquakeId, $world->clock->now());
+
+        $world->sender()->sendFirstContacts();
+
+        $this->assertCount(0, $world->mailer->sent);
+    }
+
     private static function world(): QuakeWorld
     {
         return new QuakeWorld('2009-08-10T20:12:00Z');

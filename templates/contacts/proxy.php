@@ -19,7 +19,7 @@ $this->layout('layout', ['title' => $title]);
 <?php endif ?>
 <p><?= $this->e($contact->employeeName) ?> さん（<?= $this->e($quake?->title ?? '') ?>）</p>
 <p><?= $this->e($record) ?></p>
-<p class="muted">電話などで確かめた状態を、本人の代わりに記録します。記録したのが誰かも残ります。記録すると再送は止まります。</p>
+<p class="muted">電話などで確かめた状態を、本人の代わりに記録します。記録したのが誰かも残ります。記録すると、まだ送っていない連絡と再送は止まります。</p>
 <form method="post" action="<?= $this->e($this->url('/contacts/' . $contact->id . '/proxy')) ?>">
     <?= $this->csrf() ?>
     <label><input type="radio" name="answer" value="safe" style="width:auto"<?= $values['answer'] === 'safe' ? ' checked' : '' ?>> 無事</label>
