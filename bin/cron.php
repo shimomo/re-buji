@@ -26,7 +26,7 @@ if (!$configFile->exists() || $configFile->load()->get('installed_at') === null)
     exit(0);
 }
 
-$container = ReBuji\Container::build($paths);
+$container = ReBuji\Container::forCron($paths);
 $state = $container->get(ReBuji\SystemState::class);
 $clock = $container->get(Psr\Clock\ClockInterface::class);
 $logger = $container->get(Psr\Log\LoggerInterface::class);

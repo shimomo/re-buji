@@ -16,10 +16,16 @@ use Symfony\Component\Mime\Exception\RfcComplianceException;
  * Sends over SMTP with the organisation's mail account (design 5.1). The sender, Reply-To and the envelope sender
  * (Return-Path) are all the account's address, so replies and bounces come back to the mailbox read over IMAP.
  *
- * One instance keeps its connection between mails. Connecting and reading time out after TIMEOUT_SECONDS, so one cron
- * run does not wait long on a server that is down, and a test mail from a page answers before PHP's time limit (often
- * 30 seconds). Symfony reads PHP's default_socket_timeout when it connects, so send() sets it for the time it sends
- * and puts the server's value back; the socket class's own setter is internal to Symfony.
+ * One instance keeps its connection between mails. Connecting and every reply time out after $timeoutSeconds:
+ * - TIMEOUT_SECONDS for a page (a test mail), so the admin gets an answer before the web server or its proxy gives up
+ * - CRON_TIMEOUT_SECONDS for cron (Container::forCron()). The same limit covers the server's answer after the mail
+ *   body, which a busy server (scanning for viruses, loaded after a quake) may take long to give. Taking such a server
+ *   for a dead one would send the first person's mail again every run and nobody else's, while waiting on a server
+ *   that is really down only delays the run.
+ * A server that stops in the middle of a mail can take about twice the limit: the QUIT after the failure waits too.
+ *
+ * Symfony reads PHP's default_socket_timeout when it connects, so send() sets it for the time it sends and puts the
+ * server's value back; the socket class's own setter is internal to Symfony.
  *
  * @author shimomo
  */
@@ -27,9 +33,11 @@ final class SmtpMailSender implements MailSender
 {
     public const int TIMEOUT_SECONDS = 15;
 
+    public const int CRON_TIMEOUT_SECONDS = 60;
+
     private ?RecipientAwareSmtpTransport $transport = null;
 
-    public function __construct(private readonly ?SmtpSettings $settings, private readonly int $timeoutSeconds = self::TIMEOUT_SECONDS)
+    public function __construct(private readonly ?SmtpSettings $settings, public readonly int $timeoutSeconds = self::TIMEOUT_SECONDS)
     {
         //
     }
