@@ -120,6 +120,29 @@ final class SmtpMailSenderTest extends TestCase
     }
 
     #[Test]
+    public function givesUpOnAServerThatNeverAnswers(): void
+    {
+        // Listens but never accepts, so the greeting never comes.
+        $server = stream_socket_server('tcp://127.0.0.1:0');
+        $this->assertNotFalse($server);
+        $port = (int) substr((string) strrchr((string) stream_socket_get_name($server, false), ':'), 1);
+        // The rental server's own setting.
+        $previous = ini_set('default_socket_timeout', '10');
+        $started = microtime(true);
+
+        try {
+            (new SmtpMailSender(self::settings($port), 1))->send(self::mail('ok@example.com'));
+            $this->fail('A server that never answers should be reported as unavailable');
+        } catch (MailUnavailable) {
+            $this->assertLessThan(5.0, microtime(true) - $started);
+            $this->assertSame('10', ini_get('default_socket_timeout'));
+        } finally {
+            ini_set('default_socket_timeout', (string) $previous);
+            fclose($server);
+        }
+    }
+
+    #[Test]
     public function refusesToLogInWithoutTls(): void
     {
         $server = FakeSmtpServer::start();

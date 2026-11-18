@@ -16,16 +16,20 @@ use Symfony\Component\Mime\Exception\RfcComplianceException;
  * Sends over SMTP with the organisation's mail account (design 5.1). The sender, Reply-To and the envelope sender
  * (Return-Path) are all the account's address, so replies and bounces come back to the mailbox read over IMAP.
  *
- * One instance keeps its connection between mails. Connecting and reading time out after PHP's default_socket_timeout
- * (60 seconds unless the server changed it).
+ * One instance keeps its connection between mails. Connecting and reading time out after TIMEOUT_SECONDS, so one cron
+ * run does not wait long on a server that is down, and a test mail from a page answers before PHP's time limit (often
+ * 30 seconds). Symfony reads PHP's default_socket_timeout when it connects, so send() sets it for the time it sends
+ * and puts the server's value back; the socket class's own setter is internal to Symfony.
  *
  * @author shimomo
  */
 final class SmtpMailSender implements MailSender
 {
+    public const int TIMEOUT_SECONDS = 15;
+
     private ?RecipientAwareSmtpTransport $transport = null;
 
-    public function __construct(private readonly ?SmtpSettings $settings)
+    public function __construct(private readonly ?SmtpSettings $settings, private readonly int $timeoutSeconds = self::TIMEOUT_SECONDS)
     {
         //
     }
@@ -38,6 +42,7 @@ final class SmtpMailSender implements MailSender
         }
 
         $recipient = MailAddress::forSending($mail->to);
+        $timeout = ini_set('default_socket_timeout', (string) $this->timeoutSeconds);
 
         try {
             $from = new Address($mail->fromAddress, $mail->fromName);
@@ -57,6 +62,10 @@ final class SmtpMailSender implements MailSender
             throw new RecipientDeferred($exception->getMessage(), 0, $exception);
         } catch (TransportExceptionInterface|RfcComplianceException $exception) {
             throw new MailUnavailable($exception->getMessage(), 0, $exception);
+        } finally {
+            if ($timeout !== false) {
+                ini_set('default_socket_timeout', $timeout);
+            }
         }
     }
 
