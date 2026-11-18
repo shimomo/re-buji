@@ -85,6 +85,22 @@ final class MailStepsTest extends TestCase
     }
 
     #[Test]
+    public function explainsATestMailRefusedForNow(): void
+    {
+        [$app, $container, $root, $mailer] = self::upToTheAdmin();
+        $mailer->failures['admin@example.com'] = 'defer';
+
+        try {
+            $response = self::post($app, $container, '/install/mail', TestApp::mailSettings());
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertStringContainsString('テストメールを送れませんでした：450 4.1.2', (string) $response->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function needsTheReplyToGoOn(): void
     {
         $mailbox = new FakeMailbox();

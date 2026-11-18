@@ -19,6 +19,7 @@ use ReBuji\Mail\MailUnavailable;
 use ReBuji\Mail\MessageRepository;
 use ReBuji\Mail\NotificationMail;
 use ReBuji\Mail\RateLimit;
+use ReBuji\Mail\RecipientDeferred;
 use ReBuji\Mail\RecipientRefused;
 use ReBuji\SystemState;
 use ReBuji\Time;
@@ -107,14 +108,14 @@ final class SettingsController
 
             try {
                 $this->sender->send($mail);
-            } catch (RecipientRefused $exception) {
+            } catch (RecipientRefused|RecipientDeferred $exception) {
                 $this->messages->record(null, 'test', $admin['email'], $mail->messageId, false, $exception->getMessage(), $now);
 
                 throw $exception;
             }
 
             $this->messages->record(null, 'test', $admin['email'], $mail->messageId, true, '', $now);
-        } catch (RecipientRefused|MailUnavailable $exception) {
+        } catch (RecipientRefused|RecipientDeferred|MailUnavailable $exception) {
             return $this->render($request, $this->current(), ['テストメールを送れませんでした：' . $exception->getMessage()]);
         }
 
