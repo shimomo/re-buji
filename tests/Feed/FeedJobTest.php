@@ -8,6 +8,7 @@ use JmaXml\Feed\Exception\FeedException;
 use JmaXml\Feed\FeedClient;
 use JmaXml\Feed\FeedType;
 use Nyholm\Psr7\Factory\Psr17Factory;
+use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -124,6 +125,34 @@ final class FeedJobTest extends TestCase
             $clock->advance('+1 minute');
             $job->run($clock->now());
 
+            $this->assertSame(1, $this->telegramCount($db));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function letsOthersWriteWhileItFetches(): void
+    {
+        [$job, $db, $server, $clock, , $root] = $this->world();
+
+        try {
+            $this->prime($job, $server, $clock);
+            $this->newEntry($server, $clock, JmaSamples::xml('32-35_07_01_100915_VXSE51.xml'));
+            $other = new PDO('sqlite:' . $root . '/database.sqlite');
+            $other->exec('PRAGMA busy_timeout = 0');
+            $errors = [];
+            $server->onRequest = static function () use ($other, &$errors): void {
+                try {
+                    $other->exec("INSERT OR REPLACE INTO system_state (name, value, updated_at) VALUES ('test.write', 'x', '2009-08-10T20:13:00Z')");
+                } catch (PDOException $exception) {
+                    $errors[] = $exception->getMessage();
+                }
+            };
+
+            $job->run($clock->now());
+
+            $this->assertSame([], $errors);
             $this->assertSame(1, $this->telegramCount($db));
         } finally {
             TemporaryDirectory::remove($root);

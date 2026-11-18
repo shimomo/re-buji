@@ -183,6 +183,22 @@ final class SettingsPagesTest extends TestCase
     }
 
     #[Test]
+    public function explainsATestMailRefusedForNow(): void
+    {
+        [$app, $container, $root] = self::loggedIn(new RecordingMailSender(['admin@example.com' => 'defer']));
+
+        try {
+            $app->handle(TestApp::request('POST', '/settings', self::form() + TestApp::csrf($container)));
+            $response = $app->handle(TestApp::request('POST', '/settings/test-mail', TestApp::csrf($container)));
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertStringContainsString('テストメールを送れませんでした：450 4.1.2', (string) $response->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function keepsTheTestMailWithinTheLimit(): void
     {
         $mailer = new RecordingMailSender();

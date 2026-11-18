@@ -15,12 +15,16 @@ use ReBuji\Cron\CronJob;
 use ReBuji\Database\Database;
 use ReBuji\SystemState;
 use ReBuji\Time;
+use Throwable;
 
 /**
  * Design 6.1 step 1: polls the JMA feed for earthquake telegrams and keeps them.
  *
- * jmaxml/feed marks what it returns as seen, so the poll and the saving share one transaction: if saving fails or the
- * run is killed, the seen marks roll back too and the telegrams come again next run.
+ * No transaction is open while it waits on JMA: under SQLite's rollback journal, a read inside a transaction keeps a
+ * shared lock until the end, and another connection's write (an admin saving a page) waits and then fails. jmaxml/feed
+ * marks what it returns as seen, so the store keeps those marks until the telegrams are saved, and writes both in one
+ * short transaction. If saving fails, the marks are dropped; if the run is killed, they were never written. Either way
+ * the telegrams come again next run.
  *
  * @author shimomo
  */
@@ -56,15 +60,21 @@ final class FeedJob implements CronJob
     #[Override]
     public function run(DateTimeImmutable $now): void
     {
-        $result = $this->db->transaction(function () use ($now): PollResult {
+        try {
             $result = $this->client->poll(self::subscription());
 
-            foreach ($result->telegrams as $telegram) {
-                $this->telegrams->store($telegram->entry->url, $telegram->xml, $now);
-            }
+            $this->db->transaction(function () use ($result, $now): void {
+                foreach ($result->telegrams as $telegram) {
+                    $this->telegrams->store($telegram->entry->url, $telegram->xml, $now);
+                }
 
-            return $result;
-        });
+                $this->store->flush();
+            });
+        } catch (Throwable $exception) {
+            $this->store->discard();
+
+            throw $exception;
+        }
 
         $this->state->set('feed.last_checked_at', Time::format($now));
         $this->recordGap($result);

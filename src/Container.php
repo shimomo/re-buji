@@ -46,6 +46,14 @@ use Symfony\Component\HttpClient\Psr18Client;
 final class Container
 {
     /**
+     * The container bin/cron.php runs with: it waits longer on the mail server than a page does (SmtpMailSender).
+     */
+    public static function forCron(Paths $paths): ContainerInterface
+    {
+        return self::build($paths, ['smtp.timeout' => SmtpMailSender::CRON_TIMEOUT_SECONDS]);
+    }
+
+    /**
      * @param array<string, mixed> $overrides
      */
     public static function build(Paths $paths, array $overrides = []): ContainerInterface
@@ -54,6 +62,7 @@ final class Container
         $builder->addDefinitions([
             Paths::class => $paths,
             'basePath' => '',
+            'smtp.timeout' => SmtpMailSender::TIMEOUT_SECONDS,
             'migrations' => static fn(): array => Migrations::all(),
             Url::class => static fn(ContainerInterface $c): Url => new Url((string) $c->get('basePath')),
             ConfigFile::class => static fn(): ConfigFile => new ConfigFile($paths->storage('config.php')),
@@ -105,9 +114,10 @@ final class Container
             },
             MailSender::class => static function (ContainerInterface $c): MailSender {
                 $settings = $c->get(Settings::class);
-                assert($settings instanceof Settings);
+                $timeout = $c->get('smtp.timeout');
+                assert($settings instanceof Settings && is_int($timeout));
 
-                return new SmtpMailSender($settings->smtp());
+                return new SmtpMailSender($settings->smtp(), $timeout);
             },
             SystemState::class => static function (ContainerInterface $c): SystemState {
                 $db = $c->get(Database::class);

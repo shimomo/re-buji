@@ -71,6 +71,11 @@ final class ReplyStep implements InstallStep
                     continue;
                 }
 
+                // Bounces, delays, auto-replies and read receipts are left unseen for the reply job.
+                if ($mail->kind() !== IncomingMail::REPLY) {
+                    continue;
+                }
+
                 if (($messageId !== '' && in_array($messageId, $mail->references, true)) || ($number !== '' && str_contains($mail->subject, '#' . $number))) {
                     $mailbox->markSeen($raw);
 

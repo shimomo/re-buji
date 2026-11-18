@@ -85,6 +85,22 @@ final class MailStepsTest extends TestCase
     }
 
     #[Test]
+    public function explainsATestMailRefusedForNow(): void
+    {
+        [$app, $container, $root, $mailer] = self::upToTheAdmin();
+        $mailer->failures['admin@example.com'] = 'defer';
+
+        try {
+            $response = self::post($app, $container, '/install/mail', TestApp::mailSettings());
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertStringContainsString('テストメールを送れませんでした：450 4.1.2', (string) $response->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function needsTheReplyToGoOn(): void
     {
         $mailbox = new FakeMailbox();
@@ -106,6 +122,31 @@ final class MailStepsTest extends TestCase
             $this->assertSame(302, $done->getStatusCode());
             $this->assertSame('/install/exposure', $done->getHeaderLine('Location'));
             $this->assertSame([$uid], $mailbox->seen);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function waitsForARealReply(): void
+    {
+        $mailbox = new FakeMailbox();
+        [$app, $container, $root, $mailer] = self::upToTheAdmin($mailbox);
+
+        try {
+            self::post($app, $container, '/install/mail', TestApp::mailSettings());
+            $mailbox->add(MailFixtures::autoReply('admin@example.com', $mailer->sent[0]->messageId));
+            $mailbox->add(MailFixtures::receipt('admin@example.com', $mailer->sent[0]->messageId));
+
+            $waiting = self::post($app, $container, '/install/reply');
+
+            $this->assertSame(200, $waiting->getStatusCode());
+            $this->assertStringContainsString('まだ返信が見つかりません。', (string) $waiting->getBody());
+            $this->assertSame([], $mailbox->seen);
+
+            $mailbox->add(MailFixtures::reply('admin@example.com', '', $mailer->sent[0]->messageId));
+
+            $this->assertSame('/install/exposure', self::post($app, $container, '/install/reply')->getHeaderLine('Location'));
         } finally {
             TemporaryDirectory::remove($root);
         }

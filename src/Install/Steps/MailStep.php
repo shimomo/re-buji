@@ -17,6 +17,7 @@ use ReBuji\Mail\MailSender;
 use ReBuji\Mail\MailUnavailable;
 use ReBuji\Mail\MessageRepository;
 use ReBuji\Mail\NotificationMail;
+use ReBuji\Mail\RecipientDeferred;
 use ReBuji\Mail\RecipientRefused;
 use ReBuji\Settings\Settings;
 use ReBuji\Settings\SettingsForm;
@@ -104,7 +105,7 @@ final class MailStep implements InstallStep
         try {
             $mail = (new NotificationMail($settings, $this->clock))->setupMail($admin['email'], $admin['name'], $number);
             $sender->send($mail);
-        } catch (RecipientRefused|MailUnavailable $exception) {
+        } catch (RecipientRefused|RecipientDeferred|MailUnavailable $exception) {
             return StepResult::failed(['テストメールを送れませんでした：' . $exception->getMessage()]);
         }
 
