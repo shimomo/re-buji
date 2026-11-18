@@ -27,23 +27,27 @@ final class DatabaseStateStoreTest extends TestCase
     #[DataProvider('drivers')]
     public function savesTheFeedState(string $driver): void
     {
-        $store = new DatabaseStateStore($this->migrated($driver));
+        $db = $this->migrated($driver);
+        $store = new DatabaseStateStore($db);
         $at = new DateTimeImmutable('2009-08-10T20:12:00Z');
         $state = new FeedState('"abc"', null, $at, $at, $at->modify('-20 minutes'), ['https://example.com/a.xml'], 'fingerprint', ['https://example.com/a.xml' => $at]);
 
         $this->assertNull($store->load(self::FEED));
 
         $store->save(self::FEED, $state);
+        $store->flush();
         $store->save(self::FEED, $state);
+        $store->flush();
 
-        $this->assertEquals($state, $store->load(self::FEED));
+        $this->assertEquals($state, (new DatabaseStateStore($db))->load(self::FEED));
     }
 
     #[Test]
     #[DataProvider('drivers')]
     public function remembersSeenTelegramsUntilTheyExpire(string $driver): void
     {
-        $store = new DatabaseStateStore($this->migrated($driver));
+        $db = $this->migrated($driver);
+        $store = new DatabaseStateStore($db);
         $at = new DateTimeImmutable('2009-08-10T20:12:00Z');
         $soon = 'https://www.data.jma.go.jp/developer/xml/data/20090810200900_0_VXSE51_220000.xml';
         $later = 'https://www.data.jma.go.jp/developer/xml/data/20090810201100_0_VXSE51_220000.xml';
@@ -51,15 +55,46 @@ final class DatabaseStateStoreTest extends TestCase
         $this->assertFalse($store->isSeen($soon));
 
         $store->markSeen($soon, $at->modify('+1 day'));
+        $store->flush();
         $store->markSeen($soon, $at->modify('+1 day'));
         $store->markSeen($later, $at->modify('+3 days'));
+        $store->flush();
 
-        $this->assertTrue($store->isSeen($soon));
+        $this->assertTrue((new DatabaseStateStore($db))->isSeen($soon));
 
         $store->purge($at->modify('+2 days'));
 
-        $this->assertFalse($store->isSeen($soon));
-        $this->assertTrue($store->isSeen($later));
+        $this->assertFalse((new DatabaseStateStore($db))->isSeen($soon));
+        $this->assertTrue((new DatabaseStateStore($db))->isSeen($later));
+    }
+
+    #[Test]
+    #[DataProvider('drivers')]
+    public function keepsWritesUntilFlushed(string $driver): void
+    {
+        $db = $this->migrated($driver);
+        $store = new DatabaseStateStore($db);
+        $at = new DateTimeImmutable('2009-08-10T20:12:00Z');
+        $url = 'https://www.data.jma.go.jp/developer/xml/data/20090810200900_0_VXSE51_220000.xml';
+        $state = new FeedState('"abc"', null, $at, $at, $at->modify('-20 minutes'), [$url], 'fingerprint', [$url => $at]);
+
+        $store->markSeen($url, $at->modify('+1 day'));
+        $store->save(self::FEED, $state);
+
+        $this->assertTrue($store->isSeen($url));
+        $this->assertEquals($state, $store->load(self::FEED));
+        $this->assertFalse((new DatabaseStateStore($db))->isSeen($url));
+        $this->assertNull((new DatabaseStateStore($db))->load(self::FEED));
+
+        $store->discard();
+
+        $this->assertFalse($store->isSeen($url));
+        $this->assertNull($store->load(self::FEED));
+
+        $store->markSeen($url, $at->modify('+1 day'));
+        $store->flush();
+
+        $this->assertTrue((new DatabaseStateStore($db))->isSeen($url));
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ReBuji\Tests\Support;
 
+use Closure;
 use Nyholm\Psr7\Response;
 use Override;
 use Psr\Http\Client\ClientInterface;
@@ -23,6 +24,13 @@ final class FakeJmaServer implements ClientInterface
     public array $requested = [];
 
     /**
+     * Called at the start of every request, for a test that acts while the job waits on the network.
+     *
+     * @var (Closure(): void)|null
+     */
+    public ?Closure $onRequest = null;
+
+    /**
      * @var array<string, string|int>
      */
     private array $answers = [];
@@ -38,6 +46,10 @@ final class FakeJmaServer implements ClientInterface
     #[Override]
     public function sendRequest(RequestInterface $request): ResponseInterface
     {
+        if ($this->onRequest !== null) {
+            ($this->onRequest)();
+        }
+
         $url = (string) $request->getUri();
         $this->requested[] = $url;
         $answer = $this->answers[$url] ?? 404;
