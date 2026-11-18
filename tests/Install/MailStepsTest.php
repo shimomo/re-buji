@@ -128,6 +128,31 @@ final class MailStepsTest extends TestCase
     }
 
     #[Test]
+    public function waitsForARealReply(): void
+    {
+        $mailbox = new FakeMailbox();
+        [$app, $container, $root, $mailer] = self::upToTheAdmin($mailbox);
+
+        try {
+            self::post($app, $container, '/install/mail', TestApp::mailSettings());
+            $mailbox->add(MailFixtures::autoReply('admin@example.com', $mailer->sent[0]->messageId));
+            $mailbox->add(MailFixtures::receipt('admin@example.com', $mailer->sent[0]->messageId));
+
+            $waiting = self::post($app, $container, '/install/reply');
+
+            $this->assertSame(200, $waiting->getStatusCode());
+            $this->assertStringContainsString('まだ返信が見つかりません。', (string) $waiting->getBody());
+            $this->assertSame([], $mailbox->seen);
+
+            $mailbox->add(MailFixtures::reply('admin@example.com', '', $mailer->sent[0]->messageId));
+
+            $this->assertSame('/install/exposure', self::post($app, $container, '/install/reply')->getHeaderLine('Location'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function acceptsAReplyCarryingTheNumberOnly(): void
     {
         $mailbox = new FakeMailbox();
