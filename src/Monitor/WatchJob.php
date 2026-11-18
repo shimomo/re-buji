@@ -16,6 +16,7 @@ use ReBuji\Mail\MailUnavailable;
 use ReBuji\Mail\MessageRepository;
 use ReBuji\Mail\NotificationMail;
 use ReBuji\Mail\RateLimit;
+use ReBuji\Mail\RecipientDeferred;
 use ReBuji\Mail\RecipientRefused;
 use ReBuji\Quakes\NotificationRepository;
 use ReBuji\Replies\ReplyReading;
@@ -87,6 +88,8 @@ final class WatchJob implements CronJob
         }
 
         $this->state->set('watch.last_attempt_at', Time::format($now));
+        $accepted = 0;
+        $deferred = 0;
 
         foreach ($admins as $admin) {
             try {
@@ -98,14 +101,28 @@ final class WatchJob implements CronJob
                     $this->messages->record(null, 'watch', $admin['email'], $mail->messageId, false, $exception->getMessage(), $now);
 
                     continue;
+                } catch (RecipientDeferred $exception) {
+                    // Refused for now (in a big quake, mail backs up): the other admins are still told.
+                    $this->messages->record(null, 'watch', $admin['email'], $mail->messageId, false, $exception->getMessage(), $now);
+                    $this->logger->warning('watch: ' . $admin['email'] . ' deferred: ' . $exception->getMessage());
+                    $deferred++;
+
+                    continue;
                 }
 
                 $this->messages->record(null, 'watch', $admin['email'], $mail->messageId, true, '', $now);
+                $accepted++;
             } catch (MailUnavailable $exception) {
                 $this->logger->error('watch: cannot tell the admins: ' . $exception->getMessage());
 
                 return;
             }
+        }
+
+        // Nobody took it, and someone may later: the problems are not told yet, and the attempt waits as one that
+        // could not send.
+        if ($accepted === 0 && $deferred > 0) {
+            return;
         }
 
         foreach ($new as $key => $text) {

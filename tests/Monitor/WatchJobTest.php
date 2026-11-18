@@ -175,6 +175,43 @@ final class WatchJobTest extends TestCase
     }
 
     #[Test]
+    public function tellsTheOtherAdminsWhenOneIsDeferred(): void
+    {
+        $world = self::world();
+        $world->state->set('feed.gap_since', '2009-08-10T19:00:00Z');
+        $world->mailer->failures['admin@example.com'] = 'defer';
+
+        self::job($world)->run($world->clock->now());
+
+        $this->assertSame(['hanako@example.com'], $world->mailer->recipients());
+        $this->assertSame(2, (int) $world->db->fetchValue("SELECT COUNT(*) FROM messages WHERE kind = 'watch'"));
+        $this->assertSame('admin@example.com', $world->db->fetchValue("SELECT address FROM messages WHERE kind = 'watch' AND sent = 0"));
+        $this->assertNotSame('', (string) $world->state->get('watch.sent.feed_gap'));
+    }
+
+    #[Test]
+    public function triesAgainWhenEveryAdminIsDeferred(): void
+    {
+        $world = self::world();
+        $world->state->set('feed.gap_since', '2009-08-10T19:00:00Z');
+        $world->mailer->failures = ['admin@example.com' => 'defer', 'hanako@example.com' => 'defer'];
+        self::job($world)->run($world->clock->now());
+
+        $this->assertSame('', (string) $world->state->get('watch.sent.feed_gap'));
+
+        $world->mailer->failures = [];
+        $world->clock->advance('+59 minutes');
+        self::job($world)->run($world->clock->now());
+
+        $this->assertCount(0, $world->mailer->sent);
+
+        $world->clock->advance('+1 minute');
+        self::job($world)->run($world->clock->now());
+
+        $this->assertCount(2, $world->mailer->sent);
+    }
+
+    #[Test]
     public function tellsAboutTelegramsItCouldNotFetchOrRead(): void
     {
         $world = self::world();

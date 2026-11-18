@@ -174,6 +174,26 @@ final class InstallFlowTest extends TestCase
     }
 
     #[Test]
+    public function renewsTheSessionWhenTheKeyIsAccepted(): void
+    {
+        [$app, $container, $root] = TestApp::create();
+
+        try {
+            $this->post($app, $container, '/install/environment');
+            $key = $this->installKey($app, $root);
+            $this->post($app, $container, '/install/key', ['install_key' => 'not-the-key']);
+
+            $this->assertSame(0, TestApp::session($container)->regenerated);
+
+            $this->post($app, $container, '/install/key', ['install_key' => $key]);
+
+            $this->assertSame(1, TestApp::session($container)->regenerated);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function answersItsProbeOnlyWithTheStoredNonce(): void
     {
         [$app, , $root] = TestApp::create();

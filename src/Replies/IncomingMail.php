@@ -15,8 +15,9 @@ use ZBateson\MailMimeParser\IMessage;
 use ZBateson\MailMimeParser\Message;
 
 /**
- * A mail read from the reply mailbox, sorted into a bounce, an auto-reply or a reply (design 5.2). Neither of the
- * first two counts as a reply: an absence notice or a returned mail says nothing about whether someone is safe.
+ * A mail read from the reply mailbox, sorted into a bounce, a read receipt, an auto-reply or a reply (design 5.2).
+ * None of the first three counts as a reply: a returned mail, a notice that the mail was opened or an absence notice
+ * says nothing about whether someone is safe.
  *
  * @author shimomo
  */
@@ -25,6 +26,11 @@ final readonly class IncomingMail
     public const string BOUNCE = 'bounce';
 
     public const string DELAYED = 'delayed';
+
+    /**
+     * The mail client says the contact was opened (RFC 8098).
+     */
+    public const string RECEIPT = 'receipt';
 
     public const string AUTO_REPLY = 'auto_reply';
 
@@ -47,6 +53,7 @@ final readonly class IncomingMail
         public string $fromAddress,
         public ?DateTimeImmutable $date,
         public string $text,
+        public bool $receipt,
         public bool $autoReply,
         public ?Bounce $bounce,
         public array $attachments = [],
@@ -84,6 +91,8 @@ final readonly class IncomingMail
 
         $subject = mb_scrub((string) $message->getSubject(), 'UTF-8');
         $bounce = self::bounceOf($message, $fromAddress, $subject, $raw);
+        // Receipts often carry Auto-Submitted too; they are not absence notices.
+        $receipt = $bounce === null && self::isReceipt($message);
 
         return new self(
             $message->getMessageId(),
@@ -93,7 +102,8 @@ final readonly class IncomingMail
             $fromAddress,
             self::date($date instanceof DateHeader ? $date->getDateTime() : null),
             self::text($message),
-            $bounce === null && self::isAutoReply($message, $subject),
+            $receipt,
+            $bounce === null && !$receipt && self::isAutoReply($message, $subject),
             $bounce,
             self::attachments($message),
         );
@@ -103,6 +113,7 @@ final readonly class IncomingMail
     {
         return match (true) {
             $this->bounce !== null => $this->bounce->failed ? self::BOUNCE : self::DELAYED,
+            $this->receipt => self::RECEIPT,
             $this->autoReply => self::AUTO_REPLY,
             default => self::REPLY,
         };
@@ -170,6 +181,17 @@ final readonly class IncomingMail
         }
 
         return $names;
+    }
+
+    /**
+     * A message disposition notification: a report of type disposition-notification, or a part of that type.
+     */
+    private static function isReceipt(IMessage $message): bool
+    {
+        $report = strtolower((string) $message->getContentType()) === 'multipart/report'
+            && strtolower((string) $message->getHeaderParameter(HeaderConsts::CONTENT_TYPE, 'report-type')) === 'disposition-notification';
+
+        return $report || $message->getAllPartsByMimeType('message/disposition-notification') !== [];
     }
 
     private static function isAutoReply(IMessage $message, string $subject): bool

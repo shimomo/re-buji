@@ -45,6 +45,20 @@ final class UnmatchedPageTest extends TestCase
     }
 
     #[Test]
+    public function labelsAReadReceipt(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            self::replies($container)->record(null, 'receipt', null, 'person1@example.com', '開封済み: お知らせ', '', 'r9@phone.example', new DateTimeImmutable('2026-11-05T03:20:00Z'));
+
+            $this->assertStringContainsString('開封確認', (string) $app->handle(TestApp::request('GET', '/mail/unmatched'))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function deletesUnmatchedMail(): void
     {
         [$app, $container, $root] = self::loggedIn();

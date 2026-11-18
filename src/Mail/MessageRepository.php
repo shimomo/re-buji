@@ -96,6 +96,20 @@ final class MessageRepository
         return null;
     }
 
+    /**
+     * Whether a mail of the contact went out to the address (compared without case).
+     */
+    public function wasSentTo(int $notificationId, string $address): bool
+    {
+        foreach ($this->db->fetchAll('SELECT address FROM messages WHERE notification_id = ? AND sent = 1', [$notificationId]) as $row) {
+            if (EmployeeRepository::addressKey((string) $row['address']) === EmployeeRepository::addressKey($address)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function markBounced(int $id, string $reason, DateTimeImmutable $at): void
     {
         $this->db->execute('UPDATE messages SET bounced_at = ?, bounce_reason = ? WHERE id = ?', [Time::format($at), $reason, $id]);

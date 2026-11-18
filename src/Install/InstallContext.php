@@ -58,6 +58,15 @@ final class InstallContext
         $this->session->set(self::COMPLETED, array_values(array_unique([...$this->completedSteps(), $stepKey])));
     }
 
+    /**
+     * A new session id, keeping what the session holds: passing the install key is what grants setup, and a session id
+     * someone fixed in advance must not carry that.
+     */
+    public function renewSession(): void
+    {
+        $this->session->regenerate();
+    }
+
     public function forgetProgress(): void
     {
         $this->session->remove(self::DRAFT);

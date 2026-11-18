@@ -52,6 +52,13 @@ final class ReplyRecorder
                 return;
             }
 
+            // Opened is not answered: the contact stays as it is, and resends go on.
+            if ($mail->receipt) {
+                $this->replies->record($match->notificationId, IncomingMail::RECEIPT, $match->by, $mail->fromAddress, $mail->subject, mb_substr($mail->text, 0, self::UNMATCHED_LENGTH), $mail->key, $receivedAt);
+
+                return;
+            }
+
             if ($mail->autoReply) {
                 $this->notifications->recordAutoReply($match->notificationId, $now);
                 $this->replies->record($match->notificationId, IncomingMail::AUTO_REPLY, $match->by, $mail->fromAddress, $mail->subject, mb_substr($mail->text, 0, self::UNMATCHED_LENGTH), $mail->key, $receivedAt);
@@ -62,6 +69,13 @@ final class ReplyRecorder
             // Empty means safe; anything written is for a person to read (design 5.6: no sorting by words). Words in a
             // rewritten subject and attached files count as written: a photo of the damage is not "safe".
             $written = [];
+
+            // Tied by the thread or the number, but from an address the contact never went to (someone it was
+            // forwarded to, say): an empty reply from them does not say the person is safe.
+            if ($match->by !== 'sender' && !$this->messages->wasSentTo($match->notificationId, $mail->fromAddress)) {
+                $written[] = '送り主：' . ($mail->fromAddress !== '' ? $mail->fromAddress : '不明') . '（連絡を送っていないアドレス）';
+            }
+
             $subject = $this->rewrittenSubject($mail->subject, $match->notificationId);
 
             if ($subject !== null) {

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace ReBuji\Replies;
 
+use Psr\Clock\ClockInterface;
 use ReBuji\Database\Database;
 use ReBuji\Employees\EmployeeRepository;
 use ReBuji\Mail\MessageRepository;
+use ReBuji\Time;
 
 /**
  * Finds whose reply a mail is, in the order of design 5.2: the thread (In-Reply-To and References against the
@@ -16,7 +18,13 @@ use ReBuji\Mail\MessageRepository;
  */
 final class ReplyMatcher
 {
-    public function __construct(private readonly Database $db, private readonly MessageRepository $messages)
+    /**
+     * By the sender's address alone, a mail is tied only to a contact sent this recently: months later, a mail from
+     * the same person is about something else.
+     */
+    public const int SENDER_DAYS = 7;
+
+    public function __construct(private readonly Database $db, private readonly MessageRepository $messages, private readonly ClockInterface $clock)
     {
         //
     }
@@ -43,11 +51,11 @@ final class ReplyMatcher
             return null;
         }
 
-        // The person's latest contact that went out and has no answer yet.
+        // The person's latest contact that went out within SENDER_DAYS and has no answer yet.
         $id = $this->db->fetchValue(
             'SELECT n.id FROM notifications n JOIN employee_emails e ON e.employee_id = n.employee_id'
-            . ' WHERE e.address_key = ? AND n.sent_count > 0 AND n.replied_at IS NULL ORDER BY n.last_sent_at DESC, n.id DESC LIMIT 1',
-            [EmployeeRepository::addressKey($mail->fromAddress)],
+            . ' WHERE e.address_key = ? AND n.sent_count > 0 AND n.replied_at IS NULL AND n.last_sent_at >= ? ORDER BY n.last_sent_at DESC, n.id DESC LIMIT 1',
+            [EmployeeRepository::addressKey($mail->fromAddress), Time::format($this->clock->now()->modify('-' . self::SENDER_DAYS . ' days'))],
         );
 
         return $id === null ? null : new ReplyMatch((int) $id, 'sender');

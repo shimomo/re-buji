@@ -171,7 +171,7 @@ final class QuakeWorld
 
     public function matcher(): ReplyMatcher
     {
-        return new ReplyMatcher($this->db, $this->messages);
+        return new ReplyMatcher($this->db, $this->messages, $this->clock);
     }
 
     public function replyJob(?ClockInterface $clock = null): ReplyJob

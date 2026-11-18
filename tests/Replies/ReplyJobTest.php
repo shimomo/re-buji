@@ -41,6 +41,29 @@ final class ReplyJobTest extends TestCase
     }
 
     #[Test]
+    public function checksAThreadReplyFromAnAddressNotContacted(): void
+    {
+        [$world, $contact] = self::sent();
+        $world->mailbox->add(MailFixtures::reply('family@example.net', '', $world->messageIdSentTo('person1@example.com'), 'Re: ' . $world->mailer->sent[0]->subject));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame(Notification::NEEDS_CHECK, $world->contactNow($contact)->answer);
+        $this->assertStringContainsString('送り主：family@example.net（連絡を送っていないアドレス）', $world->replies->forNotification($contact)[0]['body']);
+    }
+
+    #[Test]
+    public function keepsAnEmptyReplyFromTheContactedAddressInAnotherCaseSafe(): void
+    {
+        [$world, $contact] = self::sent();
+        $world->mailbox->add(MailFixtures::reply('PERSON1@EXAMPLE.COM', '', $world->messageIdSentTo('person1@example.com'), 'Re: ' . $world->mailer->sent[0]->subject));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame(Notification::SAFE, $world->contactNow($contact)->answer);
+    }
+
+    #[Test]
     public function recordsAWrittenReplyForChecking(): void
     {
         [$world, $contact] = self::sent();
@@ -89,6 +112,33 @@ final class ReplyJobTest extends TestCase
         $world->clock->advance('+60 minutes');
         $world->sender()->sendResends();
         $this->assertSame(2, $world->contactNow($contact)->sentCount);
+    }
+
+    #[Test]
+    public function doesNotCountAReadReceipt(): void
+    {
+        [$world, $contact] = self::sent();
+        $uid = $world->mailbox->add(MailFixtures::receipt('person1@example.com', $world->messageIdSentTo('person1@example.com')));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $opened = $world->contactNow($contact);
+        $this->assertNull($opened->answer);
+        $this->assertNull($opened->repliedAt);
+        $this->assertNull($opened->autoRepliedAt);
+        $this->assertSame(['receipt'], array_column($world->replies->forNotification($contact), 'kind'));
+        $this->assertSame([$uid], $world->mailbox->seen);
+    }
+
+    #[Test]
+    public function listsAReceiptThatMatchesNobody(): void
+    {
+        [$world] = self::sent();
+        $world->mailbox->add(MailFixtures::receipt('stranger@example.net', null, '開封済み: お知らせ'));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame('receipt', $world->replies->unmatched()[0]['kind']);
     }
 
     #[Test]
