@@ -16,8 +16,10 @@ if (isset($_SERVER['REQUEST_METHOD'])) {
 
 $root = dirname(__DIR__);
 
-// Before the autoloader, so that an older PHP gets this in Japanese, not a parse error or Composer's English.
-$tooOld = (require $root . '/src/php-version.php')(PHP_VERSION_ID, PHP_VERSION);
+// Before the autoloader, so that an older PHP gets this in Japanese rather than Composer's English. This whole file
+// reads from PHP 5.5 on.
+$check = require $root . '/src/php-version.php';
+$tooOld = $check(PHP_VERSION_ID, PHP_VERSION, true);
 
 if ($tooOld !== null) {
     // Not STDERR: some hosts' cron "php" is a CGI build, where that constant does not exist.

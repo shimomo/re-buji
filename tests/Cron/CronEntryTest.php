@@ -98,7 +98,7 @@ final class CronEntryTest extends TestCase
         mkdir($root . '/src');
         copy(dirname(__DIR__, 2) . '/bin/cron.php', $root . '/bin/cron.php');
         // Turns away whatever PHP runs the test. Some hosts' cron "php" is a CGI build, which has no STDERR constant.
-        file_put_contents($root . '/src/php-version.php', "<?php\n\nreturn static fn(int \$versionId, string \$version): string => 'PHP 8.3 以上が必要です（今は ' . \$version . '）';\n");
+        file_put_contents($root . '/src/php-version.php', "<?php\n\nreturn static fn(int \$versionId, string \$version, bool \$cron): string => 'PHP 8.3 以上が必要です（今は ' . \$version . '）' . (\$cron ? '[cron]' : '[web]');\n");
         $binaries = [PHP_BINARY];
         $cgi = dirname(PHP_BINARY) . '/php-cgi';
 
@@ -111,7 +111,7 @@ final class CronEntryTest extends TestCase
                 [$exitCode, $output] = $this->runCron($root, [], $binary);
 
                 $this->assertSame(1, $exitCode, $binary . ': ' . $output);
-                $this->assertStringContainsString('PHP 8.3 以上が必要です（今は ' . PHP_VERSION . '）', $output, $binary);
+                $this->assertStringContainsString('PHP 8.3 以上が必要です（今は ' . PHP_VERSION . '）[cron]', $output, $binary);
             }
         } finally {
             TemporaryDirectory::remove($root);
