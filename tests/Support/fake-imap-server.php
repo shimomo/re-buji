@@ -6,11 +6,13 @@ declare(strict_types=1);
 //   php fake-imap-server.php MAIL_DIR TRANSCRIPT_FILE OPTIONS_JSON
 // The inbox is MAIL_DIR/{uid}.eml; a message is seen when MAIL_DIR/{uid}.seen exists. Prints the port it listens on,
 // answers connections one after another and appends every line to TRANSCRIPT_FILE (message bodies are not logged).
-// It offers no STARTTLS and exits after 30 seconds without a connection. Options: rejectLogin.
+// It exits after 30 seconds without a connection. Options: rejectLogin, and failStartTls, which offers STARTTLS but
+// goes on in plain text after agreeing, so the client's TLS handshake fails (otherwise it offers no STARTTLS).
 
 [, $dir, $transcript, $json] = $argv + [null, null, null, '{}'];
 $options = json_decode((string) $json, true);
 $rejectLogin = is_array($options) && ($options['rejectLogin'] ?? false) === true;
+$failStartTls = is_array($options) && ($options['failStartTls'] ?? false) === true;
 
 $server = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
 
@@ -54,8 +56,13 @@ while (($client = @stream_socket_accept($server, 30)) !== false) {
         $command = strtoupper($command);
 
         if ($command === 'CAPABILITY') {
-            $say('* CAPABILITY IMAP4rev1 AUTH=PLAIN');
+            $say('* CAPABILITY IMAP4rev1 ' . ($failStartTls ? 'STARTTLS ' : '') . 'AUTH=PLAIN');
             $say($tag . ' OK CAPABILITY completed');
+        } elseif ($command === 'STARTTLS' && $failStartTls) {
+            $say($tag . ' OK Begin TLS negotiation now');
+            $say('* BYE not really TLS');
+
+            break;
         } elseif ($command === 'LOGIN') {
             $say($rejectLogin ? $tag . ' NO [AUTHENTICATIONFAILED] Invalid credentials' : $tag . ' OK LOGIN completed');
         } elseif ($command === 'SELECT') {

@@ -39,10 +39,16 @@ final class ImapClient
         $host = $this->settings->host;
         $target = ($this->settings->encryption === 'ssl' ? 'ssl://' : 'tcp://') . $host . ':' . $this->settings->port;
         $context = stream_context_create(['ssl' => ['peer_name' => $host, 'SNI_enabled' => true]]);
-        $stream = @stream_socket_client($target, $errorCode, $errorMessage, $this->timeoutSeconds, STREAM_CLIENT_CONNECT, $context);
+        $errorMessage = '';
+        [$stream, $warning] = self::withWarnings(function () use ($target, $context, &$errorMessage) {
+            return stream_socket_client($target, $errorCode, $errorMessage, $this->timeoutSeconds, STREAM_CLIENT_CONNECT, $context);
+        });
 
-        if ($stream === false) {
-            throw new MailboxUnavailable($host . ':' . $this->settings->port . ' につなげません：' . $errorMessage);
+        if (!is_resource($stream)) {
+            // A failed TLS handshake leaves the error message empty; its reason is only in the warning.
+            $reason = $errorMessage !== '' ? $errorMessage : ($warning !== '' ? $warning : '理由は分かりません');
+
+            throw new MailboxUnavailable($host . ':' . $this->settings->port . ' につなげません：' . $reason);
         }
 
         stream_set_timeout($stream, $this->timeoutSeconds);
@@ -130,9 +136,46 @@ final class ImapClient
 
         $this->command('STARTTLS');
 
-        if ($this->stream === null || @stream_socket_enable_crypto($this->stream, true, STREAM_CRYPTO_METHOD_TLS_CLIENT) !== true) {
-            throw new MailboxUnavailable('IMAP の TLS を始められませんでした');
+        $stream = $this->stream;
+
+        if ($stream === null) {
+            throw new MailboxUnavailable('IMAP のサーバーにつながっていません');
         }
+
+        [$started, $warning] = self::withWarnings(static fn() => stream_socket_enable_crypto($stream, true, STREAM_CRYPTO_METHOD_TLS_CLIENT));
+
+        if ($started !== true) {
+            throw new MailboxUnavailable('IMAP の TLS を始められませんでした：' . ($warning !== '' ? $warning : '理由は分かりません'));
+        }
+    }
+
+    /**
+     * Calls a stream function with PHP's warnings caught instead of shown: why a TLS handshake failed is only in them.
+     *
+     * @template T
+     *
+     * @param callable(): T $call
+     *
+     * @return array{T, string} what the call returned, and its first warning without the function's name, on one line
+     */
+    private static function withWarnings(callable $call): array
+    {
+        $warnings = [];
+        set_error_handler(static function (int $level, string $message) use (&$warnings): bool {
+            $warnings[] = $message;
+
+            return true;
+        });
+
+        try {
+            $result = $call();
+        } finally {
+            restore_error_handler();
+        }
+
+        $first = $warnings[0] ?? '';
+
+        return [$result, trim((string) preg_replace(['/^\w+\(\): /', '/\s+/'], ['', ' '], $first))];
     }
 
     /**
