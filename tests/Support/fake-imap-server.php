@@ -60,6 +60,9 @@ while (($client = @stream_socket_accept($server, 30)) !== false) {
             $say($tag . ' OK CAPABILITY completed');
         } elseif ($command === 'STARTTLS' && $failStartTls) {
             $say($tag . ' OK Begin TLS negotiation now');
+            // Wait for the ClientHello: sent with the line above, the plain text could reach the client's buffer before
+            // the handshake starts, and OpenSSL would see only a clean end of stream, with no warning to report.
+            fread($client, 5);
             $say('* BYE not really TLS');
 
             break;

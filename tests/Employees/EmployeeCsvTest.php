@@ -75,6 +75,18 @@ final class EmployeeCsvTest extends TestCase
     }
 
     #[Test]
+    public function asksForACsvInsteadOfAnExcelWorkbook(): void
+    {
+        // The first bytes of an .xlsx (a ZIP) and of an old .xls.
+        foreach (["PK\x03\x04\x14\x00\x06\x00" . str_repeat("\0", 30), "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1" . str_repeat("\0", 30)] as $contents) {
+            $this->assertSame(
+                ['rows' => [], 'errors' => ['Excel などのファイル（.xlsx や .xls）のままでは読めません。Excel の「名前を付けて保存」で「CSV UTF-8（コンマ区切り）」を選んで保存し、そのファイルを選んでください。']],
+                EmployeeCsv::parse($contents),
+            );
+        }
+    }
+
+    #[Test]
     public function skipsEmptyRowsAndCountsLines(): void
     {
         $csv = implode(',', EmployeeCsv::HEADER) . "\r\n" . str_repeat(',', 18) . "\r\n" . ',安否 花子,,hanako@example.com,,,,1310100,' . "\r\n\r\n";

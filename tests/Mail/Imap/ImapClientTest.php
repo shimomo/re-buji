@@ -160,7 +160,8 @@ final class ImapClientTest extends TestCase
                 (new ImapClient(new ImapSettings('127.0.0.1', $server->port(), 'starttls', 'anpi', 'secret')))->open();
                 $this->fail('A failed STARTTLS should be reported');
             } catch (MailboxUnavailable $exception) {
-                $this->assertMatchesRegularExpression('/^IMAP の TLS を始められませんでした：\S/u', $exception->getMessage());
+                $this->assertMatchesRegularExpression('/^IMAP の TLS を始められませんでした：SSL/u', $exception->getMessage());
+                $this->assertStringNotContainsString('理由は分かりません', $exception->getMessage());
                 $this->assertStringNotContainsString("\n", $exception->getMessage());
             }
 

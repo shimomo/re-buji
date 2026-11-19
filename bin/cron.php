@@ -16,6 +16,15 @@ if (isset($_SERVER['REQUEST_METHOD'])) {
 
 $root = dirname(__DIR__);
 
+// Before the autoloader, so that an older PHP gets this in Japanese, not a parse error or Composer's English.
+$tooOld = (require $root . '/src/php-version.php')(PHP_VERSION_ID, PHP_VERSION);
+
+if ($tooOld !== null) {
+    // Not STDERR: some hosts' cron "php" is a CGI build, where that constant does not exist.
+    file_put_contents('php://stderr', $tooOld . "\n");
+    exit(1);
+}
+
 require $root . '/vendor/autoload.php';
 
 $paths = new ReBuji\Paths($root);

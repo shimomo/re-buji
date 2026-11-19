@@ -116,6 +116,118 @@ final class EarthquakePagesTest extends TestCase
     }
 
     #[Test]
+    public function foldsIntoAContactAlreadySent(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $person = self::relatedLateQuakes($container);
+            $records = new QuakeRecords($container);
+            [$a, $b] = self::relatedQuakeIds($records);
+            self::post($app, $container, '/earthquakes/' . $a . '/release');
+            $first = $records->notifications->findFor($a, $person);
+            $this->assertNotNull($first);
+            $records->notifications->markSent($first->id, new DateTimeImmutable('2026-11-05T03:00:00Z'), null);
+
+            self::post($app, $container, '/earthquakes/' . $b . '/release');
+
+            $second = $records->notifications->findFor($b, $person);
+            $this->assertNotNull($second);
+            $this->assertSame(Notification::MERGED, $second->state);
+            $this->assertSame($first->id, $second->mergedIntoId);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function foldsWhicheverIsReleasedSecond(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $person = self::relatedLateQuakes($container);
+            $records = new QuakeRecords($container);
+            [$a, $b] = self::relatedQuakeIds($records);
+
+            self::post($app, $container, '/earthquakes/' . $b . '/release');
+            self::post($app, $container, '/earthquakes/' . $a . '/release');
+
+            $first = $records->notifications->findFor($a, $person);
+            $second = $records->notifications->findFor($b, $person);
+            $this->assertNotNull($first);
+            $this->assertNotNull($second);
+            $this->assertSame(Notification::PENDING, $second->state);
+            $this->assertSame(Notification::MERGED, $first->state);
+            $this->assertSame($second->id, $first->mergedIntoId);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function sendsTheFoldedContactWhenTheFirstQuakeIsCancelled(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $person = self::relatedLateQuakes($container);
+            $records = new QuakeRecords($container);
+            [$a, $b] = self::relatedQuakeIds($records);
+            self::post($app, $container, '/earthquakes/' . $a . '/release');
+            self::post($app, $container, '/earthquakes/' . $b . '/release');
+            $this->assertSame(Notification::MERGED, $records->notifications->findFor($b, $person)?->state);
+            $now = self::get($container, ClockInterface::class)->now();
+
+            self::get($container, TelegramRepository::class)->store(
+                'https://www.data.jma.go.jp/developer/xml/data/20100704220000_0_VXSE51_010000.xml',
+                JmaSamples::edited('32-35_08_05_100915_VXSE51.xml', [
+                    '<InfoType>発表</InfoType>' => '<InfoType>取消</InfoType>',
+                    '<ReportDateTime>2010-07-05T06:59:00+09:00</ReportDateTime>' => '<ReportDateTime>2010-07-05T07:00:00+09:00</ReportDateTime>',
+                ]),
+                $now,
+            );
+            self::get($container, DispatchJob::class)->run($now);
+
+            $second = $records->notifications->findFor($b, $person);
+            $this->assertSame(Notification::CANCELLED, $records->notifications->findFor($a, $person)?->state);
+            $this->assertNotNull($second);
+            $this->assertSame(Notification::PENDING, $second->state);
+            $this->assertNull($second->mergedIntoId);
+            $this->assertEquals(new DateTimeImmutable('2026-11-05T03:12:00Z'), $second->notBefore);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function leavesAHeldContactAnsweredByProxyAlone(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $person = self::relatedLateQuakes($container);
+            $records = new QuakeRecords($container);
+            [$a, $b] = self::relatedQuakeIds($records);
+            $now = self::get($container, ClockInterface::class)->now();
+            $held = $records->notifications->findFor($b, $person);
+            $this->assertNotNull($held);
+            $records->notifications->recordAnswer($held->id, Notification::SAFE, 'proxy', '安否 太郎', null, $now);
+
+            self::post($app, $container, '/earthquakes/' . $a . '/release');
+            self::post($app, $container, '/earthquakes/' . $b . '/release');
+
+            $second = $records->notifications->find($held->id);
+            $this->assertNotNull($second);
+            $this->assertNull($second->mergedIntoId);
+            $this->assertSame(Notification::SAFE, $second->answer);
+            $this->assertNotContains($held->id, array_map(static fn(Notification $contact): int => $contact->id, $records->notifications->dueFirstContacts($now)));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function listsQuakesNewestFirst(): void
     {
         [$app, $container, $root] = self::loggedIn();
@@ -279,6 +391,20 @@ final class EarthquakePagesTest extends TestCase
         self::get($container, DispatchJob::class)->run($now);
 
         return $person;
+    }
+
+    /**
+     * The ids of quakes A and B from relatedLateQuakes().
+     *
+     * @return array{int, int}
+     */
+    private static function relatedQuakeIds(QuakeRecords $records): array
+    {
+        $a = $records->earthquakes->findByEventId(self::EVENT_A);
+        $b = $records->earthquakes->findByEventId(self::EVENT_B);
+        assert($a !== null && $b !== null);
+
+        return [$a->id, $b->id];
     }
 
     /**
