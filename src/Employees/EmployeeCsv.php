@@ -21,6 +21,11 @@ final class EmployeeCsv
     private const string BOM = "\xEF\xBB\xBF";
 
     /**
+     * How workbooks begin: an .xlsx is a ZIP (as are .ods and .numbers), and an old .xls an OLE2 compound file.
+     */
+    private const array WORKBOOKS = ["PK\x03\x04", "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"];
+
+    /**
      * @param list<Employee> $employees
      */
     public static function export(array $employees): string
@@ -70,6 +75,13 @@ final class EmployeeCsv
      */
     public static function parse(string $contents): array
     {
+        // Uploaded as saved, a workbook would only fail on its "header", which tells nobody what to do.
+        foreach (self::WORKBOOKS as $signature) {
+            if (str_starts_with($contents, $signature)) {
+                return ['rows' => [], 'errors' => ['Excel などのファイル（.xlsx や .xls）のままでは読めません。Excel の「名前を付けて保存」で「CSV UTF-8（コンマ区切り）」を選んで保存し、そのファイルを選んでください。']];
+            }
+        }
+
         $text = str_starts_with($contents, self::BOM) ? substr($contents, strlen(self::BOM)) : $contents;
 
         if (!mb_check_encoding($text, 'UTF-8')) {
