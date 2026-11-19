@@ -31,6 +31,18 @@ final class PhpVersionTest extends TestCase
     }
 
     #[Test]
+    public function answersTheTwoArgumentsOfAnOlderEntryPoint(): void
+    {
+        // v0.1.5's public/index.php and bin/cron.php pass two arguments. During an upgrade, or where public/index.php
+        // was not copied again, they meet this file.
+        $check = require dirname(__DIR__) . '/src/php-version.php';
+        $this->assertInstanceOf(Closure::class, $check);
+
+        $this->assertSame('Re:無事 には PHP 8.3 以上が必要です（今は 8.2.29）。サーバーの管理画面で PHP の版を変えてください。', $check(80229, '8.2.29'));
+        $this->assertNull($check(PHP_VERSION_ID, PHP_VERSION));
+    }
+
+    #[Test]
     public function checksBeforeLoadingTheApp(): void
     {
         foreach (['public/index.php', 'bin/cron.php'] as $file) {

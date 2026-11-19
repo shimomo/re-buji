@@ -10,11 +10,12 @@ return
     /**
      * @param int $versionId PHP_VERSION_ID
      * @param string $version PHP_VERSION
-     * @param bool $cron true for bin/cron.php, whose php is chosen in the cron command rather than the control panel
+     * @param bool $cron true for bin/cron.php, whose php is chosen in the cron command rather than the control panel;
+     *                   optional, because v0.1.5's entry points pass two arguments (an upgrade meets them for a while)
      *
      * @return string|null what to tell the person setting up, or null when this PHP is new enough
      */
-    function ($versionId, $version, $cron) {
+    function ($versionId, $version, $cron = false) {
         if ($versionId >= 80300) {
             return null;
         }
