@@ -73,6 +73,12 @@ final class LoginController
             return $this->render($email, self::FAILED);
         }
 
+        // The password is at hand only now: a hash made with a lower cost than today's default (10 on PHP 8.3, 12 from
+        // 8.4) is made again, so a server's PHP upgrade strengthens each admin's hash at their next log-in.
+        if (password_needs_rehash($admin['password_hash'], PASSWORD_DEFAULT)) {
+            $this->admins->setPassword($admin['id'], $password);
+        }
+
         $this->session->regenerate();
         $this->session->set('admin_id', $admin['id']);
         $this->session->set('admin_seen_at', $now->getTimestamp());

@@ -7,6 +7,9 @@ namespace ReBuji\Tests\Auth;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
+use Psr\Container\ContainerInterface;
+use ReBuji\Auth\AdminRepository;
+use ReBuji\Database\Database;
 use ReBuji\Http\ArraySession;
 use ReBuji\Http\Session;
 use ReBuji\Tests\Support\FrozenClock;
@@ -111,6 +114,57 @@ final class LoginTest extends TestCase
     }
 
     #[Test]
+    public function strengthensAnOldHashAtLogIn(): void
+    {
+        [$app, $container, $root] = TestApp::installed();
+
+        try {
+            $weak = self::weakenTheHash($container);
+
+            $this->assertSame(302, TestApp::logIn($app, $container)->getStatusCode());
+
+            $hash = self::hash($container);
+            $this->assertNotSame($weak, $hash);
+            $this->assertFalse(password_needs_rehash($hash, PASSWORD_DEFAULT));
+            $this->assertTrue(password_verify(TestApp::ADMIN_PASSWORD, $hash));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function leavesTheHashAloneWhenTheLogInFails(): void
+    {
+        [$app, $container, $root] = TestApp::installed();
+
+        try {
+            $weak = self::weakenTheHash($container);
+
+            $this->assertSame(200, TestApp::logIn($app, $container, 'wrong-password-123')->getStatusCode());
+
+            $this->assertSame($weak, self::hash($container));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function leavesACurrentHashAlone(): void
+    {
+        [$app, $container, $root] = TestApp::installed();
+
+        try {
+            $current = self::hash($container);
+
+            $this->assertSame(302, TestApp::logIn($app, $container)->getStatusCode());
+
+            $this->assertSame($current, self::hash($container));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function requiresLoginForTheHomePage(): void
     {
         [$app, , $root] = TestApp::installed();
@@ -140,5 +194,26 @@ final class LoginTest extends TestCase
         } finally {
             TemporaryDirectory::remove($root);
         }
+    }
+
+    /**
+     * Stores the admin's password with a cost below any default, as an older PHP or an older setting would have.
+     */
+    private static function weakenTheHash(ContainerInterface $container): string
+    {
+        $weak = password_hash(TestApp::ADMIN_PASSWORD, PASSWORD_BCRYPT, ['cost' => 4]);
+        $db = $container->get(Database::class);
+        assert($db instanceof Database);
+        $db->execute('UPDATE admins SET password_hash = ? WHERE email = ?', [$weak, TestApp::ADMIN_EMAIL]);
+
+        return $weak;
+    }
+
+    private static function hash(ContainerInterface $container): string
+    {
+        $admins = $container->get(AdminRepository::class);
+        assert($admins instanceof AdminRepository);
+
+        return $admins->findByEmail(TestApp::ADMIN_EMAIL)['password_hash'] ?? '';
     }
 }
