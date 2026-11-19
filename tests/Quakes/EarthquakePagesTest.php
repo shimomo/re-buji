@@ -9,9 +9,16 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
+use ReBuji\Employees\EmployeeCity;
+use ReBuji\Employees\EmployeeInput;
+use ReBuji\Employees\EmployeeRepository;
+use ReBuji\Feed\TelegramRepository;
+use ReBuji\Quakes\DispatchJob;
 use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\Notification;
+use ReBuji\Settings\Settings;
 use ReBuji\Tests\Support\FrozenClock;
+use ReBuji\Tests\Support\JmaSamples;
 use ReBuji\Tests\Support\QuakeRecords;
 use ReBuji\Tests\Support\TemporaryDirectory;
 use ReBuji\Tests\Support\TestApp;
@@ -22,6 +29,92 @@ use Slim\App;
  */
 final class EarthquakePagesTest extends TestCase
 {
+    private const string EVENT_A = '20100705065511';
+
+    private const string EVENT_B = '20100705065610';
+
+    #[Test]
+    public function foldsARelatedLateQuakeIntoTheContactSentFirst(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $person = self::relatedLateQuakes($container);
+            $records = new QuakeRecords($container);
+            $a = $records->earthquakes->findByEventId(self::EVENT_A);
+            $b = $records->earthquakes->findByEventId(self::EVENT_B);
+            $this->assertNotNull($a);
+            $this->assertNotNull($b);
+            $this->assertSame(Earthquake::HELD, $a->delivery);
+            $this->assertSame(Earthquake::HELD, $b->delivery);
+
+            self::post($app, $container, '/earthquakes/' . $a->id . '/release');
+            self::post($app, $container, '/earthquakes/' . $b->id . '/release');
+
+            $first = $records->notifications->findFor($a->id, $person);
+            $second = $records->notifications->findFor($b->id, $person);
+            $this->assertNotNull($first);
+            $this->assertNotNull($second);
+            $this->assertSame(Notification::PENDING, $first->state);
+            $this->assertSame(Notification::MERGED, $second->state);
+            $this->assertSame($first->id, $second->mergedIntoId);
+            $this->assertSame(Earthquake::RELEASED, $records->earthquakes->find($b->id)?->delivery);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function sendsARelatedLateQuakeToSomeoneWhoAnsweredTheFirst(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $person = self::relatedLateQuakes($container);
+            $records = new QuakeRecords($container);
+            $a = $records->earthquakes->findByEventId(self::EVENT_A);
+            $b = $records->earthquakes->findByEventId(self::EVENT_B);
+            $this->assertNotNull($a);
+            $this->assertNotNull($b);
+            self::post($app, $container, '/earthquakes/' . $a->id . '/release');
+            $records->db->execute('UPDATE notifications SET replied_at = ? WHERE id = ?', ['2026-11-05T03:00:00Z', $records->notifications->findFor($a->id, $person)?->id]);
+
+            self::post($app, $container, '/earthquakes/' . $b->id . '/release');
+
+            $second = $records->notifications->findFor($b->id, $person);
+            $this->assertNotNull($second);
+            $this->assertSame(Notification::PENDING, $second->state);
+            $this->assertNull($second->mergedIntoId);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function sendsARelatedLateQuakeWhenTheFirstWasDropped(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $person = self::relatedLateQuakes($container);
+            $records = new QuakeRecords($container);
+            $a = $records->earthquakes->findByEventId(self::EVENT_A);
+            $b = $records->earthquakes->findByEventId(self::EVENT_B);
+            $this->assertNotNull($a);
+            $this->assertNotNull($b);
+            self::post($app, $container, '/earthquakes/' . $a->id . '/dismiss');
+
+            self::post($app, $container, '/earthquakes/' . $b->id . '/release');
+
+            $second = $records->notifications->findFor($b->id, $person);
+            $this->assertNotNull($second);
+            $this->assertSame(Notification::PENDING, $second->state);
+            $this->assertNull($second->mergedIntoId);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
     #[Test]
     public function listsQuakesNewestFirst(): void
     {
@@ -164,5 +257,51 @@ final class EarthquakePagesTest extends TestCase
         TestApp::logIn($app, $container);
 
         return [$app, $container, $root];
+    }
+
+    /**
+     * Two quakes a minute apart on 2010-07-05 (A detected 21:55Z, B 21:56Z), both shaking 岩手県沿岸南部 at 4. On the
+     * test clock (2026-11-05) both arrive late and are held. Returns the person's id.
+     */
+    private static function relatedLateQuakes(ContainerInterface $container): int
+    {
+        $now = self::get($container, ClockInterface::class)->now();
+        self::get($container, Settings::class)->save(['threshold' => '4']);
+        $person = self::get($container, EmployeeRepository::class)->create(new EmployeeInput('陸前 高田', '', ['person1@example.com'], [new EmployeeCity('0321000', '自宅')], '', true));
+        JmaSamples::store(
+            self::get($container, TelegramRepository::class),
+            $now,
+            '32-35_08_01_100915_VXSE51.xml',
+            '32-35_08_03_100915_VXSE51.xml',
+            '32-35_08_05_100915_VXSE51.xml',
+            '32-35_08_02_100915_VXSE51.xml',
+        );
+        self::get($container, DispatchJob::class)->run($now);
+
+        return $person;
+    }
+
+    /**
+     * @param App<ContainerInterface> $app
+     */
+    private static function post(App $app, ContainerInterface $container, string $path): void
+    {
+        $response = $app->handle(TestApp::request('POST', $path, TestApp::csrf($container)));
+        assert($response->getStatusCode() === 302, $path . ' answered ' . $response->getStatusCode());
+    }
+
+    /**
+     * @template T of object
+     *
+     * @param class-string<T> $class
+     *
+     * @return T
+     */
+    private static function get(ContainerInterface $container, string $class): object
+    {
+        $service = $container->get($class);
+        assert($service instanceof $class);
+
+        return $service;
     }
 }
