@@ -36,6 +36,7 @@ final class EarthquakesController
         private readonly ClockInterface $clock,
         private readonly QuakeBoard $board,
         private readonly TelegramRepository $telegrams,
+        private readonly RelatedContacts $related,
     ) {
         //
     }
@@ -94,8 +95,11 @@ final class EarthquakesController
     {
         $quake = $this->held($request, $args);
         $this->db->transaction(function () use ($quake): void {
+            $now = $this->clock->now();
             $this->earthquakes->setDelivery($quake->id, Earthquake::RELEASED);
-            $this->notifications->release($quake->id, $this->clock->now());
+            // Someone who has not answered a related quake's contact gets no second mail (design 4), as on time.
+            $this->related->foldHeld($quake, $now);
+            $this->notifications->release($quake->id, $now);
         });
         $this->flash->put('遅れて届いた地震の連絡を送ります。cron が順に送ります。');
 

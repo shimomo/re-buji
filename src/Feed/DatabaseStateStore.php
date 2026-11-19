@@ -74,26 +74,28 @@ final class DatabaseStateStore implements StateStore
     }
 
     /**
-     * Writes what was kept since the last flush() or discard(). FeedJob calls it inside the transaction that saves the
-     * telegrams.
+     * Writes what was kept since the last flush() or discard(), all of it or nothing, in a transaction of its own; inside
+     * FeedJob's, it joins the one that saves the telegrams. If writing fails, what was kept stays for the caller to drop.
      */
     public function flush(): void
     {
-        foreach ($this->seen as $url => $expiresAt) {
-            $expires = Time::format($expiresAt);
+        $this->db->transaction(function (): void {
+            foreach ($this->seen as $url => $expiresAt) {
+                $expires = Time::format($expiresAt);
 
-            if ($this->db->execute('UPDATE feed_seen SET expires_at = ? WHERE url = ?', [$expires, $url]) === 0) {
-                $this->db->execute('INSERT INTO feed_seen (url, expires_at) VALUES (?, ?)', [$url, $expires]);
+                if ($this->db->execute('UPDATE feed_seen SET expires_at = ? WHERE url = ?', [$expires, $url]) === 0) {
+                    $this->db->execute('INSERT INTO feed_seen (url, expires_at) VALUES (?, ?)', [$url, $expires]);
+                }
             }
-        }
 
-        foreach ($this->states as $feedUrl => $state) {
-            $json = json_encode($state->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+            foreach ($this->states as $feedUrl => $state) {
+                $json = json_encode($state->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
 
-            if ($this->db->execute('UPDATE feed_states SET state = ? WHERE feed_url = ?', [$json, $feedUrl]) === 0) {
-                $this->db->execute('INSERT INTO feed_states (feed_url, state) VALUES (?, ?)', [$feedUrl, $json]);
+                if ($this->db->execute('UPDATE feed_states SET state = ? WHERE feed_url = ?', [$json, $feedUrl]) === 0) {
+                    $this->db->execute('INSERT INTO feed_states (feed_url, state) VALUES (?, ?)', [$feedUrl, $json]);
+                }
             }
-        }
+        });
 
         $this->discard();
     }

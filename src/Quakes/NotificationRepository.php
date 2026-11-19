@@ -237,6 +237,17 @@ final class NotificationRepository
         $this->setState($id, Notification::CANCELLED);
     }
 
+    /**
+     * Folds the contact into another person's contact for a related quake (design 4): it is not sent on its own.
+     */
+    public function markMerged(int $id, int $intoId): void
+    {
+        $this->db->execute(
+            'UPDATE notifications SET state = ?, merged_into_id = ?, updated_at = ? WHERE id = ?',
+            [Notification::MERGED, $intoId, Time::format($this->clock->now()), $id],
+        );
+    }
+
     public function markFailed(int $id): void
     {
         $this->setState($id, Notification::FAILED);

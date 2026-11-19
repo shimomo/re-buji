@@ -6,6 +6,7 @@ namespace ReBuji\Tests\Feed;
 
 use DateTimeImmutable;
 use JmaXml\Feed\FeedState;
+use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -95,6 +96,28 @@ final class DatabaseStateStoreTest extends TestCase
         $store->flush();
 
         $this->assertTrue((new DatabaseStateStore($db))->isSeen($url));
+    }
+
+    #[Test]
+    #[DataProvider('drivers')]
+    public function writesAllOrNothing(string $driver): void
+    {
+        $db = $this->migrated($driver);
+        $store = new DatabaseStateStore($db);
+        $at = new DateTimeImmutable('2009-08-10T20:12:00Z');
+        $url = 'https://www.data.jma.go.jp/developer/xml/data/20090810200900_0_VXSE51_220000.xml';
+        $store->markSeen($url, $at->modify('+1 day'));
+        $store->save(self::FEED, new FeedState('"abc"', null, $at, $at, $at->modify('-20 minutes'), [$url], 'fingerprint', [$url => $at]));
+        $db->execute('DROP TABLE feed_states');
+
+        try {
+            $store->flush();
+            $this->fail('A flush that cannot write the feed state should fail');
+        } catch (PDOException) {
+            // expected
+        }
+
+        $this->assertFalse((new DatabaseStateStore($db))->isSeen($url));
     }
 
     /**

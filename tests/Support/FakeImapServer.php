@@ -23,7 +23,7 @@ final class FakeImapServer
 
     /**
      * @param string $mailDir holds the inbox as {uid}.eml (and {uid}.seen for seen messages)
-     * @param array{rejectLogin?: bool} $options
+     * @param array{rejectLogin?: bool, failStartTls?: bool} $options
      */
     public static function start(string $mailDir, array $options = []): self
     {

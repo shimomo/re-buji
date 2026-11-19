@@ -129,6 +129,49 @@ final class ImapClientTest extends TestCase
     }
 
     #[Test]
+    public function explainsAFailedTlsHandshake(): void
+    {
+        // The fake server speaks plain IMAP, so the TLS handshake fails at once.
+        [$dir, $server] = self::mailbox(0);
+
+        try {
+            try {
+                (new ImapClient(new ImapSettings('127.0.0.1', $server->port(), 'ssl', 'anpi', 'secret')))->open();
+                $this->fail('A failed TLS handshake should be reported');
+            } catch (MailboxUnavailable $exception) {
+                $this->assertMatchesRegularExpression('/^127\.0\.0\.1:\d+ につなげません：SSL operation failed/u', $exception->getMessage());
+                $this->assertStringNotContainsString("\n", $exception->getMessage());
+            }
+
+            $this->assertStringNotContainsString('LOGIN', $server->transcript());
+        } finally {
+            $server->stop();
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function explainsAFailedStartTls(): void
+    {
+        [$dir, $server] = self::mailbox(0, ['failStartTls' => true]);
+
+        try {
+            try {
+                (new ImapClient(new ImapSettings('127.0.0.1', $server->port(), 'starttls', 'anpi', 'secret')))->open();
+                $this->fail('A failed STARTTLS should be reported');
+            } catch (MailboxUnavailable $exception) {
+                $this->assertMatchesRegularExpression('/^IMAP の TLS を始められませんでした：\S/u', $exception->getMessage());
+                $this->assertStringNotContainsString("\n", $exception->getMessage());
+            }
+
+            $this->assertStringNotContainsString('LOGIN', $server->transcript());
+        } finally {
+            $server->stop();
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
     public function readsAtMostTheLimit(): void
     {
         [$dir, $server] = self::mailbox(5);
@@ -197,7 +240,7 @@ final class ImapClientTest extends TestCase
     /**
      * An inbox of $count small messages, served by a fake server.
      *
-     * @param array{rejectLogin?: bool} $options
+     * @param array{rejectLogin?: bool, failStartTls?: bool} $options
      *
      * @return array{string, FakeImapServer}
      */

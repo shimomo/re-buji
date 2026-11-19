@@ -173,10 +173,36 @@ final class SettingsPagesTest extends TestCase
 
         try {
             $app->handle(TestApp::request('POST', '/settings', self::form() + TestApp::csrf($container)));
+            $state = $container->get(SystemState::class);
+            $this->assertInstanceOf(SystemState::class, $state);
+            $state->set('mail.last_error', 'Failed to authenticate on SMTP server');
             $response = $app->handle(TestApp::request('POST', '/settings/test-mail', TestApp::csrf($container)));
 
             $this->assertSame(200, $response->getStatusCode());
             $this->assertStringContainsString('テストメールを送れませんでした：Connection to', (string) $response->getBody());
+            $this->assertSame('Failed to authenticate on SMTP server', $state->get('mail.last_error'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function clearsTheMailErrorOnceATestMailGoesThrough(): void
+    {
+        [$app, $container, $root] = self::loggedIn(new RecordingMailSender());
+
+        try {
+            $app->handle(TestApp::request('POST', '/settings', self::form() + TestApp::csrf($container)));
+            $state = $container->get(SystemState::class);
+            $this->assertInstanceOf(SystemState::class, $state);
+            $state->set('mail.last_error', 'Failed to authenticate on SMTP server');
+            $this->assertStringContainsString('メールを送れていません：Failed to authenticate on SMTP server', (string) $app->handle(TestApp::request('GET', '/'))->getBody());
+
+            $response = $app->handle(TestApp::request('POST', '/settings/test-mail', TestApp::csrf($container)));
+
+            $this->assertSame(302, $response->getStatusCode());
+            $this->assertStringNotContainsString('メールを送れていません', (string) $app->handle(TestApp::request('GET', '/'))->getBody());
+            $this->assertSame('', $state->get('mail.last_error'));
         } finally {
             TemporaryDirectory::remove($root);
         }
