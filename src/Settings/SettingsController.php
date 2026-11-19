@@ -115,6 +115,9 @@ final class SettingsController
             }
 
             $this->messages->record(null, 'test', $admin['email'], $mail->messageId, true, '', $now);
+            // The account works now. With nothing to send, cron would leave the old error on the home page (and in the
+            // watch mails) until the next quake.
+            $this->state->set('mail.last_error', '');
         } catch (RecipientRefused|RecipientDeferred|MailUnavailable $exception) {
             return $this->render($request, $this->current(), ['テストメールを送れませんでした：' . $exception->getMessage()]);
         }
