@@ -38,3 +38,54 @@ jobs:
 
       - name: Check composer.json is normalized
         run: composer normalize --dry-run --no-interaction
+
+  # The entry points read src/php-version.php before the autoloader, so that a PHP older than 8.3 explains itself in
+  # Japanese. That only works while the three files keep to old syntax (PHP 5.5 on); this job keeps them there.
+  old-php:
+    name: Old PHP message on PHP ${{ matrix.php-version }} (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        php-version:
+          - '5.5'
+          - '5.6'
+          - '7.0'
+          - '7.4'
+          - '8.2'
+    steps:
+      - name: Setup PHP ${{ matrix.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Lint the files an old PHP reads
+        run: |
+          for file in src/php-version.php public/index.php bin/cron.php; do
+            php -l "$file"
+          done
+
+      - name: Check the old PHP gets the message
+        shell: bash
+        run: |
+          web=$(php public/index.php 2>&1)
+          echo "$web"
+
+          if [[ "$web" != *'PHP 8.3 以上が必要です'* || "$web" != *'サーバーの管理画面で'* ]]; then
+            echo 'public/index.php did not explain the old PHP' >&2
+            exit 1
+          fi
+
+          set +e
+          cron=$(php bin/cron.php 2>&1)
+          code=$?
+          set -e
+          echo "$cron"
+
+          if [[ "$code" != 1 || "$cron" != *'cron に登録したコマンドで'* ]]; then
+            echo "bin/cron.php did not explain the old PHP (exit code $code)" >&2
+            exit 1
+          fi
