@@ -50,6 +50,7 @@
   ```
   */5 * * * * php /home/ユーザー名/re-buji/bin/cron.php
   ```
+- cron の `php` は、画面の PHP と版が違うことがあります。8.3 より古いときは、cron が理由を書いて止まるので、版を指定した php の場所を書いてください（さくらのレンタルサーバでは `/usr/local/php/8.3/bin/php`）。
 
 ## 見張り
 
@@ -131,6 +132,8 @@ ID,名前,所属,メール1,メール2,メール3,メール4,市町村1,呼び�
 
 新しい zip の中身を FTP で上書きします（`storage/` は上書きしません）。そのあと、管理画面の「DB の更新」を開いて、ボタンを押します。
 
+`public/` の中身だけを公開ディレクトリに置いている場合は、本体を上書きした後で、公開ディレクトリの `index.php` も、新しい `public/index.php` で上書きしてください（`rebuji-root.php` はそのまま残します）。順番を逆にすると、本体を上げ終わるまで画面がエラーになります。
+
 上書きしてから「DB の更新」を押すまでは、管理画面は「DB の更新」の画面しか開けず、cron も地震の情報を取りに行きません（15 分たつと、見張りの URL が 503 を返します）。上書きしたら、すぐに押してください。DB の変更が無い版では、押す必要はありません。
 
 ## 開発
@@ -140,7 +143,7 @@ composer install
 composer test       # PHPUnit
 composer analyse    # Psalm
 composer lint       # Pint
-bin/build-release.sh 0.1.5   # build/re-buji-0.1.5.zip を作る（版は src/Version.php と同じにし、コミットしてから）
+bin/build-release.sh 0.1.6   # build/re-buji-0.1.6.zip を作る（版は src/Version.php と同じにし、コミットしてから）
 ```
 
 ## 出典と注意

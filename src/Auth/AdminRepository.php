@@ -31,6 +31,14 @@ final class AdminRepository
     }
 
     /**
+     * Stores the password hashed the way create() does, with PHP's current default.
+     */
+    public function setPassword(int $id, string $password): void
+    {
+        $this->db->execute('UPDATE admins SET password_hash = ? WHERE id = ?', [password_hash($password, PASSWORD_DEFAULT), $id]);
+    }
+
+    /**
      * @return array{id: int, name: string, email: string, password_hash: string}|null
      */
     public function findByEmail(string $email): ?array
