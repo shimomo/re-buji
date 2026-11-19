@@ -20,7 +20,8 @@ $root = dirname(__DIR__);
 $tooOld = (require $root . '/src/php-version.php')(PHP_VERSION_ID, PHP_VERSION);
 
 if ($tooOld !== null) {
-    fwrite(STDERR, $tooOld . "\n");
+    // Not STDERR: some hosts' cron "php" is a CGI build, where that constant does not exist.
+    file_put_contents('php://stderr', $tooOld . "\n");
     exit(1);
 }
 

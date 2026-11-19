@@ -90,6 +90,34 @@ final class CronEntryTest extends TestCase
         }
     }
 
+    #[Test]
+    public function explainsAnOldPhpWhetherCronRunsTheCliOrTheCgiBuild(): void
+    {
+        $root = TemporaryDirectory::create();
+        mkdir($root . '/bin');
+        mkdir($root . '/src');
+        copy(dirname(__DIR__, 2) . '/bin/cron.php', $root . '/bin/cron.php');
+        // Turns away whatever PHP runs the test. Some hosts' cron "php" is a CGI build, which has no STDERR constant.
+        file_put_contents($root . '/src/php-version.php', "<?php\n\nreturn static fn(int \$versionId, string \$version): string => 'PHP 8.3 以上が必要です（今は ' . \$version . '）';\n");
+        $binaries = [PHP_BINARY];
+        $cgi = dirname(PHP_BINARY) . '/php-cgi';
+
+        if (is_executable($cgi)) {
+            $binaries[] = $cgi;
+        }
+
+        try {
+            foreach ($binaries as $binary) {
+                [$exitCode, $output] = $this->runCron($root, [], $binary);
+
+                $this->assertSame(1, $exitCode, $binary . ': ' . $output);
+                $this->assertStringContainsString('PHP 8.3 以上が必要です（今は ' . PHP_VERSION . '）', $output, $binary);
+            }
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
     /**
      * @param list<Migration>|null $migrations what an installed copy has applied (all of them by default)
      */
@@ -119,13 +147,15 @@ final class CronEntryTest extends TestCase
 
     /**
      * @param array<string, string> $env
+     * @param string $binary PHP's CLI by default, or a php-cgi (run quiet, without its HTTP headers)
      *
-     * @return array{int, string}
+     * @return array{int, string} the exit code, and stdout and stderr together
      */
-    private function runCron(string $root, array $env): array
+    private function runCron(string $root, array $env, string $binary = PHP_BINARY): array
     {
         $environment = array_filter(getenv(), static fn(int|string $key): bool => $key !== 'REQUEST_METHOD', ARRAY_FILTER_USE_KEY);
-        $process = proc_open([PHP_BINARY, $root . '/bin/cron.php'], [1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, $root, $env + $environment);
+        $command = $binary === PHP_BINARY ? [$binary, $root . '/bin/cron.php'] : [$binary, '-q', $root . '/bin/cron.php'];
+        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, $root, $env + $environment);
         $this->assertIsResource($process);
         $output = (string) stream_get_contents($pipes[1]);
         fclose($pipes[1]);
