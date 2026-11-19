@@ -16,6 +16,14 @@ if (isset($_SERVER['REQUEST_METHOD'])) {
 
 $root = dirname(__DIR__);
 
+// Before the autoloader, so that an older PHP gets this in Japanese, not a parse error or Composer's English.
+$tooOld = (require $root . '/src/php-version.php')(PHP_VERSION_ID, PHP_VERSION);
+
+if ($tooOld !== null) {
+    fwrite(STDERR, $tooOld . "\n");
+    exit(1);
+}
+
 require $root . '/vendor/autoload.php';
 
 $paths = new ReBuji\Paths($root);

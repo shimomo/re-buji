@@ -100,6 +100,8 @@ final class CronEntryTest extends TestCase
         mkdir($root . '/bin');
         copy(dirname(__DIR__, 2) . '/bin/cron.php', $root . '/bin/cron.php');
         symlink(dirname(__DIR__, 2) . '/vendor', $root . '/vendor');
+        // cron.php checks the PHP version with src/php-version.php before it loads the app.
+        symlink(dirname(__DIR__, 2) . '/src', $root . '/src');
 
         if ($installed) {
             $paths = new Paths($root);
