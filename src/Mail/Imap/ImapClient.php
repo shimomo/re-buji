@@ -40,7 +40,7 @@ final class ImapClient
         $target = ($this->settings->encryption === 'ssl' ? 'ssl://' : 'tcp://') . $host . ':' . $this->settings->port;
         $context = stream_context_create(['ssl' => ['peer_name' => $host, 'SNI_enabled' => true]]);
         $errorMessage = '';
-        [$stream, $warning] = self::withWarnings(function () use ($target, $context, &$errorMessage) {
+        [$stream, $warning] = StreamWarnings::catch(function () use ($target, $context, &$errorMessage) {
             return stream_socket_client($target, $errorCode, $errorMessage, $this->timeoutSeconds, STREAM_CLIENT_CONNECT, $context);
         });
 
@@ -142,40 +142,11 @@ final class ImapClient
             throw new MailboxUnavailable('IMAP のサーバーにつながっていません');
         }
 
-        [$started, $warning] = self::withWarnings(static fn() => stream_socket_enable_crypto($stream, true, STREAM_CRYPTO_METHOD_TLS_CLIENT));
+        [$started, $warning] = StreamWarnings::catch(static fn() => stream_socket_enable_crypto($stream, true, STREAM_CRYPTO_METHOD_TLS_CLIENT));
 
         if ($started !== true) {
             throw new MailboxUnavailable('IMAP の TLS を始められませんでした：' . ($warning !== '' ? $warning : '理由は分かりません'));
         }
-    }
-
-    /**
-     * Calls a stream function with PHP's warnings caught instead of shown: why a TLS handshake failed is only in them.
-     *
-     * @template T
-     *
-     * @param callable(): T $call
-     *
-     * @return array{T, string} what the call returned, and its first warning without the function's name, on one line
-     */
-    private static function withWarnings(callable $call): array
-    {
-        $warnings = [];
-        set_error_handler(static function (int $level, string $message) use (&$warnings): bool {
-            $warnings[] = $message;
-
-            return true;
-        });
-
-        try {
-            $result = $call();
-        } finally {
-            restore_error_handler();
-        }
-
-        $first = $warnings[0] ?? '';
-
-        return [$result, trim((string) preg_replace(['/^\w+\(\): /', '/\s+/'], ['', ' '], $first))];
     }
 
     /**
