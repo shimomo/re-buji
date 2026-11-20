@@ -76,11 +76,14 @@ final class UnmatchedController
         // Only what a ticked box can send: an id as digits.
         $ids = array_values(array_map(intval(...), array_filter($values, static fn(mixed $value): bool => is_string($value) && preg_match('/^[0-9]+$/', $value) === 1)));
 
-        if ($ids === []) {
-            $this->flash->put('メールが選ばれていません。');
-        } else {
-            $this->flash->put($this->replies->deleteUnmatchedMany($ids) . ' 件のメールの記録を消しました。');
-        }
+        $deleted = $this->replies->deleteUnmatchedMany($ids);
+
+        // Another admin, or an earlier press of the button, may have deleted them already.
+        $this->flash->put(match (true) {
+            $ids === [] => 'メールが選ばれていません。',
+            $deleted === 0 => '選んだメールは、もう消えていました。',
+            default => $deleted . ' 件のメールの記録を消しました。',
+        });
 
         return $this->responses->createResponse(302)->withHeader('Location', $this->url->to('/mail/unmatched'));
     }

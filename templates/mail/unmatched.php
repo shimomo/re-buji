@@ -10,7 +10,7 @@ $this->layout('layout', ['title' => $title]);
 <?php if ($mails === []): ?>
 <p>照合できなかったメールはありません。</p>
 <?php else: ?>
-<form id="delete-selected" method="post" action="<?= $this->e($this->url('/mail/unmatched/delete')) ?>" data-confirm="選んだメールの記録を消しますか？" onsubmit="return confirm(this.dataset.confirm)">
+<form id="delete-selected" method="post" action="<?= $this->e($this->url('/mail/unmatched/delete')) ?>" data-confirm="選んだメールの記録を消しますか？" onsubmit="return Array.prototype.some.call(this.elements, function (e) { return e.checked; }) ? confirm(this.dataset.confirm) : true">
     <?= $this->csrf() ?>
     <button type="submit">選んだメールを消す</button>
 </form>
