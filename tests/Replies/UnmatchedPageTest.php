@@ -82,6 +82,59 @@ final class UnmatchedPageTest extends TestCase
     }
 
     #[Test]
+    public function deletesTheSelectedMail(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $replies = self::replies($container);
+            $at = new DateTimeImmutable('2026-11-05T03:20:00Z');
+            $a = $replies->record(null, 'auto_reply', null, 'a@example.net', '自動応答：出張中', '出張中です', null, $at);
+            $b = $replies->record(null, 'receipt', null, 'b@example.net', '開封確認', '', null, $at);
+            $replies->record(null, 'reply', null, 'c@example.net', '家族です', '無事です', null, $at);
+            $records = new QuakeRecords($container);
+            $contact = $records->contact($records->quake('20261105121200', '宮城県沖', '2026-11-05T03:12:00Z'), Notification::SENT);
+            $matched = $replies->record($contact, 'reply', 'thread', 'person1@example.com', 'Re:', '', null, $at);
+
+            $page = (string) $app->handle(TestApp::request('GET', '/mail/unmatched'))->getBody();
+            $this->assertStringContainsString('name="ids[]"', $page);
+            $this->assertStringContainsString('選んだメールを消す', $page);
+
+            $response = $app->handle(TestApp::request('POST', '/mail/unmatched/delete', ['ids' => [(string) $a, (string) $b, (string) $matched]] + TestApp::csrf($container)));
+
+            $this->assertSame(302, $response->getStatusCode());
+            $this->assertSame('/mail/unmatched', $response->getHeaderLine('Location'));
+            $after = (string) $app->handle(TestApp::request('GET', '/mail/unmatched'))->getBody();
+            $this->assertStringContainsString('2 件のメールの記録を消しました。', $after);
+            $this->assertStringContainsString('家族です', $after);
+            $this->assertStringNotContainsString('出張中', $after);
+            $this->assertStringNotContainsString('開封確認', $after);
+            $this->assertCount(1, $replies->forNotification($contact));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function asksToSelectSomeMail(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            self::replies($container)->record(null, 'reply', null, 'c@example.net', '家族です', '無事です', null, new DateTimeImmutable('2026-11-05T03:20:00Z'));
+
+            $response = $app->handle(TestApp::request('POST', '/mail/unmatched/delete', TestApp::csrf($container)));
+
+            $this->assertSame(302, $response->getStatusCode());
+            $after = (string) $app->handle(TestApp::request('GET', '/mail/unmatched'))->getBody();
+            $this->assertStringContainsString('メールが選ばれていません。', $after);
+            $this->assertStringContainsString('家族です', $after);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function warnsAtHomeAboutUnmatchedMail(): void
     {
         [$app, $container, $root] = self::loggedIn();
