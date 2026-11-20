@@ -135,6 +135,68 @@ final class UnmatchedPageTest extends TestCase
     }
 
     #[Test]
+    public function saysWhenTheSelectedMailWasAlreadyGone(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $replies = self::replies($container);
+            $at = new DateTimeImmutable('2026-11-05T03:20:00Z');
+            $a = $replies->record(null, 'auto_reply', null, 'a@example.net', '自動応答', '出張中です', null, $at);
+            $b = $replies->record(null, 'receipt', null, 'b@example.net', '開封確認', '', null, $at);
+            // Another admin got there first.
+            $replies->deleteUnmatched($a);
+
+            $app->handle(TestApp::request('POST', '/mail/unmatched/delete', ['ids' => [(string) $a]] + TestApp::csrf($container)));
+
+            $this->assertStringContainsString('選んだメールは、もう消えていました。', (string) $app->handle(TestApp::request('GET', '/mail/unmatched'))->getBody());
+
+            $app->handle(TestApp::request('POST', '/mail/unmatched/delete', ['ids' => [(string) $a, (string) $b]] + TestApp::csrf($container)));
+
+            $this->assertStringContainsString('1 件のメールの記録を消しました。', (string) $app->handle(TestApp::request('GET', '/mail/unmatched'))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function asksBeforeDeletingOnlyWhenSomethingIsTicked(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            self::replies($container)->record(null, 'reply', null, 'c@example.net', '家族です', '無事です', null, new DateTimeImmutable('2026-11-05T03:20:00Z'));
+
+            $this->assertStringContainsString(
+                'Array.prototype.some.call(this.elements, function (e) { return e.checked; }) ? confirm(this.dataset.confirm) : true',
+                (string) $app->handle(TestApp::request('GET', '/mail/unmatched'))->getBody(),
+            );
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function namesEachCheckboxByItsSender(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $replies = self::replies($container);
+            $at = new DateTimeImmutable('2026-11-05T03:20:00Z');
+            $replies->record(null, 'reply', null, 'a@example.net', '家族です', '無事です', null, $at);
+            $replies->record(null, 'reply', null, '"Taro" <taro@example.net>', '友人です', '無事です', null, $at);
+
+            $page = (string) $app->handle(TestApp::request('GET', '/mail/unmatched'))->getBody();
+
+            $this->assertStringContainsString('style="width:auto" aria-label="a@example.net からのメールを選ぶ"', $page);
+            $this->assertStringContainsString('aria-label="&quot;Taro&quot; &lt;taro@example.net&gt; からのメールを選ぶ"', $page);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function warnsAtHomeAboutUnmatchedMail(): void
     {
         [$app, $container, $root] = self::loggedIn();

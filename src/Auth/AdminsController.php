@@ -12,6 +12,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use ReBuji\Employees\EmployeeValidator;
 use ReBuji\Http\Flash;
 use ReBuji\Http\Url;
+use ReBuji\Text;
 use ReBuji\Time;
 use Slim\Exception\HttpNotFoundException;
 
@@ -42,7 +43,7 @@ final class AdminsController
     {
         $body = $request->getParsedBody();
         $body = is_array($body) ? $body : [];
-        $name = trim(self::text($body['name'] ?? null));
+        $name = Text::trim(self::text($body['name'] ?? null));
         $email = trim(self::text($body['email'] ?? null));
         $password = self::text($body['password'] ?? null);
         $errors = [];

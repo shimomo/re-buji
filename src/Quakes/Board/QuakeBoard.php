@@ -186,7 +186,9 @@ final class QuakeBoard
             if ($reply['kind'] === IncomingMail::REPLY && $reply['body'] !== '') {
                 $bodies[] = $reply['body'];
             } elseif ($reply['kind'] === IncomingMail::AUTO_REPLY && trim($reply['body']) !== '') {
-                $autoReplies[] = mb_substr(trim($reply['body']), 0, self::AUTO_REPLY_CHARS);
+                $text = trim($reply['body']);
+                // A mark when cut, so the closing 」 does not suggest the whole notice.
+                $autoReplies[] = mb_strlen($text) > self::AUTO_REPLY_CHARS ? mb_substr($text, 0, self::AUTO_REPLY_CHARS) . '…' : $text;
             }
         }
 

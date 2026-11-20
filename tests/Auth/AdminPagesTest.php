@@ -41,6 +41,21 @@ final class AdminPagesTest extends TestCase
     }
 
     #[Test]
+    public function refusesANameOfFullWidthSpaces(): void
+    {
+        [$app, $container, $root] = $this->loggedIn();
+
+        try {
+            $response = $app->handle(TestApp::request('POST', '/admins', ['name' => '　'] + $this->hanako() + TestApp::csrf($container)));
+
+            $this->assertStringContainsString('名前を入れてください。', (string) $response->getBody());
+            $this->assertStringNotContainsString('hanako@example.com', (string) $app->handle(TestApp::request('GET', '/admins'))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function refusesADuplicateEmailOrAShortPassword(): void
     {
         [$app, $container, $root] = $this->loggedIn();

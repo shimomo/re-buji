@@ -312,33 +312,46 @@ final class NotificationRepository
      * folded into it, which stop pointing at it. Without this, those people would show no answer once the quake is
      * gone. A contact folded into one without an answer is left as it is. Read first and written one by one: MySQL
      * cannot update a table that the same statement reads.
+     *
+     * @return list<array{int, int}> each contact that gave its answer, with a contact that received it, so that the
+     *                               replies can follow (ReplyRepository::copyShown())
      */
-    public function handOverAnswers(int $earthquakeId): void
+    public function handOverAnswers(int $earthquakeId): array
     {
+        $handedOver = [];
+
         foreach ($this->forEarthquake($earthquakeId) as $contact) {
             if ($contact->answer === null) {
                 continue;
             }
 
-            $this->db->execute(
-                'UPDATE notifications SET answer = ?, answer_source = ?, answered_by = ?, proxy_note = ?, replied_at = ?, checked_at = ?, checked_by = ?, merged_into_id = NULL, updated_at = ?'
-                . ' WHERE merged_into_id = ? AND earthquake_id <> ? AND state = ?',
-                [
-                    $contact->answer,
-                    $contact->answerSource,
-                    $contact->answeredBy,
-                    $contact->proxyNote,
-                    $contact->repliedAt === null ? null : Time::format($contact->repliedAt),
-                    $contact->checkedAt === null ? null : Time::format($contact->checkedAt),
-                    $contact->checkedBy,
-                    Time::format($this->clock->now()),
-                    $contact->id,
-                    $earthquakeId,
-                    // Not a contact JMA cancelled, which keeps pointing here: its quake was withdrawn.
-                    Notification::MERGED,
-                ],
+            // Not a contact JMA cancelled, which keeps pointing here: its quake was withdrawn.
+            $folded = $this->db->fetchAll(
+                'SELECT id FROM notifications WHERE merged_into_id = ? AND earthquake_id <> ? AND state = ? ORDER BY id',
+                [$contact->id, $earthquakeId, Notification::MERGED],
             );
+
+            foreach ($folded as $row) {
+                $id = (int) $row['id'];
+                $this->db->execute(
+                    'UPDATE notifications SET answer = ?, answer_source = ?, answered_by = ?, proxy_note = ?, replied_at = ?, checked_at = ?, checked_by = ?, merged_into_id = NULL, updated_at = ? WHERE id = ?',
+                    [
+                        $contact->answer,
+                        $contact->answerSource,
+                        $contact->answeredBy,
+                        $contact->proxyNote,
+                        $contact->repliedAt === null ? null : Time::format($contact->repliedAt),
+                        $contact->checkedAt === null ? null : Time::format($contact->checkedAt),
+                        $contact->checkedBy,
+                        Time::format($this->clock->now()),
+                        $id,
+                    ],
+                );
+                $handedOver[] = [$contact->id, $id];
+            }
         }
+
+        return $handedOver;
     }
 
     public function cancelFor(int $earthquakeId): void

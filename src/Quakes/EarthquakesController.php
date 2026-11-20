@@ -16,6 +16,7 @@ use ReBuji\Feed\TelegramRepository;
 use ReBuji\Http\Flash;
 use ReBuji\Http\Url;
 use ReBuji\Quakes\Board\QuakeBoard;
+use ReBuji\Replies\ReplyRepository;
 use Slim\Exception\HttpNotFoundException;
 
 /**
@@ -37,6 +38,7 @@ final class EarthquakesController
         private readonly QuakeBoard $board,
         private readonly TelegramRepository $telegrams,
         private readonly RelatedContacts $related,
+        private readonly ReplyRepository $replies,
     ) {
         //
     }
@@ -131,8 +133,11 @@ final class EarthquakesController
     {
         $quake = $this->earthquakes->find((int) ($args['id'] ?? '0')) ?? throw new HttpNotFoundException($request);
         $this->db->transaction(function () use ($quake): void {
-            // Contacts of other quakes folded into this one keep the answers their people gave here.
-            $this->notifications->handOverAnswers($quake->id);
+            // Contacts of other quakes folded into this one keep the answers their people gave here, and the words.
+            foreach ($this->notifications->handOverAnswers($quake->id) as [$from, $to]) {
+                $this->replies->copyShown($from, $to);
+            }
+
             $this->earthquakes->delete($quake->id);
 
             if ($quake->eventId !== null) {

@@ -93,6 +93,40 @@ final class QuakeDeletionTest extends TestCase
     }
 
     #[Test]
+    public function handsTheRepliesToContactsFoldedIntoIt(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $replies = self::get($container, ReplyRepository::class);
+            $a = $records->quake('20100705065511', '岩手県沿岸南部・最大震度4', '2026-11-05T02:55:00Z');
+            $b = $records->quake('20100705065610', '岩手県沖・最大震度4', '2026-11-05T02:56:00Z');
+            $c = $records->quake('20100705065720', '岩手県沖・最大震度3', '2026-11-05T02:57:00Z');
+            $first = $records->contact($a, Notification::SENT);
+            $records->notifications->recordAnswer($first, Notification::NEEDS_CHECK, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:12:00Z'));
+            $replies->record($first, 'auto_reply', 'thread', 'person1@example.com', '自動応答：不在', '11月25日まで出張中です。', 'a1@example.com', new DateTimeImmutable('2026-11-05T03:15:00Z'));
+            $replies->record($first, 'reply', 'thread', 'person1@example.com', 'Re:', '足を怪我しました', 'r1@example.com', new DateTimeImmutable('2026-11-05T03:20:00Z'));
+            $replies->record($first, 'receipt', 'thread', 'person1@example.com', '開封確認', '', 'k1@example.com', new DateTimeImmutable('2026-11-05T03:25:00Z'));
+            $folded = self::foldInto($container, $records, $first, $b, $c);
+
+            $app->handle(TestApp::request('POST', '/earthquakes/' . $a . '/delete', TestApp::csrf($container)));
+
+            foreach ($folded as $id) {
+                // The reply and the auto-reply, which the page shows; not the read receipt.
+                $this->assertSame(['auto_reply', 'reply'], array_column($replies->forNotification($id), 'kind'));
+            }
+
+            $page = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $b))->getBody();
+            $this->assertStringContainsString('足を怪我しました', $page);
+            $this->assertStringContainsString('自動応答：「11月25日まで出張中です。」', $page);
+            $this->assertFalse($replies->knows('r1@example.com'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function handsTheAnswersToContactsFoldedIntoIt(): void
     {
         [$app, $container, $root] = self::loggedIn();

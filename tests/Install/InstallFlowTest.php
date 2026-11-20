@@ -249,6 +249,23 @@ final class InstallFlowTest extends TestCase
     }
 
     #[Test]
+    public function refusesAnAdminNamedWithFullWidthSpaces(): void
+    {
+        [$app, $container, $root] = TestApp::create();
+
+        try {
+            $this->post($app, $container, '/install/environment');
+            $this->post($app, $container, '/install/key', ['install_key' => $this->installKey($app, $root)]);
+            $this->post($app, $container, '/install/database', ['driver' => 'sqlite']);
+            $response = $this->post($app, $container, '/install/admin', ['name' => '　　'] + $this->admin());
+
+            $this->assertStringContainsString('名前を入れてください。', (string) $response->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function refusesAWrongInstallKey(): void
     {
         [$app, $container, $root] = TestApp::create();

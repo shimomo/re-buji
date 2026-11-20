@@ -49,6 +49,34 @@ final class ReplyRepository
     /**
      * Whether this incoming mail was recorded already (read again after a run stopped before marking it seen).
      */
+    /**
+     * Copies the replies the quake page shows (replies and auto-replies) from one contact to another, before the first
+     * is deleted with its quake. The copies have no Message-ID: it is unique, and one reply may go to two contacts.
+     */
+    public function copyShown(int $fromNotificationId, int $toNotificationId): void
+    {
+        $rows = $this->db->fetchAll(
+            'SELECT kind, matched_by, from_address, subject, body, received_at FROM replies WHERE notification_id = ? AND kind IN (?, ?) ORDER BY id',
+            [$fromNotificationId, IncomingMail::REPLY, IncomingMail::AUTO_REPLY],
+        );
+
+        foreach ($rows as $row) {
+            $this->db->execute(
+                'INSERT INTO replies (notification_id, kind, matched_by, from_address, subject, body, message_id, received_at, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)',
+                [
+                    $toNotificationId,
+                    (string) $row['kind'],
+                    $row['matched_by'] === null ? null : (string) $row['matched_by'],
+                    (string) $row['from_address'],
+                    (string) $row['subject'],
+                    (string) $row['body'],
+                    (string) $row['received_at'],
+                    Time::format($this->clock->now()),
+                ],
+            );
+        }
+    }
+
     public function knows(string $messageId): bool
     {
         return $this->db->fetchValue('SELECT 1 FROM replies WHERE message_id = ?', [self::key($messageId)]) !== null;

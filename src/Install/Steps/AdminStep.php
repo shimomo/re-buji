@@ -12,6 +12,7 @@ use ReBuji\Database\Database;
 use ReBuji\Install\InstallContext;
 use ReBuji\Install\InstallStep;
 use ReBuji\Install\StepResult;
+use ReBuji\Text;
 
 /**
  * Creates the first admin. If one already exists (the step was submitted before), it moves on without another.
@@ -58,7 +59,7 @@ final class AdminStep implements InstallStep
             return StepResult::done();
         }
 
-        $name = trim($input['name'] ?? '');
+        $name = Text::trim($input['name'] ?? '');
         $email = trim($input['email'] ?? '');
         $password = $input['password'] ?? '';
         $context->putDraft('name', $name);
