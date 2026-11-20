@@ -7,6 +7,8 @@ namespace ReBuji\Tests\Quakes;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReBuji\Employees\EmployeeCity;
+use ReBuji\Employees\EmployeeInput;
 use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\MatchedCity;
 use ReBuji\Quakes\Notification;
@@ -144,6 +146,27 @@ final class DispatchJobTest extends TestCase
         $this->assertNotNull($after);
         $this->assertSame(Notification::PENDING, $after->state);
         $this->assertEquals($before->cities, $after->cities);
+    }
+
+    #[Test]
+    public function keepsTheMunicipalitiesALaterTelegramNoLongerNames(): void
+    {
+        $world = self::world();
+        $person = $world->employees->create(new EmployeeInput('二拠点 四郎', '', ['two@example.com'], [new EmployeeCity('2221300', '勤務地'), new EmployeeCity('2220500', '自宅')], '', true));
+        $world->receive(self::FIRST);
+
+        $before = $world->notifications->findFor($world->quake(self::EVENT)->id, $person);
+        $this->assertNotNull($before);
+        $this->assertSame(['2221300', '2220500'], array_map(static fn(MatchedCity $city): string => $city->code, $before->cities));
+
+        // The detailed report names 掛川市 at 5弱 and no longer 熱海市, which the 震度速報 put at 5強 by its area.
+        $world->receive(self::CITIES);
+
+        $after = $world->notifications->findFor($world->quake(self::EVENT)->id, $person);
+        $this->assertNotNull($after);
+        $this->assertSame(['2221300', '2220500'], array_map(static fn(MatchedCity $city): string => $city->code, $after->cities));
+        $this->assertSame([MatchedCity::BASIS_CITY, '5-'], [$after->cities[0]->basis, $after->cities[0]->intensity]);
+        $this->assertEquals($before->cities[1], $after->cities[1]);
     }
 
     #[Test]
@@ -415,6 +438,22 @@ final class DispatchJobTest extends TestCase
         $this->assertNotNull($folded);
         $this->assertSame(7, $folded->priority);
         $this->assertSame(['6-'], array_map(static fn(MatchedCity $city): ?string => $city->intensity, $folded->cities));
+    }
+
+    #[Test]
+    public function namesTheTelegramItJudgedBy(): void
+    {
+        $world = self::world();
+        $world->person('山田 花子', '2221300', '勤務地');
+        JmaSamples::store($world->telegrams, $world->clock->now(), self::FIRST);
+        // Newer (20:12) than the 震度速報 (20:09), and unreadable.
+        self::storeUnreadable($world);
+
+        $world->dispatch->run($world->clock->now());
+
+        $quake = $world->quake(self::EVENT);
+        $this->assertSame('震度速報', $quake->basisTitle);
+        $this->assertEquals(new DateTimeImmutable('2009-08-10T20:09:00Z'), $quake->basisReportedAt);
     }
 
     #[Test]

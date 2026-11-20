@@ -73,6 +73,11 @@ final class EmployeeRepository
         $this->db->execute('DELETE FROM employees WHERE id = ?', [$id]);
     }
 
+    public function addressCount(int $id): int
+    {
+        return (int) $this->db->fetchValue('SELECT COUNT(*) FROM employee_emails WHERE employee_id = ?', [$id]);
+    }
+
     public function find(int $id): ?Employee
     {
         $row = $this->db->fetchOne('SELECT id, name, department, memo, active FROM employees WHERE id = ?', [$id]);

@@ -70,12 +70,18 @@ final class QuakeRecords
     }
 
     /**
-     * A contact for a new employee.
+     * A contact for a new employee, with that many addresses.
      */
-    public function contact(int $quakeId, string $state = Notification::PENDING, ?string $notBefore = null): int
+    public function contact(int $quakeId, string $state = Notification::PENDING, ?string $notBefore = null, int $addresses = 1): int
     {
         $this->people++;
-        $id = $this->employees->create(new EmployeeInput('従業員 ' . $this->people, '', ['person' . $this->people . '@example.com'], [new EmployeeCity('2221300', '')], '', true));
+        $emails = [];
+
+        for ($i = 1; $i <= $addresses; $i++) {
+            $emails[] = 'person' . $this->people . ($i === 1 ? '' : '-' . $i) . '@example.com';
+        }
+
+        $id = $this->employees->create(new EmployeeInput('従業員 ' . $this->people, '', $emails, [new EmployeeCity('2221300', '')], '', true));
         $employee = $this->employees->find($id) ?? throw new LogicException('No employee ' . $id);
 
         $notBefore = $notBefore === null ? null : new DateTimeImmutable($notBefore);

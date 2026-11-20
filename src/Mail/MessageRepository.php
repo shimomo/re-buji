@@ -51,9 +51,19 @@ final class MessageRepository
         return (int) $this->db->fetchValue('SELECT COUNT(*) FROM messages WHERE attempted_at > ?', [Time::format($since)]);
     }
 
-    public function oldestSince(DateTimeImmutable $since): ?DateTimeImmutable
+    /**
+     * The n-th oldest attempt after $since (from 1), or null when there are fewer.
+     */
+    public function nthAttemptSince(DateTimeImmutable $since, int $n): ?DateTimeImmutable
     {
-        return Time::parseNullable($this->db->fetchValue('SELECT MIN(attempted_at) FROM messages WHERE attempted_at > ?', [Time::format($since)]));
+        if ($n < 1) {
+            return null;
+        }
+
+        return Time::parseNullable($this->db->fetchValue(
+            'SELECT attempted_at FROM messages WHERE attempted_at > ? ORDER BY attempted_at, id LIMIT 1 OFFSET ' . ($n - 1),
+            [Time::format($since)],
+        ));
     }
 
     /**

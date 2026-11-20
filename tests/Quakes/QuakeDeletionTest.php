@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
+use ReBuji\Employees\EmployeeRepository;
 use ReBuji\Feed\TelegramRepository;
 use ReBuji\Mail\MessageRepository;
 use ReBuji\Quakes\DispatchJob;
@@ -92,6 +93,65 @@ final class QuakeDeletionTest extends TestCase
     }
 
     #[Test]
+    public function handsTheAnswersToContactsFoldedIntoIt(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $a = $records->quake('20100705065511', '岩手県沿岸南部・最大震度4', '2026-11-05T02:55:00Z');
+            $b = $records->quake('20100705065610', '岩手県沖・最大震度4', '2026-11-05T02:56:00Z');
+            $c = $records->quake('20100705065720', '岩手県沖・最大震度3', '2026-11-05T02:57:00Z');
+            $first = $records->contact($a, Notification::SENT);
+            $records->notifications->recordAnswer($first, Notification::SAFE, 'proxy', '安否 太郎', '電話で確認', new DateTimeImmutable('2026-11-05T03:12:00Z'));
+            $folded = self::foldInto($container, $records, $first, $b, $c);
+
+            $response = $app->handle(TestApp::request('POST', '/earthquakes/' . $a . '/delete', TestApp::csrf($container)));
+
+            $this->assertSame(302, $response->getStatusCode());
+
+            foreach ($folded as $id) {
+                $contact = $records->notifications->find($id);
+                $this->assertNotNull($contact);
+                $this->assertSame(Notification::SAFE, $contact->answer);
+                $this->assertSame('proxy', $contact->answerSource);
+                $this->assertSame('安否 太郎', $contact->answeredBy);
+                $this->assertSame('電話で確認', $contact->proxyNote);
+                $this->assertEquals(new DateTimeImmutable('2026-11-05T03:12:00Z'), $contact->repliedAt);
+                $this->assertNull($contact->mergedIntoId);
+            }
+
+            $this->assertStringContainsString('安否 太郎 さんが代理で記録', (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $b))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function leavesAFoldedContactAloneWhenThereWasNoAnswer(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $a = $records->quake('20100705065511', '岩手県沿岸南部・最大震度4', '2026-11-05T02:55:00Z');
+            $b = $records->quake('20100705065610', '岩手県沖・最大震度4', '2026-11-05T02:56:00Z');
+            $first = $records->contact($a, Notification::SENT);
+            [$folded] = self::foldInto($container, $records, $first, $b);
+
+            $app->handle(TestApp::request('POST', '/earthquakes/' . $a . '/delete', TestApp::csrf($container)));
+
+            $contact = $records->notifications->find($folded);
+            $this->assertNotNull($contact);
+            $this->assertNull($contact->answer);
+            $this->assertSame(Notification::MERGED, $contact->state);
+            $this->assertSame(200, $app->handle(TestApp::request('GET', '/earthquakes/' . $b))->getStatusCode());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function refusesAnUnknownQuake(): void
     {
         [$app, $container, $root] = self::loggedIn();
@@ -127,5 +187,25 @@ final class QuakeDeletionTest extends TestCase
         TestApp::logIn($app, $container);
 
         return [$app, $container, $root];
+    }
+
+    /**
+     * Contacts of the same person for the given quakes, folded into the first contact, as a related quake's would be.
+     *
+     * @return non-empty-list<int>
+     */
+    private static function foldInto(ContainerInterface $container, QuakeRecords $records, int $first, int $quake, int ...$more): array
+    {
+        $contact = $records->notifications->find($first);
+        assert($contact !== null && $contact->employeeId !== null);
+        $employee = self::get($container, EmployeeRepository::class)->find($contact->employeeId);
+        assert($employee !== null);
+        $folded = [];
+
+        foreach ([$quake, ...$more] as $quake) {
+            $folded[] = $records->notifications->create($quake, $employee, [], 5, Notification::MERGED, null, $first);
+        }
+
+        return $folded;
     }
 }

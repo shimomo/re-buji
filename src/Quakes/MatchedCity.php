@@ -90,6 +90,27 @@ final readonly class MatchedCity
     }
 
     /**
+     * The municipalities after a later judgement: each one judged again takes its newer reading, even a weaker one;
+     * the ones the later telegram no longer names stay as they were, since the person was contacted for them; new
+     * ones come last.
+     *
+     * @param list<self> $before
+     * @param list<self> $now
+     *
+     * @return list<self>
+     */
+    public static function revise(array $before, array $now): array
+    {
+        $byCode = [];
+
+        foreach ([...$before, ...$now] as $city) {
+            $byCode[$city->code] = $city;
+        }
+
+        return array_values($byCode);
+    }
+
+    /**
      * The strength used to order sending: a municipality not received yet counts as 5弱, the least it may have been.
      */
     public function rank(): int

@@ -111,7 +111,8 @@ final class DispatchJob implements CronJob
 
         // Without a time, the telegram is treated as fresh: sending late beats not sending.
         $quakeTime = $event->detectedAt ?? $event->originTime ?? $now;
-        $snapshot = QuakeSnapshot::fromEvent($event, $this->telegrams->latestOf($eventId));
+        // The latest telegram the event was built from: a newer one that cannot be read did not judge anything.
+        $snapshot = QuakeSnapshot::fromEvent($event, $this->telegrams->latestOf($eventId, $event->lastReportedAt));
 
         if ($quake === null) {
             $late = $now->getTimestamp() - $quakeTime->getTimestamp() > $this->settings->int('late_after_hours') * 3600;
@@ -127,7 +128,7 @@ final class DispatchJob implements CronJob
             // One contact per person and quake (design 4). Someone no longer matching keeps theirs: a 震度速報 judges by
             // area, which can overstate a city, but they were in the shaken area and missing them is the worse failure.
             if ($existing !== null) {
-                $this->notifications->updateCities($existing->id, $cities, $priority);
+                $this->notifications->updateCities($existing->id, MatchedCity::revise($existing->cities, $cities), $priority);
 
                 continue;
             }

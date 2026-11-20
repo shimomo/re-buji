@@ -112,6 +112,24 @@ final class NotificationRepository
         ));
     }
 
+    /**
+     * How many addresses the person first in line has: the contact the sender takes first among those countWaiting()
+     * counts (dueFirstContacts() order), skipping people it would skip (deleted or stopped). The sender writes to all of
+     * a person's addresses at once and stops at the first person the hourly limit cannot take, so everyone behind waits
+     * for them. Null when nobody waits.
+     */
+    public function addressesAtTheFront(DateTimeImmutable $now): ?int
+    {
+        $addresses = $this->db->fetchValue(
+            'SELECT COUNT(a.id) FROM notifications n JOIN employees p ON p.id = n.employee_id AND p.active = 1 JOIN employee_emails a ON a.employee_id = n.employee_id'
+            . ' WHERE n.state = ? AND n.answer IS NULL AND (n.not_before IS NULL OR n.not_before <= ?)'
+            . ' GROUP BY n.id, n.priority, n.employee_id ORDER BY n.priority DESC, n.employee_id, n.id LIMIT 1',
+            [Notification::PENDING, Time::format($now)],
+        );
+
+        return $addresses === null ? null : (int) $addresses;
+    }
+
     public function countWaiting(DateTimeImmutable $now): int
     {
         return (int) $this->db->fetchValue(
@@ -289,6 +307,38 @@ final class NotificationRepository
      * The quake was cancelled (design 4): nothing more goes out for it, people already reached get a short notice, and
      * people folded into it get their own contact for the quake they were folded from.
      */
+    /**
+     * Before a quake is deleted: each answer given to one of its contacts is copied to the contacts of other quakes
+     * folded into it, which stop pointing at it. Without this, those people would show no answer once the quake is
+     * gone. A contact folded into one without an answer is left as it is. Read first and written one by one: MySQL
+     * cannot update a table that the same statement reads.
+     */
+    public function handOverAnswers(int $earthquakeId): void
+    {
+        foreach ($this->forEarthquake($earthquakeId) as $contact) {
+            if ($contact->answer === null) {
+                continue;
+            }
+
+            $this->db->execute(
+                'UPDATE notifications SET answer = ?, answer_source = ?, answered_by = ?, proxy_note = ?, replied_at = ?, checked_at = ?, checked_by = ?, merged_into_id = NULL, updated_at = ?'
+                . ' WHERE merged_into_id = ? AND earthquake_id <> ?',
+                [
+                    $contact->answer,
+                    $contact->answerSource,
+                    $contact->answeredBy,
+                    $contact->proxyNote,
+                    $contact->repliedAt === null ? null : Time::format($contact->repliedAt),
+                    $contact->checkedAt === null ? null : Time::format($contact->checkedAt),
+                    $contact->checkedBy,
+                    Time::format($this->clock->now()),
+                    $contact->id,
+                    $earthquakeId,
+                ],
+            );
+        }
+    }
+
     public function cancelFor(int $earthquakeId): void
     {
         $now = Time::format($this->clock->now());

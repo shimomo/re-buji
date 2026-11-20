@@ -21,6 +21,11 @@ final class Health
 {
     public const int STALE_AFTER_MINUTES = 15;
 
+    /**
+     * What cron records while a new version waits for its database changes; pressing 「DB の更新」 clears it.
+     */
+    public const string WAITING_FOR_UPDATE = 'DB の更新を待っています。管理画面の「DB の更新」でボタンを押してください。';
+
     public function __construct(private readonly SystemState $state, private readonly ClockInterface $clock)
     {
         //

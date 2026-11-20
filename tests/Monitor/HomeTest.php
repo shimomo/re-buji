@@ -164,6 +164,69 @@ final class HomeTest extends TestCase
     }
 
     #[Test]
+    public function waitsForRoomForEveryAddressOfThePerson(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $settings = $container->get(Settings::class);
+            $messages = $container->get(MessageRepository::class);
+            $this->assertInstanceOf(Settings::class, $settings);
+            $this->assertInstanceOf(MessageRepository::class, $messages);
+            $records = new QuakeRecords($container);
+            $quake = $records->quake('20090811050711', '駿河湾・最大震度6弱', '2026-11-05T03:00:00Z');
+            $records->contact($quake, Notification::PENDING, '2026-11-05T03:00:00Z', addresses: 4);
+            // A limit of 10 keeps 1 back for the one admin; after 7 mails, 2 are left for a person who needs 4.
+            $settings->save(['hourly_limit' => '10']);
+
+            for ($i = 0; $i < 7; $i++) {
+                $messages->record(null, 'test', 'admin@example.com', 'm' . $i . '@example.co.jp', true, '', $clock->now()->modify('-5 minutes'));
+            }
+
+            $this->assertStringContainsString(
+                '1 時間の上限のため、1 人への連絡が送信待ちです。次に送れるのは 13:07 ごろです。',
+                (string) $app->handle(TestApp::request('GET', '/'))->getBody(),
+            );
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function waitsBehindThePersonAtTheFront(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $settings = $container->get(Settings::class);
+            $messages = $container->get(MessageRepository::class);
+            $this->assertInstanceOf(Settings::class, $settings);
+            $this->assertInstanceOf(MessageRepository::class, $messages);
+            $records = new QuakeRecords($container);
+            $quake = $records->quake('20090811050711', '駿河湾・最大震度6弱', '2026-11-05T03:00:00Z');
+            // Same priority: the first person is first in line. 3 mails are left; the sender stops at the one who needs 4.
+            $records->contact($quake, Notification::PENDING, '2026-11-05T03:00:00Z', addresses: 4);
+            $records->contact($quake, Notification::PENDING, '2026-11-05T03:00:00Z');
+            $settings->save(['hourly_limit' => '10']);
+
+            for ($i = 0; $i < 6; $i++) {
+                $messages->record(null, 'test', 'admin@example.com', 'm' . $i . '@example.co.jp', true, '', $clock->now()->modify('-5 minutes'));
+            }
+
+            $this->assertStringContainsString(
+                '1 時間の上限のため、2 人への連絡が送信待ちです。次に送れるのは 13:07 ごろです。',
+                (string) $app->handle(TestApp::request('GET', '/'))->getBody(),
+            );
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function warnsWhenMailCannotBeSent(): void
     {
         [$app, $container, $root] = TestApp::installed([ClockInterface::class => new FrozenClock()]);
