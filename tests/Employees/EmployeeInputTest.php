@@ -15,6 +15,15 @@ use ReBuji\Employees\EmployeeInput;
 final class EmployeeInputTest extends TestCase
 {
     #[Test]
+    public function treatsANameOfFullWidthSpacesAsEmpty(): void
+    {
+        $input = EmployeeInput::from('　　', '　総務　', ['a@example.com'], [['code' => '1310100', 'label' => '']], '', true);
+
+        $this->assertSame('', $input->name);
+        $this->assertSame('総務', $input->department);
+    }
+
+    #[Test]
     public function dropsBlankRowsAndTrims(): void
     {
         $input = EmployeeInput::from(

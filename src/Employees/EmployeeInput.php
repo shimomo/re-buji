@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace ReBuji\Employees;
 
+use ReBuji\Text;
+
 /**
  * An employee as entered, from the form or a CSV row. Not yet validated.
  *
@@ -48,6 +50,7 @@ final readonly class EmployeeInput
             }
         }
 
-        return new self(trim($name), trim($department), $addresses, $places, trim($memo), $active);
+        // A name of full-width spaces only is no name.
+        return new self(Text::trim($name), Text::trim($department), $addresses, $places, trim($memo), $active);
     }
 }
