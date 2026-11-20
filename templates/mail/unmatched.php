@@ -10,11 +10,16 @@ $this->layout('layout', ['title' => $title]);
 <?php if ($mails === []): ?>
 <p>照合できなかったメールはありません。</p>
 <?php else: ?>
+<form id="delete-selected" method="post" action="<?= $this->e($this->url('/mail/unmatched/delete')) ?>" data-confirm="選んだメールの記録を消しますか？" onsubmit="return confirm(this.dataset.confirm)">
+    <?= $this->csrf() ?>
+    <button type="submit">選んだメールを消す</button>
+</form>
 <table>
-    <thead><tr><th>受け取った時刻</th><th>種類</th><th>送り主</th><th>件名と本文</th><th></th></tr></thead>
+    <thead><tr><th></th><th>受け取った時刻</th><th>種類</th><th>送り主</th><th>件名と本文</th><th></th></tr></thead>
     <tbody>
 <?php foreach ($mails as $mail): ?>
         <tr>
+            <td><input type="checkbox" name="ids[]" value="<?= $mail['id'] ?>" form="delete-selected" aria-label="選ぶ"></td>
             <td><?= $this->e($mail['received']) ?></td>
             <td><?= $this->e($mail['kind']) ?></td>
             <td><?= $this->e($mail['from']) ?></td>

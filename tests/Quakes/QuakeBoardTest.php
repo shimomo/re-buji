@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReBuji\Quakes\Board\BoardRow;
+use ReBuji\Quakes\MatchedCity;
 use ReBuji\Quakes\Notification;
 use ReBuji\Tests\Support\QuakeWorld;
 
@@ -188,6 +189,79 @@ final class QuakeBoardTest extends TestCase
         $this->assertSame(['足を怪我しました', '病院に行きます'], $row->bodies);
         $this->assertSame('5:28', $row->repliedAt);
         $this->assertSame('静岡県 掛川市 震度5弱', $row->places);
+    }
+
+    #[Test]
+    public function marksAnIntensityThatIsTheArea(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('熱海 三郎', '2220500', '自宅'));
+        $world->notifications->updateCities($contact, [
+            new MatchedCity('2220500', '自宅', '静岡県 熱海市', '5+', false, MatchedCity::BASIS_AREA),
+            new MatchedCity('2221300', '勤務地', '静岡県 掛川市', '5-', false, MatchedCity::BASIS_CITY),
+            new MatchedCity('2220700', '実家', '静岡県 伊東市', null, true, MatchedCity::BASIS_AREA),
+        ], 6);
+
+        $this->assertSame(
+            '静岡県 熱海市 震度5強（地域の震度）、静岡県 掛川市 震度5弱、静岡県 伊東市 震度5弱以上の可能性',
+            $world->board()->build($world->quake('20090811050711'))['noReply'][0]->places,
+        );
+    }
+
+    #[Test]
+    public function saysWhenTheQuakeItWasFoldedIntoIsGone(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        // Folded into a contact whose quake was deleted without an answer to hand over.
+        $world->db->execute("UPDATE notifications SET state = 'merged', merged_into_id = 999999 WHERE id = ?", [$contact]);
+
+        $this->assertSame('まとめた先の地震の記録を消しました', $world->board()->build($world->quake('20090811050711'))['noReply'][0]->reason);
+    }
+
+    #[Test]
+    public function showsWhatTheAutoReplySaid(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        $world->db->execute("UPDATE notifications SET auto_replied_at = '2009-08-10T20:20:00Z' WHERE id = ?", [$contact]);
+        $world->replies->record($contact, 'auto_reply', 'thread', 'person1@example.com', '自動応答：不在', '11月25日まで出張中です。', null, new DateTimeImmutable('2009-08-10T20:20:00Z'));
+
+        $row = $world->board()->build($world->quake('20090811050711'))['noReply'][0];
+
+        $this->assertSame('不在の自動応答だけ', $row->reason);
+        $this->assertSame(['11月25日まで出張中です。'], $row->autoReplies);
+        $this->assertSame([], $row->bodies);
+    }
+
+    #[Test]
+    public function keepsTheAutoReplyAfterTheirOwnReply(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        $world->db->execute("UPDATE notifications SET auto_replied_at = '2009-08-10T20:20:00Z', answer = 'needs_check', replied_at = '2009-08-10T20:40:00Z' WHERE id = ?", [$contact]);
+        $world->replies->record($contact, 'auto_reply', 'thread', 'person1@example.com', '自動応答：不在', '11月25日まで出張中です。', null, new DateTimeImmutable('2009-08-10T20:20:00Z'));
+        $world->replies->record($contact, 'reply', 'thread', 'person1@example.com', 'Re:', '足を怪我しました', null, new DateTimeImmutable('2009-08-10T20:40:00Z'));
+
+        $row = $world->board()->build($world->quake('20090811050711'))['needsCheck'][0];
+
+        $this->assertSame(['足を怪我しました'], $row->bodies);
+        $this->assertSame(['11月25日まで出張中です。'], $row->autoReplies);
+    }
+
+    #[Test]
+    public function showsEachAutoReplyOnce(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        $world->db->execute("UPDATE notifications SET auto_replied_at = '2009-08-10T20:20:00Z' WHERE id = ?", [$contact]);
+
+        // The responder answers the first mail and each resend.
+        foreach (['20:20', '21:20', '22:20'] as $time) {
+            $world->replies->record($contact, 'auto_reply', 'thread', 'person1@example.com', '自動応答：不在', '11月25日まで出張中です。', null, new DateTimeImmutable('2009-08-10T' . $time . ':00Z'));
+        }
+
+        $this->assertSame(['11月25日まで出張中です。'], $world->board()->build($world->quake('20090811050711'))['noReply'][0]->autoReplies);
     }
 
     private static function world(): QuakeWorld

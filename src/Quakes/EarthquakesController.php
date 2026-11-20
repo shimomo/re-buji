@@ -55,6 +55,7 @@ final class EarthquakesController
             'sent' => $summary['sent'],
             'waiting' => $summary['waiting'],
             'failed' => $summary['failed'],
+            'merged' => $summary['merged'],
         ], $this->earthquakes->summaries());
 
         $response = $this->responses->createResponse(200);

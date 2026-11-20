@@ -200,7 +200,7 @@ final class TestApp
     }
 
     /**
-     * @param array<string, string> $body
+     * @param array<string, string|list<string>> $body a list for a form field named like "ids[]"
      * @param array<string, string> $server
      */
     public static function request(string $method, string $path, array $body = [], array $server = []): ServerRequestInterface

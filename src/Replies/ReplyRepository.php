@@ -102,6 +102,25 @@ final class ReplyRepository
     /**
      * Deletes mail that matched nobody. A person's reply is part of their record and goes only with the quake.
      */
+    /**
+     * Deletes the unmatched mails among these ids; a matched one among them stays.
+     *
+     * @param list<int> $ids
+     *
+     * @return int how many were deleted
+     */
+    public function deleteUnmatchedMany(array $ids): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+
+        return $this->db->execute(
+            'DELETE FROM replies WHERE notification_id IS NULL AND id IN (' . implode(', ', array_fill(0, count($ids), '?')) . ')',
+            $ids,
+        );
+    }
+
     public function deleteUnmatched(int $id): bool
     {
         return $this->db->execute('DELETE FROM replies WHERE id = ? AND notification_id IS NULL', [$id]) > 0;

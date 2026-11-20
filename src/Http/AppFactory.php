@@ -99,6 +99,7 @@ final class AppFactory
             $group->get('/contacts/{id:[0-9]+}/proxy', [ContactsController::class, 'proxyForm']);
             $group->post('/contacts/{id:[0-9]+}/proxy', [ContactsController::class, 'proxy']);
             $group->get('/mail/unmatched', [UnmatchedController::class, 'index']);
+            $group->post('/mail/unmatched/delete', [UnmatchedController::class, 'deleteSelected']);
             $group->post('/mail/unmatched/{id:[0-9]+}/delete', [UnmatchedController::class, 'delete']);
             $group->get('/drills/new', [DrillsController::class, 'create']);
             $group->post('/drills', [DrillsController::class, 'store']);

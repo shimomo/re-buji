@@ -9,6 +9,7 @@ use League\Plates\Engine;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use ReBuji\Http\Flash;
 use ReBuji\Http\Url;
 use Slim\Exception\HttpNotFoundException;
 
@@ -26,6 +27,7 @@ final class UnmatchedController
         private readonly Engine $templates,
         private readonly ResponseFactoryInterface $responses,
         private readonly Url $url,
+        private readonly Flash $flash,
     ) {
         //
     }
@@ -59,6 +61,25 @@ final class UnmatchedController
     {
         if (!$this->replies->deleteUnmatched((int) ($args['id'] ?? '0'))) {
             throw new HttpNotFoundException($request);
+        }
+
+        return $this->responses->createResponse(302)->withHeader('Location', $this->url->to('/mail/unmatched'));
+    }
+
+    /**
+     * Deletes the unmatched mails ticked on the list. After a big quake, auto-replies and read receipts pile up there.
+     */
+    public function deleteSelected(ServerRequestInterface $request): ResponseInterface
+    {
+        $body = $request->getParsedBody();
+        $values = is_array($body) && isset($body['ids']) && is_array($body['ids']) ? $body['ids'] : [];
+        // Only what a ticked box can send: an id as digits.
+        $ids = array_values(array_map(intval(...), array_filter($values, static fn(mixed $value): bool => is_string($value) && preg_match('/^[0-9]+$/', $value) === 1)));
+
+        if ($ids === []) {
+            $this->flash->put('メールが選ばれていません。');
+        } else {
+            $this->flash->put($this->replies->deleteUnmatchedMany($ids) . ' 件のメールの記録を消しました。');
         }
 
         return $this->responses->createResponse(302)->withHeader('Location', $this->url->to('/mail/unmatched'));

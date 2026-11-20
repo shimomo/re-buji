@@ -31,6 +31,11 @@ final class QuakeBoard
      */
     private const array REASON_ORDER = ['failed' => 0, 'auto' => 1, 'sent' => 2, 'pending' => 3, 'other' => 4];
 
+    /**
+     * How much of an auto-reply the page shows.
+     */
+    private const int AUTO_REPLY_CHARS = 200;
+
     public function __construct(
         private readonly NotificationRepository $notifications,
         private readonly EarthquakeRepository $earthquakes,
@@ -62,6 +67,7 @@ final class QuakeBoard
             [$answering, $foldedInto] = $this->answering($contact);
             $nextSlot = $answering->state === Notification::PENDING ? $this->nextSlot($answering, $now, $front, $slots) : null;
             [$reason, $group] = self::reason($answering, $now, $nextSlot);
+            [$bodies, $autoReplies] = $this->bodies($answering);
             $row = new BoardRow(
                 $answering->id,
                 $contact->employeeName,
@@ -69,10 +75,11 @@ final class QuakeBoard
                 self::places($contact->cities),
                 $reason,
                 $answering->repliedAt === null ? null : self::time($answering->repliedAt),
-                $this->bodies($answering),
+                $bodies,
                 // Once the person's own reply decides, the admin's earlier record is no longer what stands.
                 $answering->answerSource === 'proxy' && $answering->answeredBy !== null ? $answering->answeredBy . ' さんが代理で記録' : null,
                 $foldedInto,
+                $autoReplies,
             );
 
             if ($answering->answer === Notification::NEEDS_CHECK) {
@@ -143,6 +150,8 @@ final class QuakeBoard
             $contact->state === Notification::HELD => ['保留（遅れて届いた地震）', 'other'],
             $contact->state === Notification::CANCELLED && $contact->sentCount > 0 => [$sent . '（取消済み）', 'other'],
             $contact->state === Notification::CANCELLED => ['取消のため送っていません', 'other'],
+            // A folded contact reaches here only when the contact it was folded into is gone with its quake.
+            $contact->state === Notification::MERGED => ['まとめた先の地震の記録を消しました', 'other'],
             default => ['', 'other'],
         };
     }
@@ -163,15 +172,21 @@ final class QuakeBoard
     }
 
     /**
-     * @return list<string>
+     * What the person wrote (and an admin's note), and what their auto-replies said (up to AUTO_REPLY_CHARS each, since
+     * they often carry a long signature), both oldest first, from one look at their replies.
+     *
+     * @return array{list<string>, list<string>}
      */
     private function bodies(Notification $contact): array
     {
         $bodies = [];
+        $autoReplies = [];
 
         foreach ($this->replies->forNotification($contact->id) as $reply) {
             if ($reply['kind'] === IncomingMail::REPLY && $reply['body'] !== '') {
                 $bodies[] = $reply['body'];
+            } elseif ($reply['kind'] === IncomingMail::AUTO_REPLY && trim($reply['body']) !== '') {
+                $autoReplies[] = mb_substr(trim($reply['body']), 0, self::AUTO_REPLY_CHARS);
             }
         }
 
@@ -179,7 +194,8 @@ final class QuakeBoard
             $bodies[] = $contact->proxyNote;
         }
 
-        return $bodies;
+        // A responder answers each resend with the same words; once is enough.
+        return [$bodies, array_values(array_unique($autoReplies))];
     }
 
     /**
@@ -198,7 +214,12 @@ final class QuakeBoard
                 return $city->place . ' ' . ($label ?? SeismicIntensity::FiveLower->label()) . '以上の可能性';
             }
 
-            return $city->place . ($label === null ? '' : ' ' . $label);
+            if ($label === null) {
+                return $city->place;
+            }
+
+            // A 震度速報 gives an area's intensity, not the city's own; the mail says so in the same words.
+            return $city->place . ' ' . $label . ($city->basis === MatchedCity::BASIS_AREA ? '（地域の震度）' : '');
         }, $cities));
     }
 
