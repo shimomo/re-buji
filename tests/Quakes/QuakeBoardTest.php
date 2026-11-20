@@ -219,6 +219,36 @@ final class QuakeBoardTest extends TestCase
         $this->assertSame('まとめた先の地震の記録を消しました', $world->board()->build($world->quake('20090811050711'))['noReply'][0]->reason);
     }
 
+    #[Test]
+    public function showsWhatTheAutoReplySaid(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        $world->db->execute("UPDATE notifications SET auto_replied_at = '2009-08-10T20:20:00Z' WHERE id = ?", [$contact]);
+        $world->replies->record($contact, 'auto_reply', 'thread', 'person1@example.com', '自動応答：不在', '11月25日まで出張中です。', null, new DateTimeImmutable('2009-08-10T20:20:00Z'));
+
+        $row = $world->board()->build($world->quake('20090811050711'))['noReply'][0];
+
+        $this->assertSame('不在の自動応答だけ', $row->reason);
+        $this->assertSame(['11月25日まで出張中です。'], $row->autoReplies);
+        $this->assertSame([], $row->bodies);
+    }
+
+    #[Test]
+    public function keepsTheAutoReplyAfterTheirOwnReply(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        $world->db->execute("UPDATE notifications SET auto_replied_at = '2009-08-10T20:20:00Z', answer = 'needs_check', replied_at = '2009-08-10T20:40:00Z' WHERE id = ?", [$contact]);
+        $world->replies->record($contact, 'auto_reply', 'thread', 'person1@example.com', '自動応答：不在', '11月25日まで出張中です。', null, new DateTimeImmutable('2009-08-10T20:20:00Z'));
+        $world->replies->record($contact, 'reply', 'thread', 'person1@example.com', 'Re:', '足を怪我しました', null, new DateTimeImmutable('2009-08-10T20:40:00Z'));
+
+        $row = $world->board()->build($world->quake('20090811050711'))['needsCheck'][0];
+
+        $this->assertSame(['足を怪我しました'], $row->bodies);
+        $this->assertSame(['11月25日まで出張中です。'], $row->autoReplies);
+    }
+
     private static function world(): QuakeWorld
     {
         return new QuakeWorld('2009-08-10T20:12:00Z');

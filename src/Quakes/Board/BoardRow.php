@@ -15,6 +15,7 @@ final readonly class BoardRow
      * @param int $contactId the contact the admin's buttons act on (for a folded person, the one they were folded into)
      * @param list<string> $bodies what they wrote, oldest first, and an admin's note when recorded on their behalf
      * @param string|null $foldedInto the quake whose contact this person's answer comes from, when folded
+     * @param list<string> $autoReplies what their auto-replies said, oldest first (an away notice can tell where they are)
      */
     public function __construct(
         public int $contactId,
@@ -26,6 +27,7 @@ final readonly class BoardRow
         public array $bodies,
         public ?string $proxy,
         public ?string $foldedInto,
+        public array $autoReplies = [],
     ) {
         //
     }

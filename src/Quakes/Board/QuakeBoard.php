@@ -31,6 +31,11 @@ final class QuakeBoard
      */
     private const array REASON_ORDER = ['failed' => 0, 'auto' => 1, 'sent' => 2, 'pending' => 3, 'other' => 4];
 
+    /**
+     * How much of an auto-reply the page shows.
+     */
+    private const int AUTO_REPLY_CHARS = 200;
+
     public function __construct(
         private readonly NotificationRepository $notifications,
         private readonly EarthquakeRepository $earthquakes,
@@ -62,6 +67,7 @@ final class QuakeBoard
             [$answering, $foldedInto] = $this->answering($contact);
             $nextSlot = $answering->state === Notification::PENDING ? $this->nextSlot($answering, $now, $front, $slots) : null;
             [$reason, $group] = self::reason($answering, $now, $nextSlot);
+            [$bodies, $autoReplies] = $this->bodies($answering);
             $row = new BoardRow(
                 $answering->id,
                 $contact->employeeName,
@@ -69,10 +75,11 @@ final class QuakeBoard
                 self::places($contact->cities),
                 $reason,
                 $answering->repliedAt === null ? null : self::time($answering->repliedAt),
-                $this->bodies($answering),
+                $bodies,
                 // Once the person's own reply decides, the admin's earlier record is no longer what stands.
                 $answering->answerSource === 'proxy' && $answering->answeredBy !== null ? $answering->answeredBy . ' さんが代理で記録' : null,
                 $foldedInto,
+                $autoReplies,
             );
 
             if ($answering->answer === Notification::NEEDS_CHECK) {
@@ -165,15 +172,21 @@ final class QuakeBoard
     }
 
     /**
-     * @return list<string>
+     * What the person wrote (and an admin's note), and what their auto-replies said (up to AUTO_REPLY_CHARS each, since
+     * they often carry a long signature), both oldest first, from one look at their replies.
+     *
+     * @return array{list<string>, list<string>}
      */
     private function bodies(Notification $contact): array
     {
         $bodies = [];
+        $autoReplies = [];
 
         foreach ($this->replies->forNotification($contact->id) as $reply) {
             if ($reply['kind'] === IncomingMail::REPLY && $reply['body'] !== '') {
                 $bodies[] = $reply['body'];
+            } elseif ($reply['kind'] === IncomingMail::AUTO_REPLY && trim($reply['body']) !== '') {
+                $autoReplies[] = mb_substr(trim($reply['body']), 0, self::AUTO_REPLY_CHARS);
             }
         }
 
@@ -181,7 +194,7 @@ final class QuakeBoard
             $bodies[] = $contact->proxyNote;
         }
 
-        return $bodies;
+        return [$bodies, $autoReplies];
     }
 
     /**

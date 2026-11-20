@@ -12,6 +12,7 @@ use Psr\Container\ContainerInterface;
 use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\Notification;
 use ReBuji\Quakes\QuakeSnapshot;
+use ReBuji\Replies\ReplyRepository;
 use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\QuakeRecords;
 use ReBuji\Tests\Support\TemporaryDirectory;
@@ -48,6 +49,29 @@ final class QuakeBoardPageTest extends TestCase
             sort($sorted);
             $this->assertSame($sorted, $positions);
             $this->assertStringContainsString('/contacts/' . $check . '/check', $page);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function showsWhatAnAutoReplySaid(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+            $contact = $records->contact($quake, Notification::SENT);
+            $records->notifications->recordAutoReply($contact, new DateTimeImmutable('2026-11-05T03:20:00Z'));
+            $replies = $container->get(ReplyRepository::class);
+            $this->assertInstanceOf(ReplyRepository::class, $replies);
+            $replies->record($contact, 'auto_reply', 'thread', 'person1@example.com', '自動応答：不在', "11月25日まで出張中です。\n急ぎの連絡は代表へ。", null, new DateTimeImmutable('2026-11-05T03:20:00Z'));
+
+            $page = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody();
+
+            $this->assertStringContainsString('自動応答：「11月25日まで出張中です。<br />', $page);
+            $this->assertStringContainsString('不在の自動応答だけ', $page);
         } finally {
             TemporaryDirectory::remove($root);
         }
