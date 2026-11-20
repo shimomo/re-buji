@@ -128,6 +128,34 @@ final class QuakeDeletionTest extends TestCase
     }
 
     #[Test]
+    public function handsNoAnswerToAContactOfACancelledQuake(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $a = $records->quake('20100705065511', '岩手県沿岸南部・最大震度4', '2026-11-05T02:55:00Z');
+            $b = $records->quake('20100705065610', '岩手県沖・最大震度4', '2026-11-05T02:56:00Z');
+            $c = $records->quake('20100705065720', '岩手県沖・最大震度3', '2026-11-05T02:57:00Z');
+            $first = $records->contact($a, Notification::SENT);
+            $records->notifications->recordAnswer($first, Notification::SAFE, 'proxy', '安否 太郎', null, new DateTimeImmutable('2026-11-05T03:12:00Z'));
+            [$cancelled, $folded] = self::foldInto($container, $records, $first, $b, $c);
+            // JMA withdrew B: its contact is cancelled but still points at A.
+            $records->notifications->markCancelled($cancelled);
+
+            $app->handle(TestApp::request('POST', '/earthquakes/' . $a . '/delete', TestApp::csrf($container)));
+
+            $withdrawn = $records->notifications->find($cancelled);
+            $this->assertNotNull($withdrawn);
+            $this->assertNull($withdrawn->answer);
+            $this->assertSame(Notification::CANCELLED, $withdrawn->state);
+            $this->assertSame(Notification::SAFE, $records->notifications->find($folded)?->answer);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function leavesAFoldedContactAloneWhenThereWasNoAnswer(): void
     {
         [$app, $container, $root] = self::loggedIn();

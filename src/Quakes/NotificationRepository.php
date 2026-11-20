@@ -322,7 +322,7 @@ final class NotificationRepository
 
             $this->db->execute(
                 'UPDATE notifications SET answer = ?, answer_source = ?, answered_by = ?, proxy_note = ?, replied_at = ?, checked_at = ?, checked_by = ?, merged_into_id = NULL, updated_at = ?'
-                . ' WHERE merged_into_id = ? AND earthquake_id <> ?',
+                . ' WHERE merged_into_id = ? AND earthquake_id <> ? AND state = ?',
                 [
                     $contact->answer,
                     $contact->answerSource,
@@ -334,6 +334,8 @@ final class NotificationRepository
                     Time::format($this->clock->now()),
                     $contact->id,
                     $earthquakeId,
+                    // Not a contact JMA cancelled, which keeps pointing here: its quake was withdrawn.
+                    Notification::MERGED,
                 ],
             );
         }
