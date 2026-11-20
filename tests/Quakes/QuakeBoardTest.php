@@ -264,6 +264,22 @@ final class QuakeBoardTest extends TestCase
         $this->assertSame(['11月25日まで出張中です。'], $world->board()->build($world->quake('20090811050711'))['noReply'][0]->autoReplies);
     }
 
+    #[Test]
+    public function marksAnAutoReplyThatWasCut(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        $world->db->execute("UPDATE notifications SET auto_replied_at = '2009-08-10T20:20:00Z' WHERE id = ?", [$contact]);
+        $world->replies->record($contact, 'auto_reply', 'thread', 'person1@example.com', '自動応答', str_repeat('あ', 250), null, new DateTimeImmutable('2009-08-10T20:20:00Z'));
+        // Exactly the limit: nothing was cut.
+        $world->replies->record($contact, 'auto_reply', 'thread', 'person1@example.com', '自動応答', str_repeat('い', 200), null, new DateTimeImmutable('2009-08-10T20:21:00Z'));
+
+        $this->assertSame(
+            [str_repeat('あ', 200) . '…', str_repeat('い', 200)],
+            $world->board()->build($world->quake('20090811050711'))['noReply'][0]->autoReplies,
+        );
+    }
+
     private static function world(): QuakeWorld
     {
         return new QuakeWorld('2009-08-10T20:12:00Z');
