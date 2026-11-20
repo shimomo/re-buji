@@ -228,6 +228,28 @@ final class EarthquakePagesTest extends TestCase
     }
 
     #[Test]
+    public function countsThePeopleFoldedIntoAnEarlierContact(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $b = $records->quake('20100705065610', '岩手県沖・最大震度4', '2026-11-05T02:56:00Z');
+            $records->contact($b, Notification::MERGED);
+            $records->contact($b, Notification::MERGED);
+            $records->contact($b, Notification::PENDING, '2026-11-05T03:00:00Z');
+
+            $page = (string) $app->handle(TestApp::request('GET', '/earthquakes'))->getBody();
+
+            $this->assertStringContainsString('<th>前の連絡に含めた</th>', $page);
+            // 対象 3, 送信済み 0, 送信待ち 1, 届かなかった 0, 前の連絡に含めた 2.
+            $this->assertStringContainsString('<td>3</td><td>0</td><td>1</td><td>0</td><td>2</td>', $page);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function listsQuakesNewestFirst(): void
     {
         [$app, $container, $root] = self::loggedIn();
