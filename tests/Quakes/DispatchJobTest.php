@@ -418,6 +418,22 @@ final class DispatchJobTest extends TestCase
     }
 
     #[Test]
+    public function namesTheTelegramItJudgedBy(): void
+    {
+        $world = self::world();
+        $world->person('山田 花子', '2221300', '勤務地');
+        JmaSamples::store($world->telegrams, $world->clock->now(), self::FIRST);
+        // Newer (20:12) than the 震度速報 (20:09), and unreadable.
+        self::storeUnreadable($world);
+
+        $world->dispatch->run($world->clock->now());
+
+        $quake = $world->quake(self::EVENT);
+        $this->assertSame('震度速報', $quake->basisTitle);
+        $this->assertEquals(new DateTimeImmutable('2009-08-10T20:09:00Z'), $quake->basisReportedAt);
+    }
+
+    #[Test]
     public function judgesWithTheTelegramsItCanRead(): void
     {
         $world = self::world();

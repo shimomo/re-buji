@@ -32,11 +32,13 @@ final class TelegramRepositoryTest extends TestCase
         $this->assertSame(['20090811050711', '20100705065610'], $telegrams->unprocessedEventIds());
         $this->assertCount(2, $telegrams->reportsOf('20090811050711'));
 
-        $latest = $telegrams->latestOf('20090811050711');
+        $latest = $telegrams->latestOf('20090811050711', $at);
         $this->assertNotNull($latest);
         $this->assertSame('震度速報', $latest['title']);
         $this->assertEquals(new DateTimeImmutable('2009-08-11T05:11:00+09:00'), $latest['reportedAt']);
-        $this->assertNull($telegrams->latestOf('19990101000000'));
+        // Up to an earlier report, that one is the latest.
+        $this->assertEquals(new DateTimeImmutable('2009-08-11T05:09:00+09:00'), $telegrams->latestOf('20090811050711', new DateTimeImmutable('2009-08-11T05:10:00+09:00'))['reportedAt'] ?? null);
+        $this->assertNull($telegrams->latestOf('19990101000000', $at));
 
         $telegrams->markProcessed('20090811050711', $at);
 

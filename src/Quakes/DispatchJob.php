@@ -111,7 +111,8 @@ final class DispatchJob implements CronJob
 
         // Without a time, the telegram is treated as fresh: sending late beats not sending.
         $quakeTime = $event->detectedAt ?? $event->originTime ?? $now;
-        $snapshot = QuakeSnapshot::fromEvent($event, $this->telegrams->latestOf($eventId));
+        // The latest telegram the event was built from: a newer one that cannot be read did not judge anything.
+        $snapshot = QuakeSnapshot::fromEvent($event, $this->telegrams->latestOf($eventId, $event->lastReportedAt));
 
         if ($quake === null) {
             $late = $now->getTimestamp() - $quakeTime->getTimestamp() > $this->settings->int('late_after_hours') * 3600;

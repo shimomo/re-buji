@@ -92,13 +92,17 @@ final class TelegramRepository
     }
 
     /**
-     * The newest telegram of the event: what the judgement was based on.
+     * The newest telegram of the event reported by then: given the event's last readable report, what the judgement
+     * was based on (a newer telegram that cannot be read is not).
      *
      * @return array{title: string, reportedAt: DateTimeImmutable}|null
      */
-    public function latestOf(string $eventId): ?array
+    public function latestOf(string $eventId, DateTimeImmutable $reportedBy): ?array
     {
-        $row = $this->db->fetchOne('SELECT title, reported_at FROM telegrams WHERE event_id = ? ORDER BY reported_at DESC, id DESC LIMIT 1', [$eventId]);
+        $row = $this->db->fetchOne(
+            'SELECT title, reported_at FROM telegrams WHERE event_id = ? AND reported_at <= ? ORDER BY reported_at DESC, id DESC LIMIT 1',
+            [$eventId, Time::format($reportedBy)],
+        );
 
         return $row === null ? null : ['title' => (string) $row['title'], 'reportedAt' => Time::parse((string) $row['reported_at'])];
     }
