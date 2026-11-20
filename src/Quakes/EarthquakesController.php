@@ -130,6 +130,8 @@ final class EarthquakesController
     {
         $quake = $this->earthquakes->find((int) ($args['id'] ?? '0')) ?? throw new HttpNotFoundException($request);
         $this->db->transaction(function () use ($quake): void {
+            // Contacts of other quakes folded into this one keep the answers their people gave here.
+            $this->notifications->handOverAnswers($quake->id);
             $this->earthquakes->delete($quake->id);
 
             if ($quake->eventId !== null) {
