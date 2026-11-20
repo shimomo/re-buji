@@ -122,6 +122,25 @@ final class QuakeBoardTest extends TestCase
     }
 
     #[Test]
+    public function saysTheLimitHoldsBackEveryoneBehindTheFront(): void
+    {
+        $world = self::world();
+        $world->settings->save(['hourly_limit' => '10']);
+
+        // 3 mails are left. The sender stops at the first person who does not fit, so 佐藤 waits behind 山田.
+        for ($i = 0; $i < 7; $i++) {
+            $world->messages->record(null, 'test', 'admin@example.com', 'm' . $i . '@example.co.jp', true, '', new DateTimeImmutable('2009-08-10T20:05:00Z'));
+        }
+
+        $world->contact($world->person('山田 花子', '2221300', addresses: 4), 6, notBefore: new DateTimeImmutable('2009-08-10T20:07:00Z'));
+        $world->contact($world->person('佐藤 一郎', '2221300'), 5, notBefore: new DateTimeImmutable('2009-08-10T20:07:00Z'));
+
+        foreach ($world->board()->build($world->quake('20090811050711'))['noReply'] as $row) {
+            $this->assertSame('送信待ち（上限のため 6:05 予定）', $row->reason, $row->name);
+        }
+    }
+
+    #[Test]
     public function listsTheProblemsFirst(): void
     {
         $world = self::world();

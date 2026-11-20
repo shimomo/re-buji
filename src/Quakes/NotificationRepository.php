@@ -113,19 +113,21 @@ final class NotificationRepository
     }
 
     /**
-     * The fewest addresses among the people of the contacts countWaiting() counts, or null when none waits: the sender
-     * writes to all of a person's addresses at once, so this person can go first. Contacts of deleted people are left
-     * out (they are skipped, not sent).
+     * How many addresses the person first in line has: the contact the sender takes first among those countWaiting()
+     * counts (dueFirstContacts() order), skipping people it would skip (deleted or stopped). The sender writes to all of
+     * a person's addresses at once and stops at the first person the hourly limit cannot take, so everyone behind waits
+     * for them. Null when nobody waits.
      */
-    public function fewestAddressesWaiting(DateTimeImmutable $now): ?int
+    public function addressesAtTheFront(DateTimeImmutable $now): ?int
     {
-        $fewest = $this->db->fetchValue(
-            'SELECT MIN(addresses) FROM (SELECT COUNT(e.id) AS addresses FROM notifications n JOIN employee_emails e ON e.employee_id = n.employee_id'
-            . ' WHERE n.state = ? AND n.answer IS NULL AND (n.not_before IS NULL OR n.not_before <= ?) GROUP BY n.id) waiting',
+        $addresses = $this->db->fetchValue(
+            'SELECT COUNT(a.id) FROM notifications n JOIN employees p ON p.id = n.employee_id AND p.active = 1 JOIN employee_emails a ON a.employee_id = n.employee_id'
+            . ' WHERE n.state = ? AND n.answer IS NULL AND (n.not_before IS NULL OR n.not_before <= ?)'
+            . ' GROUP BY n.id, n.priority, n.employee_id ORDER BY n.priority DESC, n.employee_id, n.id LIMIT 1',
             [Notification::PENDING, Time::format($now)],
         );
 
-        return $fewest === null ? null : (int) $fewest;
+        return $addresses === null ? null : (int) $addresses;
     }
 
     public function countWaiting(DateTimeImmutable $now): int

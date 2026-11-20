@@ -58,9 +58,9 @@ final class HomeController
         $now = $this->clock->now();
         $tokyo = new DateTimeZone('Asia/Tokyo');
         $gapSince = (string) $this->state->get('feed.gap_since');
-        // The person with the fewest addresses can go first; the sender writes to all of a person's addresses at once.
-        $fewest = $this->notifications->fewestAddressesWaiting($now);
-        $nextSlot = $fewest === null ? null : $this->limit->nextSlotFor($now, $fewest);
+        // Everyone waits for the person first in line: the sender stops at the first one the limit cannot take.
+        $front = $this->notifications->addressesAtTheFront($now);
+        $nextSlot = $front === null ? null : $this->limit->nextSlotFor($now, $front);
         $response = $this->responses->createResponse(200);
         $response->getBody()->write($this->templates->render('home', [
             'heldQuakes' => $this->earthquakes->countHeld(),

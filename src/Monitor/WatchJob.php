@@ -179,9 +179,9 @@ final class WatchJob implements CronJob
             $problems['imap_stale'] = $stale;
         }
 
-        $fewest = $this->notifications->fewestAddressesWaiting($now);
+        $front = $this->notifications->addressesAtTheFront($now);
 
-        if ($fewest !== null && $this->limit->nextSlotFor($now, $fewest) !== null) {
+        if ($front !== null && $this->limit->nextSlotFor($now, $front) !== null) {
             $problems['waiting'] = '1 時間の上限のため、連絡が送信待ちになっています。';
         }
 

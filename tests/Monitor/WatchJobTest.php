@@ -285,6 +285,26 @@ final class WatchJobTest extends TestCase
     }
 
     #[Test]
+    public function tellsAboutALimitThatHoldsBackTheFrontOfTheQueue(): void
+    {
+        $world = self::world();
+        $world->settings->save(['hourly_limit' => '20']);
+
+        // 3 left: 佐藤 alone would fit, but the sender stops at 山田, first in line, who needs 4.
+        for ($i = 0; $i < 15; $i++) {
+            $world->messages->record(null, 'test', 'admin@example.com', 'm' . $i . '@example.co.jp', true, '', new DateTimeImmutable('2009-08-10T20:05:00Z'));
+        }
+
+        $world->contact($world->person('山田 花子', '2221300', addresses: 4), 6, notBefore: new DateTimeImmutable('2009-08-10T20:07:00Z'));
+        $world->contact($world->person('佐藤 一郎', '2221300'), 5, notBefore: new DateTimeImmutable('2009-08-10T20:07:00Z'));
+
+        self::job($world)->run($world->clock->now());
+
+        $this->assertNotSame([], $world->mailer->sent);
+        $this->assertStringContainsString('1 時間の上限のため、連絡が送信待ちになっています。', $world->mailer->sent[0]->body);
+    }
+
+    #[Test]
     public function waitsWhenMailCannotGoOut(): void
     {
         $world = self::world();
