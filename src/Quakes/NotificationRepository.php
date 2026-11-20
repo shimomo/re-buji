@@ -112,6 +112,22 @@ final class NotificationRepository
         ));
     }
 
+    /**
+     * The fewest addresses among the people of the contacts countWaiting() counts, or null when none waits: the sender
+     * writes to all of a person's addresses at once, so this person can go first. Contacts of deleted people are left
+     * out (they are skipped, not sent).
+     */
+    public function fewestAddressesWaiting(DateTimeImmutable $now): ?int
+    {
+        $fewest = $this->db->fetchValue(
+            'SELECT MIN(addresses) FROM (SELECT COUNT(e.id) AS addresses FROM notifications n JOIN employee_emails e ON e.employee_id = n.employee_id'
+            . ' WHERE n.state = ? AND n.answer IS NULL AND (n.not_before IS NULL OR n.not_before <= ?) GROUP BY n.id) waiting',
+            [Notification::PENDING, Time::format($now)],
+        );
+
+        return $fewest === null ? null : (int) $fewest;
+    }
+
     public function countWaiting(DateTimeImmutable $now): int
     {
         return (int) $this->db->fetchValue(

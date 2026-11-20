@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use JmaXml\Earthquake\SeismicIntensity;
 use Psr\Clock\ClockInterface;
+use ReBuji\Employees\EmployeeRepository;
 use ReBuji\Mail\RateLimit;
 use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\EarthquakeRepository;
@@ -36,6 +37,7 @@ final class QuakeBoard
         private readonly ReplyRepository $replies,
         private readonly RateLimit $limit,
         private readonly ClockInterface $clock,
+        private readonly EmployeeRepository $employees,
     ) {
         //
     }
@@ -46,7 +48,7 @@ final class QuakeBoard
     public function build(Earthquake $quake): array
     {
         $now = $this->clock->now();
-        $nextSlot = $this->limit->nextSlotAt($now);
+        $slots = [];
         $board = ['noReply' => [], 'needsCheck' => [], 'checked' => [], 'safe' => [], 'total' => 0];
         $waiting = [];
 
@@ -57,6 +59,7 @@ final class QuakeBoard
 
             $board['total']++;
             [$answering, $foldedInto] = $this->answering($contact);
+            $nextSlot = $answering->state === Notification::PENDING ? $this->nextSlot($answering, $now, $slots) : null;
             [$reason, $group] = self::reason($answering, $now, $nextSlot);
             $row = new BoardRow(
                 $answering->id,
@@ -84,6 +87,23 @@ final class QuakeBoard
         $board['noReply'] = array_column($waiting, 'row');
 
         return $board;
+    }
+
+    /**
+     * When the hourly limit lets this person be sent to, or null while they may be now: the sender writes to all of a
+     * person's addresses at once. Each number of addresses is asked once per board.
+     *
+     * @param array<int, DateTimeImmutable|null> $slots
+     */
+    private function nextSlot(Notification $contact, DateTimeImmutable $now, array &$slots): ?DateTimeImmutable
+    {
+        $mails = $contact->employeeId === null ? 1 : max(1, $this->employees->addressCount($contact->employeeId));
+
+        if (!array_key_exists($mails, $slots)) {
+            $slots[$mails] = $this->limit->nextSlotFor($now, $mails);
+        }
+
+        return $slots[$mails];
     }
 
     /**

@@ -52,6 +52,40 @@ final class RateLimitTest extends TestCase
 
     #[Test]
     #[DataProvider('drivers')]
+    public function waitsForEnoughMailsToLeaveTheHour(string $driver): void
+    {
+        [$limit, $messages] = self::limit($driver);
+        $now = new DateTimeImmutable('2009-08-10T21:00:00Z');
+        self::sent($messages, $now->modify('-50 minutes'), 1);
+        self::sent($messages, $now->modify('-40 minutes'), 1);
+        self::sent($messages, $now->modify('-20 minutes'), 6);
+
+        $this->assertSame(2, $limit->remaining($now));
+        $this->assertNull($limit->nextSlotFor($now, 1));
+        $this->assertNull($limit->nextSlotFor($now, 2));
+        // A person with 3 addresses waits for one mail to leave the hour, one with 4 for two.
+        $this->assertEquals(new DateTimeImmutable('2009-08-10T21:10:00Z'), $limit->nextSlotFor($now, 3));
+        $this->assertEquals(new DateTimeImmutable('2009-08-10T21:20:00Z'), $limit->nextSlotFor($now, 4));
+    }
+
+    #[Test]
+    #[DataProvider('drivers')]
+    public function waitsForTheReservedMailsToLeaveToo(string $driver): void
+    {
+        // A limit of 20 keeps back 2, one for each admin; the notices have used them.
+        [$limit, $messages, $admins] = self::limitWithAdmins($driver, 20);
+        $admins->create('安否 太郎', 'admin@example.com', 'correct-horse-battery');
+        $admins->create('安否 花子', 'hanako@example.com', 'correct-horse-battery');
+        $now = new DateTimeImmutable('2009-08-10T21:00:00Z');
+        self::sent($messages, $now->modify('-30 minutes'), 1);
+        self::sent($messages, $now->modify('-10 minutes'), 19);
+
+        $this->assertSame(-2, $limit->remaining($now));
+        $this->assertEquals(new DateTimeImmutable('2009-08-10T21:50:00Z'), $limit->nextSlotFor($now, 1));
+    }
+
+    #[Test]
+    #[DataProvider('drivers')]
     public function keepsRoomForTheAdminsNotices(string $driver): void
     {
         // A limit of 20 keeps back up to 2, one for each admin.

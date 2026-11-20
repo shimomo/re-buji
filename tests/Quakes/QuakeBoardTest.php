@@ -106,6 +106,22 @@ final class QuakeBoardTest extends TestCase
     }
 
     #[Test]
+    public function saysWhenTheLimitHoldsBackSomeoneWithManyAddresses(): void
+    {
+        $world = self::world();
+        $world->settings->save(['hourly_limit' => '10']);
+
+        // 2 mails are left this hour; the person needs 4.
+        for ($i = 0; $i < 8; $i++) {
+            $world->messages->record(null, 'test', 'admin@example.com', 'm' . $i . '@example.co.jp', true, '', new DateTimeImmutable('2009-08-10T20:05:00Z'));
+        }
+
+        $world->contact($world->person('山田 花子', '2221300', addresses: 4), notBefore: new DateTimeImmutable('2009-08-10T20:07:00Z'));
+
+        $this->assertSame('送信待ち（上限のため 6:05 予定）', $world->board()->build($world->quake('20090811050711'))['noReply'][0]->reason);
+    }
+
+    #[Test]
     public function listsTheProblemsFirst(): void
     {
         $world = self::world();

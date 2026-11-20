@@ -55,14 +55,25 @@ final class RateLimit
     }
 
     /**
-     * When the oldest mail of the last hour leaves the window, or null while contacts may still go.
+     * When one contact mail may go, or null while it may go now.
      */
     public function nextSlotAt(DateTimeImmutable $now): ?DateTimeImmutable
     {
-        if ($this->remaining($now) > 0) {
+        return $this->nextSlotFor($now, 1);
+    }
+
+    /**
+     * When a person with that many addresses may be sent to, or null while they may be now. The sender writes to all
+     * of a person's addresses at once, so it waits until enough mails of the last hour have left the window.
+     */
+    public function nextSlotFor(DateTimeImmutable $now, int $mails): ?DateTimeImmutable
+    {
+        $short = $mails - $this->remaining($now);
+
+        if ($short <= 0) {
             return null;
         }
 
-        return $this->messages->oldestSince($now->modify('-60 minutes'))?->modify('+60 minutes');
+        return $this->messages->nthAttemptSince($now->modify('-60 minutes'), $short)?->modify('+60 minutes');
     }
 }

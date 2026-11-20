@@ -170,7 +170,7 @@ final class QuakeWorld
 
     public function board(): QuakeBoard
     {
-        return new QuakeBoard($this->notifications, $this->earthquakes, $this->replies, new RateLimit($this->messages, $this->settings, new AdminRepository($this->db, $this->clock)), $this->clock);
+        return new QuakeBoard($this->notifications, $this->earthquakes, $this->replies, new RateLimit($this->messages, $this->settings, new AdminRepository($this->db, $this->clock)), $this->clock, $this->employees);
     }
 
     public function matcher(): ReplyMatcher
