@@ -198,7 +198,12 @@ final class QuakeBoard
                 return $city->place . ' ' . ($label ?? SeismicIntensity::FiveLower->label()) . '以上の可能性';
             }
 
-            return $city->place . ($label === null ? '' : ' ' . $label);
+            if ($label === null) {
+                return $city->place;
+            }
+
+            // A 震度速報 gives an area's intensity, not the city's own; the mail says so in the same words.
+            return $city->place . ' ' . $label . ($city->basis === MatchedCity::BASIS_AREA ? '（地域の震度）' : '');
         }, $cities));
     }
 

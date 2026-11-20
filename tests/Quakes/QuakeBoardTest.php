@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReBuji\Quakes\Board\BoardRow;
+use ReBuji\Quakes\MatchedCity;
 use ReBuji\Quakes\Notification;
 use ReBuji\Tests\Support\QuakeWorld;
 
@@ -188,6 +189,23 @@ final class QuakeBoardTest extends TestCase
         $this->assertSame(['足を怪我しました', '病院に行きます'], $row->bodies);
         $this->assertSame('5:28', $row->repliedAt);
         $this->assertSame('静岡県 掛川市 震度5弱', $row->places);
+    }
+
+    #[Test]
+    public function marksAnIntensityThatIsTheArea(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('熱海 三郎', '2220500', '自宅'));
+        $world->notifications->updateCities($contact, [
+            new MatchedCity('2220500', '自宅', '静岡県 熱海市', '5+', false, MatchedCity::BASIS_AREA),
+            new MatchedCity('2221300', '勤務地', '静岡県 掛川市', '5-', false, MatchedCity::BASIS_CITY),
+            new MatchedCity('2220700', '実家', '静岡県 伊東市', null, true, MatchedCity::BASIS_AREA),
+        ], 6);
+
+        $this->assertSame(
+            '静岡県 熱海市 震度5強（地域の震度）、静岡県 掛川市 震度5弱、静岡県 伊東市 震度5弱以上の可能性',
+            $world->board()->build($world->quake('20090811050711'))['noReply'][0]->places,
+        );
     }
 
     private static function world(): QuakeWorld
