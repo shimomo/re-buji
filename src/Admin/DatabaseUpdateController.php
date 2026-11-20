@@ -11,6 +11,8 @@ use Psr\Http\Message\ServerRequestInterface;
 use ReBuji\Database\Migration;
 use ReBuji\Database\MigrationInProgress;
 use ReBuji\Database\Migrator;
+use ReBuji\Monitor\Health;
+use ReBuji\SystemState;
 use ReBuji\Version;
 
 /**
@@ -24,6 +26,7 @@ final class DatabaseUpdateController
         private readonly Migrator $migrator,
         private readonly Engine $templates,
         private readonly ResponseFactoryInterface $responses,
+        private readonly SystemState $state,
     ) {
         //
     }
@@ -39,10 +42,17 @@ final class DatabaseUpdateController
     public function apply(ServerRequestInterface $request): ResponseInterface
     {
         try {
-            return $this->render($request, $this->migrator->migrate(), false);
+            $applied = $this->migrator->migrate();
         } catch (MigrationInProgress) {
             return $this->render($request, null, true);
         }
+
+        // Cron's notice that it waits for this button would otherwise stay on the home page until its next run.
+        if ($this->migrator->pending() === [] && $this->state->get('cron.last_error') === Health::WAITING_FOR_UPDATE) {
+            $this->state->set('cron.last_error', '');
+        }
+
+        return $this->render($request, $applied, false);
     }
 
     /**

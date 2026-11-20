@@ -48,7 +48,7 @@ assert($migrator instanceof ReBuji\Database\Migrator);
 // A new version was uploaded but its database changes are not applied yet: the jobs would meet old tables. Nothing is
 // recorded as run, so the status URL turns 503 and the external monitor tells someone.
 if ($migrator->pending() !== []) {
-    $state->set('cron.last_error', 'DB の更新を待っています。管理画面の「DB の更新」でボタンを押してください。');
+    $state->set('cron.last_error', ReBuji\Monitor\Health::WAITING_FOR_UPDATE);
     $logger->warning('cron: waiting for the database update');
     exit(0);
 }
