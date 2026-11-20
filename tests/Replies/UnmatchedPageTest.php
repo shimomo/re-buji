@@ -177,6 +177,26 @@ final class UnmatchedPageTest extends TestCase
     }
 
     #[Test]
+    public function namesEachCheckboxByItsSender(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $replies = self::replies($container);
+            $at = new DateTimeImmutable('2026-11-05T03:20:00Z');
+            $replies->record(null, 'reply', null, 'a@example.net', '家族です', '無事です', null, $at);
+            $replies->record(null, 'reply', null, '"Taro" <taro@example.net>', '友人です', '無事です', null, $at);
+
+            $page = (string) $app->handle(TestApp::request('GET', '/mail/unmatched'))->getBody();
+
+            $this->assertStringContainsString('style="width:auto" aria-label="a@example.net からのメールを選ぶ"', $page);
+            $this->assertStringContainsString('aria-label="&quot;Taro&quot; &lt;taro@example.net&gt; からのメールを選ぶ"', $page);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function warnsAtHomeAboutUnmatchedMail(): void
     {
         [$app, $container, $root] = self::loggedIn();

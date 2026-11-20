@@ -19,7 +19,7 @@ $this->layout('layout', ['title' => $title]);
     <tbody>
 <?php foreach ($mails as $mail): ?>
         <tr>
-            <td><input type="checkbox" name="ids[]" value="<?= $mail['id'] ?>" form="delete-selected" aria-label="選ぶ"></td>
+            <td><input type="checkbox" name="ids[]" value="<?= $mail['id'] ?>" form="delete-selected" style="width:auto" aria-label="<?= $this->e($mail['from']) ?> からのメールを選ぶ"></td>
             <td><?= $this->e($mail['received']) ?></td>
             <td><?= $this->e($mail['kind']) ?></td>
             <td><?= $this->e($mail['from']) ?></td>
