@@ -78,6 +78,34 @@ final class QuakeBoardPageTest extends TestCase
     }
 
     #[Test]
+    public function keepsTheAdminsNoteNextToWhoRecordedIt(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+            $contact = $records->contact($quake, Notification::SENT);
+            $records->notifications->recordAutoReply($contact, new DateTimeImmutable('2026-11-05T03:20:00Z'));
+            $replies = $container->get(ReplyRepository::class);
+            $this->assertInstanceOf(ReplyRepository::class, $replies);
+            $replies->record($contact, 'auto_reply', 'thread', 'person1@example.com', '自動応答：不在', '11月25日まで出張中です。', null, new DateTimeImmutable('2026-11-05T03:20:00Z'));
+            $records->notifications->recordAnswer($contact, Notification::SAFE, 'proxy', '安否 太郎', '電話で無事を確認', new DateTimeImmutable('2026-11-05T03:30:00Z'));
+
+            $page = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody();
+
+            // The auto-reply must not sit between the admin's note and the line saying who recorded it.
+            $positions = array_map(static fn(string $text): int|false => strpos($page, $text), ['自動応答：「11月25日まで出張中です。」', '「電話で無事を確認」', '安否 太郎 さんが代理で記録']);
+            $this->assertNotContains(false, $positions);
+            $sorted = $positions;
+            sort($sorted);
+            $this->assertSame($sorted, $positions);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function marksAReplyChecked(): void
     {
         [$app, $container, $root] = self::loggedIn();

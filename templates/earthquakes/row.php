@@ -9,11 +9,11 @@
     <div><?= $this->e($row->places) ?></div>
     <div><?= $this->e($detail) ?><?php if ($row->foldedInto !== null): ?> <span class="muted">（<?= $this->e($row->foldedInto) ?> の連絡に含めた）</span><?php endif ?></div>
 </div>
-<?php foreach ($row->bodies as $body): ?>
-<p>「<?= nl2br($this->e($body)) ?>」</p>
-<?php endforeach ?>
 <?php foreach ($row->autoReplies as $autoReply): ?>
 <p class="muted">自動応答：「<?= nl2br($this->e($autoReply)) ?>」</p>
+<?php endforeach ?>
+<?php foreach ($row->bodies as $body): ?>
+<p>「<?= nl2br($this->e($body)) ?>」</p>
 <?php endforeach ?>
 <?php if ($row->proxy !== null): ?>
 <p class="muted"><?= $this->e($row->proxy) ?></p>

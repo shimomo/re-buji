@@ -194,7 +194,8 @@ final class QuakeBoard
             $bodies[] = $contact->proxyNote;
         }
 
-        return [$bodies, $autoReplies];
+        // A responder answers each resend with the same words; once is enough.
+        return [$bodies, array_values(array_unique($autoReplies))];
     }
 
     /**

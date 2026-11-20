@@ -249,6 +249,21 @@ final class QuakeBoardTest extends TestCase
         $this->assertSame(['11月25日まで出張中です。'], $row->autoReplies);
     }
 
+    #[Test]
+    public function showsEachAutoReplyOnce(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        $world->db->execute("UPDATE notifications SET auto_replied_at = '2009-08-10T20:20:00Z' WHERE id = ?", [$contact]);
+
+        // The responder answers the first mail and each resend.
+        foreach (['20:20', '21:20', '22:20'] as $time) {
+            $world->replies->record($contact, 'auto_reply', 'thread', 'person1@example.com', '自動応答：不在', '11月25日まで出張中です。', null, new DateTimeImmutable('2009-08-10T' . $time . ':00Z'));
+        }
+
+        $this->assertSame(['11月25日まで出張中です。'], $world->board()->build($world->quake('20090811050711'))['noReply'][0]->autoReplies);
+    }
+
     private static function world(): QuakeWorld
     {
         return new QuakeWorld('2009-08-10T20:12:00Z');
