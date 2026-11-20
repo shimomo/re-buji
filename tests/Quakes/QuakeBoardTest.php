@@ -208,6 +208,17 @@ final class QuakeBoardTest extends TestCase
         );
     }
 
+    #[Test]
+    public function saysWhenTheQuakeItWasFoldedIntoIsGone(): void
+    {
+        $world = self::world();
+        $contact = $world->contact($world->person('山田 花子', '2221300'));
+        // Folded into a contact whose quake was deleted without an answer to hand over.
+        $world->db->execute("UPDATE notifications SET state = 'merged', merged_into_id = 999999 WHERE id = ?", [$contact]);
+
+        $this->assertSame('まとめた先の地震の記録を消しました', $world->board()->build($world->quake('20090811050711'))['noReply'][0]->reason);
+    }
+
     private static function world(): QuakeWorld
     {
         return new QuakeWorld('2009-08-10T20:12:00Z');

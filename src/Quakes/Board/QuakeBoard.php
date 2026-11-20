@@ -143,6 +143,8 @@ final class QuakeBoard
             $contact->state === Notification::HELD => ['保留（遅れて届いた地震）', 'other'],
             $contact->state === Notification::CANCELLED && $contact->sentCount > 0 => [$sent . '（取消済み）', 'other'],
             $contact->state === Notification::CANCELLED => ['取消のため送っていません', 'other'],
+            // A folded contact reaches here only when the contact it was folded into is gone with its quake.
+            $contact->state === Notification::MERGED => ['まとめた先の地震の記録を消しました', 'other'],
             default => ['', 'other'],
         };
     }
