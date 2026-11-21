@@ -13,12 +13,23 @@ h2{font-size:17px;font-weight:700;margin:1.5rem 0 .5rem}
 header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:1.5rem;min-height:44px}
 header a{display:inline-block;padding:10px 6px}
 .muted{color:var(--muted);font-size:14px}
+code{overflow-wrap:anywhere;word-break:break-all}
+/* Links in text get a 44px touch target from vertical padding, which leaves the lines where they are */
+p>a,li>a,td>a{padding:14px 0}
+p>a{white-space:nowrap}
+.card-head>a{display:inline-flex;align-items:center;min-height:44px}
 
 /* Card */
 .card,fieldset{background:var(--surface);border:0;border-radius:14px;box-shadow:var(--shadow);padding:16px;margin:0 0 16px;min-width:0}
 .card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 8px;font-weight:700}
-.calm{background:#eaf5f0;border:1px solid var(--ok);border-radius:14px;box-shadow:var(--shadow);padding:16px;margin:0 0 16px;color:var(--ok);font-weight:700}
-legend{font-weight:700;padding:0 4px}
+.calm{background:#eaf5f0;border:1px solid var(--ok);border-radius:14px;box-shadow:var(--shadow);padding:16px;margin:0 0 16px;color:var(--ok)}
+.card>:first-child{margin-top:0}
+.card>:last-child{margin-bottom:0}
+.card>form:first-child>label:first-of-type{margin-top:0}
+/* Floated so the legend sits inside the card instead of across its top edge */
+legend{float:left;width:100%;padding:0;margin:0 0 8px;font-weight:700}
+legend~*{clear:both}
+label+fieldset{margin-top:16px}
 details{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);margin:0 0 16px}
 summary{cursor:pointer;min-height:44px;padding:10px 16px;display:flex;align-items:center;gap:8px;list-style:none;font-weight:700}
 summary::-webkit-details-marker{display:none}
@@ -31,6 +42,8 @@ details>*:last-child{margin-bottom:16px}
 label{display:block;margin-top:1rem}
 input,select,textarea{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-height:44px;width:100%;max-width:420px}
 input[type=checkbox],input[type=radio]{width:auto;min-height:0;margin-right:6px}
+/* Fields sit under their label text even when the label is short */
+label>:is(input:not([type=checkbox],[type=radio]),select,textarea){display:block;margin-top:4px}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .row label{flex:1;min-width:140px}
 
@@ -42,8 +55,12 @@ form button{width:100%}
 @media (min-width:600px){form button{width:auto}}
 
 /* Alerts (a mark and the wording both carry the state, never color alone) */
-.alert{display:block;margin:0 0 12px;padding:12px 16px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);border-left-width:5px}
-.alert::before{font-weight:700;margin-right:.5em}
+.alert{display:block;position:relative;margin:0 0 12px;padding:12px 16px 12px 40px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);border-left-width:5px}
+.alert::before{position:absolute;left:16px;top:12px;font-weight:700}
+.alert>:first-child{margin-top:0}
+.alert>:last-child{margin-bottom:0}
+.alert+form>button{margin-top:0}
+form+.alert{margin-top:16px}
 .alert-stop{border-left-color:var(--danger);color:var(--danger)}
 .alert-stop::before{content:"\2715"}
 .alert-act{border-left-color:var(--warn);color:var(--warn)}
@@ -51,8 +68,9 @@ form button{width:100%}
 .alert-info{border-left-color:var(--muted);color:var(--muted)}
 .alert-info::before{content:"\2139"}
 .alert>ul{margin:4px 0 0;padding-left:1.4em}
+.alert>ul:first-child{margin-top:0}
 .alert-ok{border-left-color:var(--ok);color:var(--ok)}
-.alert-ok::before{content:"\2713";font-weight:700;margin-right:.5em}
+.alert-ok::before{content:"\2713"}
 
 /* Count tiles */
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 16px}
@@ -75,6 +93,7 @@ form button{width:100%}
 /* Tables: a card per row on narrow screens, the column name coming from data-label */
 table{border-collapse:collapse;width:100%}
 th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+td button{white-space:nowrap}
 @media (max-width:599px){
 table.stack,table.stack tbody,table.stack tr,table.stack td{display:block;width:100%}
 table.stack thead{position:absolute;left:-9999px}
@@ -96,10 +115,13 @@ body:has(.nav){padding-bottom:calc(72px + env(safe-area-inset-bottom))}
 .row-link{display:flex;align-items:center;min-height:44px;padding:8px 4px;border-bottom:1px solid var(--line);color:var(--text);text-decoration:none}
 .row-link:last-child{border-bottom:0}
 @media (min-width:768px){
-.nav{position:static;display:flex;flex-wrap:wrap;align-items:center;gap:4px;background:none;border:0;padding:0}
+/* Brand and name on the first line with logout at its right; the 8 items get the whole second line */
+header:has(.nav){position:relative}
+header .who{order:1;margin-left:auto;margin-right:128px;min-height:44px;display:flex;align-items:center}
+.nav{order:2;flex-basis:100%;position:static;display:flex;flex-wrap:wrap;align-items:center;gap:4px;background:none;border:0;padding:0}
+.nav form{position:absolute;top:0;right:0}
 .nav .pc-only,.nav a.pc-link{display:inline-flex}
 .nav a.tab{display:none}
-.who{order:1}
 .nav a.pc-link{align-items:center;min-height:44px;padding:10px 8px;text-decoration:none}
 .nav a.pc-link[aria-current=page]{font-weight:700;border-bottom:2px solid var(--accent)}
 .nav .badge{position:static;margin-left:4px}
