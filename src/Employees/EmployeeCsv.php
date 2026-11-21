@@ -71,7 +71,7 @@ final class EmployeeCsv
      * Rows that have something in them, each with its line (the header is line 1; a line break inside a cell does not
      * start a new line). A wrong header stops the reading.
      *
-     * @return array{rows: list<array{line: int, id: ?int, input: EmployeeInput}>, errors: list<string>}
+     * @return array{rows: list<array{line: int, id: ?int, badId: bool, input: EmployeeInput}>, errors: list<string>}
      */
     public static function parse(string $contents): array
     {
@@ -113,7 +113,9 @@ final class EmployeeCsv
             $id = trim($cells[0]);
             $state = trim($cells[18]);
 
-            if ($id !== '' && preg_match('/^[0-9]+$/', $id) !== 1) {
+            $badId = $id !== '' && preg_match('/^[0-9]+$/', $id) !== 1;
+
+            if ($badId) {
                 $errors[] = $line . ' 行目：ID は数字で書いてください：' . $id;
             }
 
@@ -130,6 +132,7 @@ final class EmployeeCsv
             $rows[] = [
                 'line' => $line,
                 'id' => preg_match('/^[0-9]+$/', $id) === 1 ? (int) $id : null,
+                'badId' => $badId,
                 'input' => EmployeeInput::from($cells[1], $cells[2], array_slice($cells, 3, EmployeeValidator::MAX_EMAILS), $cities, $cells[17], $state !== '停止'),
             ];
         }
