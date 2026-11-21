@@ -10,7 +10,7 @@
 /** @var list<string> $placeholders */
 $this->layout('layout', ['title' => $title]);
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more']) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more', 'page' => 'settings']) ?><?php $this->stop() ?>
 <?php if ($errors !== []): ?>
 <ul class="error">
 <?php foreach ($errors as $error): ?>

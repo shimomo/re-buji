@@ -9,7 +9,7 @@
 $this->layout('layout', ['title' => $title]);
 ?>
 <?php if ($pending === []): ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more']) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more', 'page' => 'database']) ?><?php $this->stop() ?>
 <?php endif ?>
 <p>Re:無事 <?= $this->e($version) ?></p>
 <?php if ($applied !== null): ?>

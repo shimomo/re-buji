@@ -34,8 +34,29 @@ final class NavTest extends TestCase
             }
 
             $this->assertStringContainsString('href="/" aria-current="page"', $home);
-            $this->assertSame(1, substr_count($home, 'aria-current="page"'));
+            $this->assertSame(2, substr_count($home, 'aria-current="page"'));
             $this->assertStringContainsString('href="/employees" aria-current="page"', (string) $app->handle(TestApp::request('GET', '/employees'))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function showsTheNameOnPhonesAndTheEightItemsOnPc(): void
+    {
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => new FrozenClock()]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $body = (string) $app->handle(TestApp::request('GET', '/settings'))->getBody();
+
+            $this->assertMatchesRegularExpression('#<span class="who muted">[^<]+</span>\s*<nav#', $body);
+            $this->assertStringContainsString('class="pc-link" href="/settings" aria-current="page"', $body);
+            $this->assertStringNotContainsString('class="pc-link" href="/admins" aria-current', $body);
+            $this->assertStringContainsString('class="tab" href="/more" aria-current="page"', $body);
+
+            preg_match_all('#class="pc-link" href="[^"]*"[^>]*>([^<]+)</a>#', $body, $found);
+            $this->assertSame(['ホーム', '地震', '訓練', '照合できなかったメール', '従業員', '管理者', '設定', 'DB の更新'], $found[1]);
         } finally {
             TemporaryDirectory::remove($root);
         }
