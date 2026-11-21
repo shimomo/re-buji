@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReBuji\Config\Config;
 use ReBuji\Config\ConfigFile;
+use ReBuji\Tests\PrivateFileTest;
 use ReBuji\Tests\Support\TemporaryDirectory;
 use RuntimeException;
 
@@ -47,6 +48,24 @@ final class ConfigFileTest extends TestCase
             $this->assertNotFalse($permissions);
             $this->assertSame(0600, $permissions & 0777);
         } finally {
+            TemporaryDirectory::remove($directory);
+        }
+    }
+
+    #[Test]
+    public function keepsTheFilePrivateWhenSavedAgain(): void
+    {
+        $directory = TemporaryDirectory::create();
+        $umask = umask(0);
+
+        try {
+            $file = new ConfigFile($directory . '/config.php');
+            $file->save(new Config(['a' => 1]));
+            $file->save(new Config(['a' => 2]));
+
+            $this->assertSame(0600, PrivateFileTest::mode($directory . '/config.php'));
+        } finally {
+            umask($umask);
             TemporaryDirectory::remove($directory);
         }
     }

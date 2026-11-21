@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ReBuji\Install;
 
 use ReBuji\Paths;
+use ReBuji\PrivateFile;
 use RuntimeException;
 
 /**
@@ -37,7 +38,9 @@ final class InstallKey
             $key .= $alphabet[random_int(0, strlen($alphabet) - 1)];
         }
 
-        if (file_put_contents($path, $key . "\n") === false || !chmod($path, 0600)) {
+        try {
+            PrivateFile::write($path, $key . "\n");
+        } catch (RuntimeException) {
             throw new RuntimeException('Cannot write ' . $path);
         }
     }

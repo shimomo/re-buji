@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ReBuji\Config;
 
+use ReBuji\PrivateFile;
 use RuntimeException;
 
 /**
@@ -48,7 +49,13 @@ final class ConfigFile
         $temporary = $this->path . '.' . bin2hex(random_bytes(6));
         $contents = "<?php\n\nreturn " . var_export($config->all(), true) . ";\n";
 
-        if (file_put_contents($temporary, $contents) === false || !chmod($temporary, 0600) || !rename($temporary, $this->path)) {
+        try {
+            PrivateFile::write($temporary, $contents);
+        } catch (RuntimeException) {
+            throw new RuntimeException('Cannot write config file: ' . $this->path);
+        }
+
+        if (!rename($temporary, $this->path)) {
             @unlink($temporary);
 
             throw new RuntimeException('Cannot write config file: ' . $this->path);
