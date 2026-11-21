@@ -55,7 +55,7 @@ final class NavTest extends TestCase
             $this->assertStringNotContainsString('class="pc-link" href="/admins" aria-current', $body);
             $this->assertStringContainsString('class="tab" href="/more" aria-current="page"', $body);
 
-            preg_match_all('#class="pc-link" href="[^"]*"[^>]*>([^<]+)</a>#', $body, $found);
+            preg_match_all('#class="pc-link" href="[^"]*"[^>]*>([^<]+)#', $body, $found);
             $this->assertSame(['ホーム', '地震', '訓練', '照合できなかったメール', '従業員', '管理者', '設定', 'DB の更新'], $found[1]);
         } finally {
             TemporaryDirectory::remove($root);
@@ -83,6 +83,8 @@ final class NavTest extends TestCase
             $page = (string) $app->handle(TestApp::request('GET', '/employees'))->getBody();
             $this->assertMatchesRegularExpression('#href="/earthquakes".*?<span class="badge">1</span></a>#', $page);
             $this->assertMatchesRegularExpression('#href="/mail/unmatched".*?<span class="badge">2</span></a>#', $page);
+            $this->assertMatchesRegularExpression('#class="pc-link" href="/earthquakes">地震<span class="badge">1</span></a>#', $page);
+            $this->assertMatchesRegularExpression('#class="pc-link" href="/mail/unmatched">照合できなかったメール<span class="badge">2</span></a>#', $page);
         } finally {
             TemporaryDirectory::remove($root);
         }

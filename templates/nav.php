@@ -13,14 +13,14 @@ $tabs = [
     ['more', '/more', '☰', 'その他', 0],
 ];
 $row = [
-    ['home', '/', 'ホーム'],
-    ['earthquakes', '/earthquakes', '地震'],
-    ['drills', '/drills/new', '訓練'],
-    ['unmatched', '/mail/unmatched', '照合できなかったメール'],
-    ['employees', '/employees', '従業員'],
-    ['admins', '/admins', '管理者'],
-    ['settings', '/settings', '設定'],
-    ['database', '/admin/database', 'DB の更新'],
+    ['home', '/', 'ホーム', 0],
+    ['earthquakes', '/earthquakes', '地震', $badges['held']],
+    ['drills', '/drills/new', '訓練', 0],
+    ['unmatched', '/mail/unmatched', '照合できなかったメール', $badges['unmatched']],
+    ['employees', '/employees', '従業員', 0],
+    ['admins', '/admins', '管理者', 0],
+    ['settings', '/settings', '設定', 0],
+    ['database', '/admin/database', 'DB の更新', 0],
 ];
 ?>
 <span class="who muted"><?= $this->e($admin['name']) ?></span>
@@ -28,8 +28,8 @@ $row = [
 <?php foreach ($tabs as [$key, $path, $mark, $label, $count]): ?>
     <a class="tab" href="<?= $this->e($this->url($path)) ?>"<?= $current === $key ? ' aria-current="page"' : '' ?>><span class="tab-mark" aria-hidden="true"><?= $mark ?></span><span class="tab-name"><?= $label ?></span><?php if ($count > 0): ?><span class="badge"><?= $count ?></span><?php endif ?></a>
 <?php endforeach ?>
-<?php foreach ($row as [$key, $path, $label]): ?>
-    <a class="pc-link" href="<?= $this->e($this->url($path)) ?>"<?= $page === $key ? ' aria-current="page"' : '' ?>><?= $label ?></a>
+<?php foreach ($row as [$key, $path, $label, $count]): ?>
+    <a class="pc-link" href="<?= $this->e($this->url($path)) ?>"<?= $page === $key ? ' aria-current="page"' : '' ?>><?= $label ?><?php if ($count > 0): ?><span class="badge"><?= $count ?></span><?php endif ?></a>
 <?php endforeach ?>
     <form class="pc-only" method="post" action="<?= $this->e($this->url('/logout')) ?>">
         <?= $this->csrf() ?>
