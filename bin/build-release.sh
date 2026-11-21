@@ -41,18 +41,7 @@ mkdir -p "$root/build"
 zip="$root/build/re-buji-$version.zip"
 rm -f "$zip"
 
-# PHP's zip extension, since rental-server-minded machines may lack the zip command.
-php -r '
-    [$source, $target] = array_slice($argv, 1);
-    $zip = new ZipArchive();
-    $zip->open($target, ZipArchive::CREATE) === true or exit(1);
-    $base = dirname($source);
-    $entries = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
-    foreach ($entries as $entry) {
-        $name = substr($entry->getPathname(), strlen($base) + 1);
-        $entry->isDir() ? $zip->addEmptyDir($name) : $zip->addFile($entry->getPathname(), $name);
-    }
-    $zip->close() or exit(1);
-' "$app" "$zip"
+# Folders 0755 and files 0644 (0755 if executable), since scp and rsync carry the modes in the zip to the server.
+php "$root/build-files/zip.php" "$app" "$zip"
 
 echo "built $zip"
