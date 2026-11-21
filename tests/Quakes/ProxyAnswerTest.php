@@ -193,6 +193,34 @@ final class ProxyAnswerTest extends TestCase
         }
     }
 
+    #[Test]
+    public function goesBackHomeAfterRecordingFromTheHome(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $contact = $records->contact($records->quake('20261105121200', '宮城県沖・最大震度6弱', '2026-11-05T03:12:00Z'), Notification::SENT);
+
+            $form = (string) $app->handle(TestApp::request('GET', '/contacts/' . $contact . '/proxy?from=home'))->getBody();
+            $this->assertStringContainsString('name="from" value="home"', $form);
+            $this->assertStringContainsString('ホームに戻る', $form);
+
+            $again = $app->handle(TestApp::request('POST', '/contacts/' . $contact . '/proxy', ['from' => 'home', 'note' => ''] + TestApp::csrf($container)));
+            $this->assertSame(200, $again->getStatusCode());
+            $this->assertStringContainsString('name="from" value="home"', (string) $again->getBody());
+
+            $done = $app->handle(TestApp::request('POST', '/contacts/' . $contact . '/proxy', ['from' => 'home', 'answer' => 'safe', 'note' => ''] + TestApp::csrf($container)));
+            $this->assertSame('/', $done->getHeaderLine('Location'));
+
+            $evil = (string) $app->handle(TestApp::request('GET', '/contacts/' . $contact . '/proxy?from=evil'))->getBody();
+            $this->assertStringNotContainsString('name="from"', $evil);
+            $this->assertStringContainsString('地震の画面に戻る', $evil);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
     /**
      * @param App<ContainerInterface> $app
      */

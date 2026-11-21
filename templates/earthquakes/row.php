@@ -3,7 +3,7 @@
 /** @var ReBuji\Quakes\Board\BoardRow $row */
 /** @var string $detail */
 /** @var bool $check */
-/** @var string $from where the proxy page returns to ('' for this quake's page) */
+/** @var string $from where to return to after acting: 'home' or '' (this quake's page) */
 ?>
 <div class="person">
     <div class="person-name"><?= $this->e($row->name) ?> <span class="person-meta"><?= $this->e($row->department) ?></span></div>
@@ -19,7 +19,7 @@
     <p class="person-body muted"><?= $this->e($row->proxy) ?></p>
 <?php endif ?>
 <?php if ($check): ?>
-    <form method="post" action="<?= $this->e($this->url('/contacts/' . $row->contactId . '/check')) ?>"><?= $this->csrf() ?><button type="submit" class="btn-primary">確認済みにする</button></form>
+    <form method="post" action="<?= $this->e($this->url('/contacts/' . $row->contactId . '/check')) ?>"><?= $this->csrf() ?><?php if ($from === 'home'): ?><input type="hidden" name="from" value="home"><?php endif ?><button type="submit" class="btn-primary">確認済みにする</button></form>
 <?php endif ?>
-    <p class="person-body muted"><a href="<?= $this->e($this->url('/contacts/' . $row->contactId . '/proxy')) ?>">代理で記録</a></p>
+    <p class="person-body muted"><a href="<?= $this->e($this->url('/contacts/' . $row->contactId . '/proxy' . ($from === 'home' ? '?from=home' : ''))) ?>">代理で記録</a></p>
 </div>

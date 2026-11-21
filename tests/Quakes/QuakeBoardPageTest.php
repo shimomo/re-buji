@@ -194,6 +194,56 @@ final class QuakeBoardPageTest extends TestCase
     }
 
     #[Test]
+    public function returnsToWhereTheCheckWasPressed(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+            $contacts = [];
+
+            foreach (range(1, 3) as $ignored) {
+                $contact = $records->contact($quake, Notification::SENT);
+                $records->notifications->recordAnswer($contact, Notification::NEEDS_CHECK, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:28:00Z'));
+                $contacts[] = $contact;
+            }
+
+            $home = $app->handle(TestApp::request('POST', '/contacts/' . $contacts[0] . '/check', ['from' => 'home'] + TestApp::csrf($container)));
+            $none = $app->handle(TestApp::request('POST', '/contacts/' . $contacts[1] . '/check', TestApp::csrf($container)));
+            $outside = $app->handle(TestApp::request('POST', '/contacts/' . $contacts[2] . '/check', ['from' => 'https://example.com'] + TestApp::csrf($container)));
+
+            $this->assertSame('/', $home->getHeaderLine('Location'));
+            $this->assertSame('/earthquakes/' . $quake, $none->getHeaderLine('Location'));
+            $this->assertSame('/earthquakes/' . $quake, $outside->getHeaderLine('Location'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function asksTheHomeToReturnHere(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+            $contact = $records->contact($quake, Notification::SENT);
+            $records->notifications->recordAnswer($contact, Notification::NEEDS_CHECK, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:28:00Z'));
+
+            $home = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+            $detail = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody();
+
+            $this->assertStringContainsString('name="from" value="home"', $home);
+            $this->assertStringContainsString('/contacts/' . $contact . '/proxy?from=home', $home);
+            $this->assertStringNotContainsString('name="from"', $detail);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function refusesToCheckWhatNeedsNoChecking(): void
     {
         [$app, $container, $root] = self::loggedIn();

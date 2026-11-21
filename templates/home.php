@@ -56,9 +56,9 @@ $this->layout('layout', ['title' => $title]);
 <?php foreach ($active as $followed): ?>
 <?= $this->insert('quakes/summary', ['quake' => $followed['quake'], 'heading' => $followed['heading'], 'basis' => $followed['basis'], 'board' => $followed['board'], 'link' => true]) ?>
 <h2>⚠ 要確認</h2>
-<?= $this->insert('quakes/people', ['rows' => $followed['board']['needsCheck'], 'limit' => 20, 'detail' => 'replied', 'check' => true, 'from' => '']) ?>
+<?= $this->insert('quakes/people', ['rows' => $followed['board']['needsCheck'], 'limit' => 20, 'detail' => 'replied', 'check' => true, 'from' => 'home']) ?>
 <h2>✕ 返信なし</h2>
-<?= $this->insert('quakes/people', ['rows' => $followed['board']['noReply'], 'limit' => 20, 'detail' => 'reason', 'check' => false, 'from' => '']) ?>
+<?= $this->insert('quakes/people', ['rows' => $followed['board']['noReply'], 'limit' => 20, 'detail' => 'reason', 'check' => false, 'from' => 'home']) ?>
 <?php endforeach ?>
 <?php if ($active === []): ?>
 <?php if (!$stopped && !$waitingDecision): ?>
