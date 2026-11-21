@@ -3,9 +3,11 @@
 /** @var list<string> $errors */
 ?>
 <?php if ($errors !== []): ?>
-<ul class="error">
+<div class="alert alert-stop">
+<ul>
 <?php foreach ($errors as $error): ?>
     <li><?= $this->e($error) ?></li>
 <?php endforeach ?>
 </ul>
+</div>
 <?php endif ?>
