@@ -6,6 +6,7 @@ namespace ReBuji\Tests;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReBuji\Tests\Support\TemporaryDirectory;
 use ZipArchive;
 
 /**
@@ -16,44 +17,38 @@ use ZipArchive;
  */
 final class BuildZipTest extends TestCase
 {
-    private string $work;
-
-    protected function setUp(): void
-    {
-        $this->work = sys_get_temp_dir() . '/re-buji-zip-' . bin2hex(random_bytes(4));
-        mkdir($this->work . '/re-buji/public/assets', 0o777, true);
-        chmod($this->work . '/re-buji/public/assets', 0o777);
-        file_put_contents($this->work . '/re-buji/public/index.php', '<?php');
-        chmod($this->work . '/re-buji/public/index.php', 0o666);
-        file_put_contents($this->work . '/re-buji/run.sh', '#!/bin/sh');
-        chmod($this->work . '/re-buji/run.sh', 0o775);
-    }
-
-    protected function tearDown(): void
-    {
-        exec('rm -rf ' . escapeshellarg($this->work));
-    }
-
     #[Test]
     public function noEntryIsWritableByTheGroupOrOthers(): void
     {
-        $modes = $this->build();
+        $work = TemporaryDirectory::create();
 
-        $this->assertSame(0o040755, $modes['re-buji/']);
-        $this->assertSame(0o040755, $modes['re-buji/public/']);
-        $this->assertSame(0o040755, $modes['re-buji/public/assets/']);
-        $this->assertSame(0o100644, $modes['re-buji/public/index.php']);
-        $this->assertSame(0o100755, $modes['re-buji/run.sh']);
+        try {
+            mkdir($work . '/re-buji/public/assets', 0o777, true);
+            chmod($work . '/re-buji/public/assets', 0o777);
+            file_put_contents($work . '/re-buji/public/index.php', '<?php');
+            chmod($work . '/re-buji/public/index.php', 0o666);
+            file_put_contents($work . '/re-buji/run.sh', '#!/bin/sh');
+            chmod($work . '/re-buji/run.sh', 0o775);
+
+            $modes = $this->build($work . '/re-buji', $work . '/out.zip');
+
+            $this->assertSame(0o040755, $modes['re-buji/']);
+            $this->assertSame(0o040755, $modes['re-buji/public/']);
+            $this->assertSame(0o040755, $modes['re-buji/public/assets/']);
+            $this->assertSame(0o100644, $modes['re-buji/public/index.php']);
+            $this->assertSame(0o100755, $modes['re-buji/run.sh']);
+        } finally {
+            TemporaryDirectory::remove($work);
+        }
     }
 
     /**
      * @return array<string, int> each entry's Unix mode, by name
      */
-    private function build(): array
+    private function build(string $source, string $target): array
     {
-        $target = $this->work . '/out.zip';
         $script = dirname(__DIR__) . '/build-files/zip.php';
-        exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . ' ' . escapeshellarg($this->work . '/re-buji') . ' '
+        exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . ' ' . escapeshellarg($source) . ' '
             . escapeshellarg($target) . ' 2>&1', $output, $status);
         $this->assertSame(0, $status, implode("\n", array_map(strval(...), $output)));
 
