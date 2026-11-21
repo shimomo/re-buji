@@ -6,6 +6,7 @@ namespace ReBuji\Settings;
 
 use ReBuji\Employees\EmployeeValidator;
 use ReBuji\Mail\NotificationMail;
+use ReBuji\Text;
 
 /**
  * The settings form, shared by the settings page and the installer's mail step: its fields and their checks.
@@ -69,7 +70,12 @@ final class SettingsForm
 
         foreach (array_keys(self::FIELDS) as $field) {
             $value = self::text($body[$field] ?? null);
-            $values[$field] = $field === 'mail_body' ? str_replace("\r\n", "\n", $value) : trim($value);
+            $values[$field] = match ($field) {
+                'mail_body' => str_replace("\r\n", "\n", $value),
+                // A name of full-width spaces would show as no name in the From line.
+                'mail_from_name' => Text::trim($value),
+                default => trim($value),
+            };
         }
 
         return $values;

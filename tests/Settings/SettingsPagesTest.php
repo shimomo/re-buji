@@ -99,6 +99,22 @@ final class SettingsPagesTest extends TestCase
     }
 
     #[Test]
+    public function refusesASenderNameOfFullWidthSpaces(): void
+    {
+        [$app, $container, $root] = self::loggedIn(new RecordingMailSender());
+
+        try {
+            $response = $app->handle(TestApp::request('POST', '/settings', ['mail_from_name' => '　　'] + self::form() + TestApp::csrf($container)));
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertStringContainsString('送信元の名前は 1〜50 文字にしてください。', (string) $response->getBody());
+            $this->assertSame('安否確認', self::settings($container)->get('mail.from_name'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function needsTheServerAndTheSenderTogether(): void
     {
         [$app, $container, $root] = self::loggedIn(new RecordingMailSender());
