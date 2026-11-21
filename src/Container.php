@@ -32,6 +32,8 @@ use ReBuji\Mail\Imap\ImapMailbox;
 use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\MailSender;
 use ReBuji\Mail\SmtpMailSender;
+use ReBuji\Quakes\EarthquakeRepository;
+use ReBuji\Replies\ReplyRepository;
 use ReBuji\Settings\Settings;
 use Slim\Csrf\Guard;
 use Slim\Psr7\Factory\ResponseFactory;
@@ -135,6 +137,14 @@ final class Container
                     assert($flash instanceof Flash);
 
                     return $flash->take();
+                });
+                // Only nav.php calls this, so pages without the nav never query these tables.
+                $engine->registerFunction('navBadges', static function () use ($c): array {
+                    $earthquakes = $c->get(EarthquakeRepository::class);
+                    $replies = $c->get(ReplyRepository::class);
+                    assert($earthquakes instanceof EarthquakeRepository && $replies instanceof ReplyRepository);
+
+                    return ['held' => $earthquakes->countHeld(), 'unmatched' => $replies->countUnmatched()];
                 });
                 $engine->registerFunction('csrf', static function () use ($c): string {
                     $guard = $c->get(Guard::class);

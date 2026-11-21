@@ -8,7 +8,9 @@
 /** @var bool $busy */
 $this->layout('layout', ['title' => $title]);
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?php if ($pending === []): ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more']) ?><?php $this->stop() ?>
+<?php endif ?>
 <p>Re:無事 <?= $this->e($version) ?></p>
 <?php if ($applied !== null): ?>
 <p><?= $applied === [] ? '当てる変更はありませんでした。' : '当てました：' . $this->e(implode('、', $applied)) ?></p>
@@ -31,3 +33,9 @@ $this->layout('layout', ['title' => $title]);
 </form>
 <?php endif ?>
 <p><a href="<?= $this->e($this->url('/')) ?>">ホームへ</a></p>
+<?php if ($pending !== []): ?>
+<form method="post" action="<?= $this->e($this->url('/logout')) ?>">
+    <?= $this->csrf() ?>
+    <button type="submit">ログアウト</button>
+</form>
+<?php endif ?>

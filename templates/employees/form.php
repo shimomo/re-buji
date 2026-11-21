@@ -11,7 +11,7 @@
 /** @var string $cityData */
 $this->layout('layout', ['title' => $title]);
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'employees']) ?><?php $this->stop() ?>
 <?php if ($errors !== []): ?>
 <ul class="error">
 <?php foreach ($errors as $error): ?>

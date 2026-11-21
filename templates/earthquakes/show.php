@@ -9,7 +9,7 @@
 $this->layout('layout', ['title' => $title]);
 $shown = 20;
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'earthquakes']) ?><?php $this->stop() ?>
 <p><strong><?= $this->e($heading) ?></strong></p>
 <?php if ($basis !== null): ?>
 <p class="muted"><?= $this->e($basis) ?></p>

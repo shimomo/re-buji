@@ -5,7 +5,7 @@
 /** @var list<array{id: int, detected: string, title: string, drill: bool, cancelled: bool, held: bool, total: int, sent: int, waiting: int, failed: int, merged: int}> $rows */
 $this->layout('layout', ['title' => $title]);
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'earthquakes']) ?><?php $this->stop() ?>
 <?php if ($rows === []): ?>
 <p>まだ地震の連絡はありません。登録した市町村が基準の震度になると、ここに出ます。</p>
 <?php else: ?>

@@ -5,7 +5,7 @@
 /** @var list<array{id: int, kind: string, from: string, subject: string, excerpt: string, received: string}> $mails */
 $this->layout('layout', ['title' => $title]);
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'unmatched']) ?><?php $this->stop() ?>
 <p class="muted">登録していないアドレスからのメールや、番号の無いメールです。本人からの安否の知らせなら、地震の画面の「代理で記録」で記録してください。</p>
 <?php if ($mails === []): ?>
 <p>照合できなかったメールはありません。</p>

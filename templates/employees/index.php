@@ -6,7 +6,7 @@
 /** @var list<array{employee_id: int, name: string, code: string}> $unknownCities */
 $this->layout('layout', ['title' => $title]);
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'employees']) ?><?php $this->stop() ?>
 <?= $this->insert('employees/unknown-cities', ['unknownCities' => $unknownCities]) ?>
 <p>
     <a href="<?= $this->e($this->url('/employees/new')) ?>">従業員を追加する</a>　

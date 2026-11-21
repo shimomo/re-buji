@@ -21,7 +21,7 @@
 /** @var list<array{title: string, at: string, unreadable: bool}> $failedTelegrams */
 $this->layout('layout', ['title' => $title]);
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'home']) ?><?php $this->stop() ?>
 <?php if ($heldQuakes > 0): ?>
 <p class="error">遅れて届いた地震が <?= $heldQuakes ?> 件あります。送るかどうかを決めてください。<a href="<?= $this->e($this->url('/earthquakes')) ?>">地震の一覧</a></p>
 <?php endif ?>

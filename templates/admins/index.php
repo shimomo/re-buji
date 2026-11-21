@@ -8,7 +8,7 @@
 /** @var array{name: string, email: string} $values */
 $this->layout('layout', ['title' => $title]);
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more']) ?><?php $this->stop() ?>
 <?php if ($errors !== []): ?>
 <ul class="error">
 <?php foreach ($errors as $error): ?>

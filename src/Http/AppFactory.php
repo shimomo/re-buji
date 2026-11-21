@@ -18,6 +18,7 @@ use ReBuji\Install\ProbeController;
 use ReBuji\Monitor\FeedNoticeController;
 use ReBuji\Monitor\StatusController;
 use ReBuji\Monitor\StatusTokenController;
+use ReBuji\MoreController;
 use ReBuji\Quakes\ContactsController;
 use ReBuji\Quakes\DrillsController;
 use ReBuji\Quakes\EarthquakesController;
@@ -74,6 +75,7 @@ final class AppFactory
         // runs first: login, then the pending-migrations gate.
         $app->group('', function (RouteCollectorProxyInterface $group): void {
             $group->get('/', [HomeController::class, 'show']);
+            $group->get('/more', [MoreController::class, 'show']);
             $group->post('/settings/status-token', [StatusTokenController::class, 'regenerate']);
             $group->get('/admin/database', [DatabaseUpdateController::class, 'show']);
             $group->post('/admin/database', [DatabaseUpdateController::class, 'apply']);
