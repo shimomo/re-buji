@@ -29,6 +29,36 @@ final class EmployeeCsvTest extends TestCase
     }
 
     #[Test]
+    public function startsTheHeaderWithoutTheLettersExcelTakesForSylk(): void
+    {
+        // A file that begins with "ID" makes Excel warn that it is a SYLK file once saved as a plain CSV.
+        $lines = explode("\r\n", substr(EmployeeCsv::export([$this->hanako()]), 3));
+
+        $this->assertStringStartsWith('従業員ID,名前,所属,', $lines[0]);
+    }
+
+    #[Test]
+    public function importsACsvExportedBeforeTheHeaderChanged(): void
+    {
+        $header = EmployeeCsv::HEADER;
+        $header[0] = 'ID';
+        $csv = implode(',', $header) . "\r\n" . implode(',', ['7', '安否 花子', '', 'hanako@example.com', '', '', '', '1310100', '', '', '', '', '', '', '', '', '', '', '有効']) . "\r\n";
+        $parsed = EmployeeCsv::parse($csv);
+
+        $this->assertSame([], $parsed['errors']);
+        $this->assertCount(1, $parsed['rows']);
+        $this->assertSame(7, $parsed['rows'][0]['id']);
+    }
+
+    #[Test]
+    public function namesTheNewHeaderWhenTheHeaderIsWrong(): void
+    {
+        $parsed = EmployeeCsv::parse("No,名前\r\n1,安否 花子\r\n");
+
+        $this->assertStringStartsWith('1 行目の見出しが違います。次の見出しにしてください：従業員ID,名前,', $parsed['errors'][0] ?? '');
+    }
+
+    #[Test]
     public function roundTripsAnExport(): void
     {
         $parsed = EmployeeCsv::parse(EmployeeCsv::export([$this->hanako()]));

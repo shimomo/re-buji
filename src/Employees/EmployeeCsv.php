@@ -13,7 +13,7 @@ namespace ReBuji\Employees;
 final class EmployeeCsv
 {
     public const array HEADER = [
-        'ID', '名前', '所属', 'メール1', 'メール2', 'メール3', 'メール4',
+        '従業員ID', '名前', '所属', 'メール1', 'メール2', 'メール3', 'メール4',
         '市町村1', '呼び名1', '市町村2', '呼び名2', '市町村3', '呼び名3', '市町村4', '呼び名4', '市町村5', '呼び名5',
         'メモ', '状態',
     ];
@@ -90,7 +90,12 @@ final class EmployeeCsv
 
         $records = self::read($text);
 
-        if (self::withoutTrailingBlanks(array_map(trim(...), $records[0] ?? [])) !== self::HEADER) {
+        $header = self::withoutTrailingBlanks(array_map(trim(...), $records[0] ?? []));
+        // Files exported before 0.2.2 begin with "ID", which Excel took for SYLK.
+        $older = self::HEADER;
+        $older[0] = 'ID';
+
+        if ($header !== self::HEADER && $header !== $older) {
             return ['rows' => [], 'errors' => ['1 行目の見出しが違います。次の見出しにしてください：' . implode(',', self::HEADER)]];
         }
 
