@@ -98,19 +98,19 @@ final class WatchJob implements CronJob
                 try {
                     $this->sender->send($mail);
                 } catch (RecipientRefused $exception) {
-                    $this->messages->record(null, 'watch', $admin['email'], $mail->messageId, false, $exception->getMessage(), $now);
+                    $this->messages->record(null, 'watch', $admin['email'], $mail->messageId, false, $exception->getMessage(), $this->clock->now());
 
                     continue;
                 } catch (RecipientDeferred $exception) {
                     // Refused for now (in a big quake, mail backs up): the other admins are still told.
-                    $this->messages->record(null, 'watch', $admin['email'], $mail->messageId, false, $exception->getMessage(), $now);
+                    $this->messages->record(null, 'watch', $admin['email'], $mail->messageId, false, $exception->getMessage(), $this->clock->now());
                     $this->logger->warning('watch: ' . $admin['email'] . ' deferred: ' . $exception->getMessage());
                     $deferred++;
 
                     continue;
                 }
 
-                $this->messages->record(null, 'watch', $admin['email'], $mail->messageId, true, '', $now);
+                $this->messages->record(null, 'watch', $admin['email'], $mail->messageId, true, '', $this->clock->now());
                 $accepted++;
             } catch (MailUnavailable $exception) {
                 $this->logger->error('watch: cannot tell the admins: ' . $exception->getMessage());

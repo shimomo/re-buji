@@ -61,6 +61,39 @@ final class NotificationSenderTest extends TestCase
     }
 
     #[Test]
+    public function staysWithinTheHourlyLimitWhileTheRunGoesOn(): void
+    {
+        // Mails recorded later in the run still count against what the run may send.
+        $world = self::world();
+        $world->settings->save(['hourly_limit' => '10']);
+        $contacts = [];
+
+        for ($i = 0; $i < 3; $i++) {
+            $contacts[] = $world->contact($world->person('従業員 ' . $i, '2221300', addresses: 4));
+        }
+
+        $world->sender(new SteppingClock(new DateTimeImmutable('2009-08-10T20:12:00Z'), 1))->sendFirstContacts();
+
+        $this->assertCount(8, $world->mailer->sent);
+        $this->assertSame(Notification::PENDING, $world->contactNow($contacts[2])->state);
+    }
+
+    #[Test]
+    public function recordsEachMailWhenItWent(): void
+    {
+        $world = self::world();
+        $world->contact($world->person('山田 花子', '2221300'));
+        $world->contact($world->person('佐藤 次郎', '2221300'));
+
+        $world->sender(new SteppingClock(new DateTimeImmutable('2009-08-10T20:12:00Z'), 10))->sendFirstContacts();
+
+        $times = array_map(static fn(array $row): string => (string) $row['attempted_at'], $world->db->fetchAll('SELECT attempted_at FROM messages ORDER BY id'));
+        $this->assertCount(2, $times);
+        $this->assertGreaterThan('2009-08-10T20:12:00Z', $times[0]);
+        $this->assertGreaterThan($times[0], $times[1]);
+    }
+
+    #[Test]
     public function sendsWhenThereAreAsManyAdminsAsTheLimit(): void
     {
         $world = self::world();
@@ -373,7 +406,8 @@ final class NotificationSenderTest extends TestCase
             $contacts[] = $world->contact($world->person('従業員 ' . $i, '2221300'));
         }
 
-        $world->sender(new SteppingClock(new DateTimeImmutable('2009-08-10T20:12:00Z'), 50))->sendFirstContacts();
+        // Each person reads the clock once for the budget and once for each mail recorded: 0, 40, 80, 120, 160, 200.
+        $world->sender(new SteppingClock(new DateTimeImmutable('2009-08-10T20:12:00Z'), 40))->sendFirstContacts();
 
         $this->assertCount(2, $world->mailer->sent);
         $this->assertSame(Notification::PENDING, $world->contactNow($contacts[2])->state);
