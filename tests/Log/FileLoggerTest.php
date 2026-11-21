@@ -7,6 +7,7 @@ namespace ReBuji\Tests\Log;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReBuji\Log\FileLogger;
+use ReBuji\Tests\PrivateFileTest;
 use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\TemporaryDirectory;
 
@@ -15,6 +16,22 @@ use ReBuji\Tests\Support\TemporaryDirectory;
  */
 final class FileLoggerTest extends TestCase
 {
+    #[Test]
+    public function createsTheLogOnlyTheOwnerCanRead(): void
+    {
+        $directory = TemporaryDirectory::create();
+        $umask = umask(0);
+
+        try {
+            (new FileLogger($directory . '/re-buji.log', new FrozenClock()))->error('x');
+
+            $this->assertSame(0600, PrivateFileTest::mode($directory . '/re-buji.log'));
+        } finally {
+            umask($umask);
+            TemporaryDirectory::remove($directory);
+        }
+    }
+
     #[Test]
     public function appendsOneLinePerEntry(): void
     {

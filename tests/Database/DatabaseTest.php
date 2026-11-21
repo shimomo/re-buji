@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use ReBuji\Config\Config;
 use ReBuji\Database\Database;
 use ReBuji\Paths;
+use ReBuji\Tests\PrivateFileTest;
 use ReBuji\Tests\Support\TemporaryDirectory;
 use ReBuji\Tests\Support\TestDatabase;
 use RuntimeException;
@@ -81,6 +82,23 @@ final class DatabaseTest extends TestCase
         });
 
         $this->assertSame(2, (int) $db->fetchValue('SELECT COUNT(*) FROM notes'));
+    }
+
+    #[Test]
+    public function createsTheSqliteFileOnlyTheOwnerCanRead(): void
+    {
+        $root = TemporaryDirectory::create();
+        $umask = umask(0);
+
+        try {
+            $db = Database::sqliteFile($root . '/db.sqlite');
+            $db->fetchValue('SELECT 1');
+
+            $this->assertSame(0600, PrivateFileTest::mode($root . '/db.sqlite'));
+        } finally {
+            umask($umask);
+            TemporaryDirectory::remove($root);
+        }
     }
 
     #[Test]

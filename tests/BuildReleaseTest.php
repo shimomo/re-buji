@@ -6,6 +6,8 @@ namespace ReBuji\Tests;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReBuji\Tests\Support\TemporaryDirectory;
+use ReBuji\Version;
 
 /**
  * The release zip carries the version its code says it is: the version shows on the database update screen and in
@@ -25,5 +27,32 @@ final class BuildReleaseTest extends TestCase
         // The script reads the committed version, which may differ from this working tree's.
         $this->assertMatchesRegularExpression('/^src\/Version\.php says \S+, not 9\.9\.9;/m', implode("\n", array_map(strval(...), $output)));
         $this->assertFileDoesNotExist(dirname(__DIR__) . '/build/re-buji-9.9.9.zip');
+    }
+
+    #[Test]
+    public function refusesATagThatIsNotHead(): void
+    {
+        // A copy of the script in a repository whose tag for this version is one commit behind.
+        $root = TemporaryDirectory::create();
+
+        try {
+            mkdir($root . '/bin');
+            mkdir($root . '/src');
+            copy(dirname(__DIR__) . '/bin/build-release.sh', $root . '/bin/build-release.sh');
+            chmod($root . '/bin/build-release.sh', 0755);
+            copy(dirname(__DIR__) . '/src/Version.php', $root . '/src/Version.php');
+            $git = 'git -C ' . escapeshellarg($root) . ' -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false -c tag.gpgsign=false';
+            exec($git . ' init -q && ' . $git . ' add -A && ' . $git . ' commit -q -m one && ' . $git . ' tag v' . Version::CURRENT . ' && ' . $git . ' commit -q --allow-empty -m two 2>&1', $setup, $setupStatus);
+            $this->assertSame(0, $setupStatus, implode("\n", array_map(strval(...), $setup)));
+
+            $output = [];
+            exec(escapeshellarg($root . '/bin/build-release.sh') . ' ' . Version::CURRENT . ' 2>&1', $output, $status);
+
+            $this->assertSame(1, $status);
+            $this->assertMatchesRegularExpression('/^tag v\S+ is at [0-9a-f]+, not HEAD;/m', implode("\n", array_map(strval(...), $output)));
+            $this->assertDirectoryDoesNotExist($root . '/build');
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
     }
 }

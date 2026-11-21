@@ -9,6 +9,7 @@ use PDO;
 use PDOStatement;
 use ReBuji\Config\Config;
 use ReBuji\Paths;
+use ReBuji\PrivateFile;
 use Throwable;
 
 /**
@@ -46,6 +47,9 @@ final class Database
 
     public static function sqliteFile(string $path): self
     {
+        // SQLite would make the file 0644; its journals follow the file's permissions.
+        PrivateFile::create($path);
+
         return self::sqlite('sqlite:' . $path);
     }
 

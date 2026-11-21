@@ -7,7 +7,9 @@ namespace ReBuji\Log;
 use Override;
 use Psr\Clock\ClockInterface;
 use Psr\Log\AbstractLogger;
+use ReBuji\PrivateFile;
 use ReBuji\Time;
+use RuntimeException;
 use Stringable;
 use Throwable;
 
@@ -46,6 +48,12 @@ final class FileLogger extends AbstractLogger
             (string) $message,
             (string) json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR),
         );
+
+        try {
+            PrivateFile::create($this->path);
+        } catch (RuntimeException) {
+            // A log must never stop the work it records.
+        }
 
         @file_put_contents($this->path, $line, FILE_APPEND | LOCK_EX);
     }

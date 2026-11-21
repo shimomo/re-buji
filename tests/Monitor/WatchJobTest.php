@@ -38,6 +38,24 @@ final class WatchJobTest extends TestCase
     }
 
     #[Test]
+    public function recordsTheWatchMailWhenItWent(): void
+    {
+        // The watch runs last in a cron run, minutes after the run began.
+        $world = self::world();
+        $world->state->set('feed.gap_since', '2009-08-10T19:00:00Z');
+        $start = $world->clock->now();
+        $world->clock->advance('+3 minutes');
+
+        self::job($world)->run($start);
+
+        $this->assertSame(
+            ['2009-08-10T20:15:00Z', '2009-08-10T20:15:00Z'],
+            array_map(static fn(array $row): string => (string) $row['attempted_at'], $world->db->fetchAll("SELECT attempted_at FROM messages WHERE kind = 'watch' ORDER BY id")),
+        );
+        $this->assertSame('2009-08-10T20:12:00Z', $world->state->get('watch.told_at.feed_gap'));
+    }
+
+    #[Test]
     public function tellsEachProblemOnce(): void
     {
         $world = self::world();

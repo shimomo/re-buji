@@ -249,6 +249,56 @@ final class InstallFlowTest extends TestCase
     }
 
     #[Test]
+    public function refusesToFinishWithoutAnAdmin(): void
+    {
+        [$app, $container, $root] = TestApp::create();
+
+        try {
+            $this->reachExposure($app, $container, $root);
+            $this->post($app, $container, '/install/exposure', ['base_url' => 'https://example.com']);
+            Database::fromConfig((new ConfigFile($root . '/storage/config.php'))->load(), new Paths($root))->execute('DELETE FROM admins');
+
+            $response = $this->post($app, $container, '/install/finish');
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertStringContainsString('管理者がいません。「最初の管理者」の段で作ってから、完了してください。', (string) $response->getBody());
+            $this->assertStringContainsString('<a href="/install/admin">「最初の管理者」の段へ戻る</a>', (string) $response->getBody());
+            $this->assertNull((new ConfigFile($root . '/storage/config.php'))->load()->get('installed_at'));
+            $this->assertFileExists($root . '/storage/install-key.txt');
+
+            // Making the admin again lets setup finish.
+            $this->post($app, $container, '/install/admin', $this->admin());
+            $done = $this->post($app, $container, '/install/finish');
+
+            $this->assertSame(302, $done->getStatusCode());
+            $this->assertSame('/login', $done->getHeaderLine('Location'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function refusesToFinishWithoutTheDatabase(): void
+    {
+        [$app, $container, $root] = TestApp::create();
+
+        try {
+            $this->reachExposure($app, $container, $root);
+            $this->post($app, $container, '/install/exposure', ['base_url' => 'https://example.com']);
+            unlink($root . '/storage/database.sqlite');
+
+            $response = $this->post($app, $container, '/install/finish');
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertStringContainsString('データベースにつなげません。「データベース」の段からやり直してください。', (string) $response->getBody());
+            $this->assertStringContainsString('<a href="/install/database">「データベース」の段へ戻る</a>', (string) $response->getBody());
+            $this->assertNull((new ConfigFile($root . '/storage/config.php'))->load()->get('installed_at'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function refusesAnAdminNamedWithFullWidthSpaces(): void
     {
         [$app, $container, $root] = TestApp::create();

@@ -23,6 +23,18 @@ if [ "$code" != "$version" ]; then
     exit 1
 fi
 
+# A zip built after its tag would not be what the tag says it is. No tag yet is fine: the tag comes after the zip.
+tagged=$(git -C "$root" rev-parse -q --verify "refs/tags/v$version^{commit}" || true)
+
+if [ -n "$tagged" ] && [ "$tagged" != "$(git -C "$root" rev-parse HEAD)" ]; then
+    echo "tag v$version is at $(git -C "$root" rev-parse --short "$tagged"), not HEAD; check out the tag or bump the version" >&2
+    exit 1
+fi
+
+if [ -n "$(git -C "$root" status --porcelain --untracked-files=no)" ]; then
+    echo "warning: uncommitted changes are not in the zip" >&2
+fi
+
 (cd "$app" && composer install --no-dev --optimize-autoloader --classmap-authoritative --no-interaction --no-progress --quiet)
 
 rm -rf "$app/tests" "$app/docs" "$app/.github" "$app/build-files" \

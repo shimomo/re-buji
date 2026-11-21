@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ReBuji\Install;
 
 use ReBuji\Paths;
+use ReBuji\PrivateFile;
 use RuntimeException;
 
 /**
@@ -25,11 +26,6 @@ final class InstallKey
     public function ensure(): void
     {
         $path = $this->path();
-
-        if (is_file($path)) {
-            return;
-        }
-
         $alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         $key = '';
 
@@ -37,7 +33,14 @@ final class InstallKey
             $key .= $alphabet[random_int(0, strlen($alphabet) - 1)];
         }
 
-        if (file_put_contents($path, $key . "\n") === false || !chmod($path, 0600)) {
+        try {
+            PrivateFile::write($path, $key . "\n");
+        } catch (RuntimeException) {
+            // Already made, perhaps by a request that opened the page at the same moment: that key stands.
+            if (is_file($path)) {
+                return;
+            }
+
             throw new RuntimeException('Cannot write ' . $path);
         }
     }
