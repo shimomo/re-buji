@@ -12,6 +12,7 @@ use ReBuji\Config\ConfigFile;
 use ReBuji\Mail\MessageRepository;
 use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\Notification;
+use ReBuji\Replies\ReplyRepository;
 use ReBuji\Settings\Settings;
 use ReBuji\SystemState;
 use ReBuji\Tests\Support\FrozenClock;
@@ -326,6 +327,128 @@ final class HomeTest extends TestCase
             $state->set('imap.last_error', '');
             $state->set('imap.last_checked_at', '2026-11-05T02:00:00Z');
             $this->assertStringContainsString('返信を 30 分以上読めていません（最後は 11月5日 11時00分）。', (string) $app->handle(TestApp::request('GET', '/'))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function showsTheQuakeBeingFollowedAboveTheWaitingThings(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $records = new QuakeRecords($container);
+            $quake = $records->quake('20261105121200', '宮城県沖・最大震度6弱', '2026-11-05T03:00:00Z');
+            $records->contact($quake, Notification::SENT);
+            $check = $records->contact($quake, Notification::SENT);
+            $records->notifications->recordAnswer($check, Notification::NEEDS_CHECK, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:10:00Z'));
+            $replies = $container->get(ReplyRepository::class);
+            $this->assertInstanceOf(ReplyRepository::class, $replies);
+            $replies->record(null, 'reply', null, 'private@example.net', '無事です', '無事です', null, new DateTimeImmutable('2026-11-05T03:05:00Z'));
+
+            $body = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+
+            $tile = strpos($body, '<span class="tile-label">返信なし</span>');
+            $waiting = strpos($body, '照合できなかったメールが 1 通あります');
+            $this->assertNotFalse($tile);
+            $this->assertNotFalse($waiting);
+            $this->assertLessThan($waiting, $tile);
+            $this->assertStringContainsString('/contacts/' . $check . '/check', $body);
+            $this->assertStringContainsString('href="/earthquakes/' . $quake . '"', $body);
+            $this->assertStringContainsString('<h2>⚠ 要確認</h2>', $body);
+            $this->assertStringContainsString('<h2>✕ 返信なし</h2>', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function putsAStoppedFeedAboveTheQuake(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $state = $container->get(SystemState::class);
+            $this->assertInstanceOf(SystemState::class, $state);
+            $state->set('feed.last_checked_at', Time::format($clock->now()->modify('-20 minutes')));
+            $records = new QuakeRecords($container);
+            $records->contact($records->quake('20261105121200', '宮城県沖・最大震度6弱', '2026-11-05T03:00:00Z'), Notification::SENT);
+
+            $body = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+
+            $stopped = strpos($body, '15 分以上、気象庁の情報を確かめていません');
+            $tile = strpos($body, '<span class="tile-label">返信なし</span>');
+            $this->assertNotFalse($stopped);
+            $this->assertNotFalse($tile);
+            $this->assertLessThan($tile, $stopped);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function saysAllIsWellOnlyWhenNothingWaits(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $state = $container->get(SystemState::class);
+            $settings = $container->get(Settings::class);
+            $replies = $container->get(ReplyRepository::class);
+            $this->assertInstanceOf(SystemState::class, $state);
+            $this->assertInstanceOf(Settings::class, $settings);
+            $this->assertInstanceOf(ReplyRepository::class, $replies);
+            $state->set('feed.last_checked_at', Time::format($clock->now()->modify('-1 minute')));
+            $settings->save(['smtp.host' => 'smtp.example.co.jp', 'mail.from_address' => 'anpi@example.co.jp', 'imap.host' => 'imap.example.co.jp']);
+
+            $calm = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+            $this->assertStringContainsString('✓ 異常なし', $calm);
+            $this->assertStringContainsString('気象庁の情報を 1 分前に確認', $calm);
+            $this->assertStringNotContainsString('対応中の地震はありません', $calm);
+
+            $mail = $replies->record(null, 'reply', null, 'private@example.net', '無事です', '無事です', null, new DateTimeImmutable('2026-11-05T03:05:00Z'));
+            $waiting = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+            $this->assertStringNotContainsString('✓ 異常なし', $waiting);
+            $this->assertStringContainsString('対応中の地震はありません', $waiting);
+
+            $replies->deleteUnmatched($mail);
+            $settings->save(['smtp.host' => '']);
+            $stopped = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+            $this->assertStringContainsString('メールの送信の設定がありません', $stopped);
+            $this->assertStringNotContainsString('✓ 異常なし', $stopped);
+            $this->assertStringContainsString('対応中の地震はありません', $stopped);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function foldsBothListsAfterTwentyOnTheHome(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $records = new QuakeRecords($container);
+            $quake = $records->quake('20261105121200', '宮城県沖・最大震度6弱', '2026-11-05T03:00:00Z');
+
+            for ($i = 0; $i < 21; $i++) {
+                $records->contact($quake, Notification::SENT);
+                $check = $records->contact($quake, Notification::SENT);
+                $records->notifications->recordAnswer($check, Notification::NEEDS_CHECK, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:10:00Z'));
+            }
+
+            $body = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+
+            $this->assertSame(2, substr_count($body, 'ほか 1 人を表示'));
         } finally {
             TemporaryDirectory::remove($root);
         }

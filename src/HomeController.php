@@ -16,8 +16,11 @@ use ReBuji\Feed\FailedTelegrams;
 use ReBuji\Http\Url;
 use ReBuji\Mail\RateLimit;
 use ReBuji\Monitor\Health;
+use ReBuji\Quakes\Board\QuakeBoard;
+use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\EarthquakeRepository;
 use ReBuji\Quakes\NotificationRepository;
+use ReBuji\Quakes\QuakeHeading;
 use ReBuji\Replies\ReplyReading;
 use ReBuji\Replies\ReplyRepository;
 use ReBuji\Settings\Settings;
@@ -44,6 +47,7 @@ final class HomeController
         private readonly ClockInterface $clock,
         private readonly ReplyRepository $replies,
         private readonly ReplyReading $reading,
+        private readonly QuakeBoard $board,
     ) {
         //
     }
@@ -61,26 +65,50 @@ final class HomeController
         // Everyone waits for the person first in line: the sender stops at the first one the limit cannot take.
         $front = $this->notifications->addressesAtTheFront($now);
         $nextSlot = $front === null ? null : $this->limit->nextSlotFor($now, $front);
+        $heldQuakes = $this->earthquakes->countHeld();
+        $unmatchedMails = $this->replies->countUnmatched();
+        $imapError = (string) $this->state->get('imap.last_error');
+        $imapStale = $this->reading->staleWarning($now);
+        $mailError = (string) $this->state->get('mail.last_error');
+        $waiting = $this->notifications->countWaiting($now);
+        $failedTelegrams = self::failedTelegrams((string) $this->state->get('feed.failed_telegrams'), $tokyo);
+        $unknownCities = $this->employees->unknownCities();
+        $smtpMissing = $this->settings->smtp() === null;
+        $imapMissing = $this->settings->imap() === null;
+        $stale = $this->health->isStale();
+        $feedGap = $gapSince === '' ? null : Time::parse($gapSince)->setTimezone($tokyo)->format('n月j日 G時i分');
+        $active = array_map(fn(Earthquake $quake): array => [
+            'quake' => $quake,
+            'heading' => QuakeHeading::heading($quake),
+            'basis' => QuakeHeading::basis($quake),
+            'board' => $this->board->build($quake),
+        ], $this->earthquakes->active($now->modify('-72 hours')));
         $response = $this->responses->createResponse(200);
         $response->getBody()->write($this->templates->render('home', [
-            'heldQuakes' => $this->earthquakes->countHeld(),
-            'unmatchedMails' => $this->replies->countUnmatched(),
-            'smtpMissing' => $this->settings->smtp() === null,
-            'imapMissing' => $this->settings->imap() === null,
-            'imapError' => (string) $this->state->get('imap.last_error'),
-            'imapStale' => $this->reading->staleWarning($now),
-            'mailError' => (string) $this->state->get('mail.last_error'),
-            'waiting' => $this->notifications->countWaiting($now),
+            'heldQuakes' => $heldQuakes,
+            'unmatchedMails' => $unmatchedMails,
+            'smtpMissing' => $smtpMissing,
+            'imapMissing' => $imapMissing,
+            'imapError' => $imapError,
+            'imapStale' => $imapStale,
+            'mailError' => $mailError,
+            'waiting' => $waiting,
             'nextSlot' => $nextSlot?->setTimezone($tokyo)->format('H:i'),
-            'feedGap' => $gapSince === '' ? null : Time::parse($gapSince)->setTimezone($tokyo)->format('n月j日 G時i分'),
-            'failedTelegrams' => self::failedTelegrams((string) $this->state->get('feed.failed_telegrams'), $tokyo),
+            'feedGap' => $feedGap,
+            'failedTelegrams' => $failedTelegrams,
             'title' => 'ホーム',
             'admin' => $request->getAttribute('admin'),
-            'lastCheck' => $lastCheck?->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('Y-m-d H:i'),
-            'stale' => $this->health->isStale(),
+            'lastCheck' => $lastCheck?->setTimezone($tokyo)->format('Y-m-d H:i'),
+            'minutesAgo' => $lastCheck === null ? null : max(0, intdiv($now->getTimestamp() - $lastCheck->getTimestamp(), 60)),
+            'stale' => $stale,
             'lastError' => $this->health->lastError(),
             'employeeCounts' => $this->employees->counts(),
-            'unknownCities' => $this->employees->unknownCities(),
+            'unknownCities' => $unknownCities,
+            'active' => $active,
+            // Contact itself may not reach people (design 6.1, 1).
+            'stopped' => $lastCheck === null || $stale || $feedGap !== null || $smtpMissing || $imapMissing || $imapError !== '' || $imapStale !== null || $mailError !== '',
+            // Things only a person can decide (design 6.1, 3).
+            'waitingDecision' => $heldQuakes > 0 || $unmatchedMails > 0 || $unknownCities !== [] || $waiting > 0 || $failedTelegrams !== [],
             'statusUrl' => $uri->getScheme() . '://' . $uri->getHost() . ($port === null ? '' : ':' . $port) . $this->url->to('/status/' . $token),
         ]));
 

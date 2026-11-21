@@ -135,6 +135,24 @@ final class EarthquakeRepository
         return (int) $this->db->fetchValue('SELECT COUNT(*) FROM earthquakes WHERE delivery = ? AND cancelled_at IS NULL', [Earthquake::HELD]);
     }
 
+    /**
+     * The quakes and drills still being followed (design 6.2): detected since then, not cancelled by JMA, sent or
+     * released, and with at least one contact that is not skipped. Newest first.
+     *
+     * @return list<Earthquake>
+     */
+    public function active(DateTimeImmutable $since): array
+    {
+        $rows = $this->db->fetchAll(
+            'SELECT ' . self::COLUMNS . ' FROM earthquakes WHERE detected_at >= ? AND cancelled_at IS NULL AND delivery IN (?, ?)'
+            . ' AND EXISTS (SELECT 1 FROM notifications n WHERE n.earthquake_id = earthquakes.id AND n.state <> ?)'
+            . ' ORDER BY detected_at DESC, id DESC',
+            [Time::format($since), Earthquake::AUTO, Earthquake::RELEASED, Notification::SKIPPED],
+        );
+
+        return array_map(self::hydrate(...), $rows);
+    }
+
     public function setDelivery(int $id, string $delivery): void
     {
         $this->db->execute('UPDATE earthquakes SET delivery = ?, updated_at = ? WHERE id = ?', [$delivery, Time::format($this->clock->now()), $id]);
