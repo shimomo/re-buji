@@ -24,6 +24,15 @@ final class EmployeeInputTest extends TestCase
     }
 
     #[Test]
+    public function trimsFullWidthSpacesAroundALabel(): void
+    {
+        $input = EmployeeInput::from('安否 花子', '', ['a@example.com'], [['code' => '1310100', 'label' => '　'], ['code' => '0110100', 'label' => '山田 　']], '', true);
+
+        $this->assertSame('', $input->cities[0]->label);
+        $this->assertSame('山田', $input->cities[1]->label);
+    }
+
+    #[Test]
     public function dropsBlankRowsAndTrims(): void
     {
         $input = EmployeeInput::from(

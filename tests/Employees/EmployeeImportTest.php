@@ -174,6 +174,25 @@ final class EmployeeImportTest extends TestCase
         $this->assertSame(['2 行目：ID 999 の人はいません。', '4 行目：ID ' . $id . ' は 3 行目にもあります。'], $result->errors);
     }
 
+    #[Test]
+    public function saysOnlyThatTheIdIsWrong(): void
+    {
+        [$import, $employees] = $this->import();
+        $id = $employees->create($this->input('安否 太郎', 'taro@example.com'));
+
+        $result = $import->run($this->file([
+            // Whose row this is cannot be told, so its addresses are not compared with anyone's.
+            [$id . 'a', '安否 太郎', 'taro@example.com'],
+            // 太郎 is then not in the file: his address stays his.
+            ['', '安否 花子', 'taro@example.com'],
+        ]));
+
+        $this->assertSame([
+            '2 行目：ID は数字で書いてください：' . $id . 'a',
+            '3 行目：このメールアドレスは安否 太郎 さんが使っています：taro@example.com',
+        ], $result->errors);
+    }
+
     /**
      * @return array{EmployeeImport, EmployeeRepository}
      */
