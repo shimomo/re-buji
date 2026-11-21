@@ -143,7 +143,7 @@ composer install
 composer test       # PHPUnit
 composer analyse    # Psalm
 composer lint       # Pint
-bin/build-release.sh 0.1.9   # build/re-buji-0.1.9.zip を作る（版は src/Version.php と同じにし、コミットしてから）
+bin/build-release.sh 0.2.0   # build/re-buji-0.2.0.zip を作る（版は src/Version.php と同じにし、コミットしてから）
 ```
 
 ## 出典と注意
