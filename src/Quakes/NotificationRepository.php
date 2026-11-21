@@ -310,18 +310,19 @@ final class NotificationRepository
     /**
      * Before a quake is deleted: each answer given to one of its contacts is copied to the contacts of other quakes
      * folded into it, which stop pointing at it. Without this, those people would show no answer once the quake is
-     * gone. A contact folded into one without an answer is left as it is. Read first and written one by one: MySQL
-     * cannot update a table that the same statement reads.
+     * gone. A contact without an answer hands over only that an auto-reply came back, so the absence still shows; the
+     * contacts folded into it keep no answer and keep pointing at it. Read first and written one by one: MySQL cannot
+     * update a table that the same statement reads.
      *
-     * @return list<array{int, int}> each contact that gave its answer, with a contact that received it, so that the
-     *                               replies can follow (ReplyRepository::copyShown())
+     * @return list<array{int, int}> each contact that handed something over, with a contact that received it, so that
+     *                               the replies can follow (ReplyRepository::copyShown())
      */
     public function handOverAnswers(int $earthquakeId): array
     {
         $handedOver = [];
 
         foreach ($this->forEarthquake($earthquakeId) as $contact) {
-            if ($contact->answer === null) {
+            if ($contact->answer === null && $contact->autoRepliedAt === null) {
                 continue;
             }
 
@@ -333,6 +334,17 @@ final class NotificationRepository
 
             foreach ($folded as $row) {
                 $id = (int) $row['id'];
+
+                if ($contact->answer === null) {
+                    $this->db->execute(
+                        'UPDATE notifications SET auto_replied_at = COALESCE(auto_replied_at, ?), updated_at = ? WHERE id = ?',
+                        [Time::format($contact->autoRepliedAt), Time::format($this->clock->now()), $id],
+                    );
+                    $handedOver[] = [$contact->id, $id];
+
+                    continue;
+                }
+
                 $this->db->execute(
                     'UPDATE notifications SET answer = ?, answer_source = ?, answered_by = ?, proxy_note = ?, replied_at = ?, checked_at = ?, checked_by = ?, merged_into_id = NULL, updated_at = ? WHERE id = ?',
                     [
