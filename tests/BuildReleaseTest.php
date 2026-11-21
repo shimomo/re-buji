@@ -55,4 +55,31 @@ final class BuildReleaseTest extends TestCase
             TemporaryDirectory::remove($root);
         }
     }
+
+    #[Test]
+    public function warnsAboutFilesNotAdded(): void
+    {
+        // A class left out of git is left out of the zip, whose autoloader then cannot find it on the server.
+        $root = TemporaryDirectory::create();
+
+        try {
+            mkdir($root . '/bin');
+            mkdir($root . '/src');
+            copy(dirname(__DIR__) . '/bin/build-release.sh', $root . '/bin/build-release.sh');
+            chmod($root . '/bin/build-release.sh', 0755);
+            copy(dirname(__DIR__) . '/src/Version.php', $root . '/src/Version.php');
+            $git = 'git -C ' . escapeshellarg($root) . ' -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false';
+            exec($git . ' init -q && ' . $git . ' add -A && ' . $git . ' commit -q -m one 2>&1', $setup, $setupStatus);
+            $this->assertSame(0, $setupStatus, implode("\n", array_map(strval(...), $setup)));
+            file_put_contents($root . '/src/Forgotten.php', "<?php\n");
+
+            // composer then fails for want of a composer.json; only the warning matters here.
+            $output = [];
+            exec(escapeshellarg($root . '/bin/build-release.sh') . ' ' . Version::CURRENT . ' 2>&1', $output);
+
+            $this->assertContains('warning: uncommitted or untracked files are not in the zip', array_map(strval(...), $output));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
 }
