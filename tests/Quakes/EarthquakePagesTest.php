@@ -243,7 +243,7 @@ final class EarthquakePagesTest extends TestCase
 
             $this->assertStringContainsString('<th>前の連絡に含めた</th>', $page);
             // 対象 3, 送信済み 0, 送信待ち 1, 届かなかった 0, 前の連絡に含めた 2.
-            $this->assertStringContainsString('<td>3</td><td>0</td><td>1</td><td>0</td><td>2</td>', $page);
+            $this->assertStringContainsString('<td data-label="対象">3</td><td data-label="送信済み">0</td><td data-label="送信待ち">1</td><td data-label="届かなかった">0</td><td data-label="前の連絡に含めた">2</td>', $page);
         } finally {
             TemporaryDirectory::remove($root);
         }
@@ -275,7 +275,7 @@ final class EarthquakePagesTest extends TestCase
             $this->assertNotFalse($old);
             $this->assertTrue($drill < $quake && $quake < $old, 'newest first');
             $this->assertStringContainsString('2026-11-05 11:00', $page);
-            $this->assertStringContainsString('<td>4</td><td>2</td><td>1</td><td>1</td>', $page);
+            $this->assertStringContainsString('<td data-label="対象">4</td><td data-label="送信済み">2</td><td data-label="送信待ち">1</td><td data-label="届かなかった">1</td>', $page);
             $this->assertStringContainsString('取消', $page);
         } finally {
             TemporaryDirectory::remove($root);

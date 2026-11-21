@@ -42,14 +42,15 @@ form button{width:100%}
 @media (min-width:600px){form button{width:auto}}
 
 /* Alerts (a mark and the wording both carry the state, never color alone) */
-.alert,.error,.warning,.notice{display:block;margin:0 0 12px;padding:12px 16px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);border-left-width:5px}
-.alert::before,.error::before,.warning::before,.notice::before{font-weight:700;margin-right:.5em}
-.alert-stop,.error{border-left-color:var(--danger);color:var(--danger)}
-.alert-stop::before,.error::before{content:"\2715"}
-.alert-act,.warning{border-left-color:var(--warn);color:var(--warn)}
-.alert-act::before,.warning::before{content:"\26A0"}
-.alert-info,.notice{border-left-color:var(--muted);color:var(--muted)}
-.alert-info::before,.notice::before{content:"\2139"}
+.alert{display:block;margin:0 0 12px;padding:12px 16px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);border-left-width:5px}
+.alert::before{font-weight:700;margin-right:.5em}
+.alert-stop{border-left-color:var(--danger);color:var(--danger)}
+.alert-stop::before{content:"\2715"}
+.alert-act{border-left-color:var(--warn);color:var(--warn)}
+.alert-act::before{content:"\26A0"}
+.alert-info{border-left-color:var(--muted);color:var(--muted)}
+.alert-info::before{content:"\2139"}
+.alert>ul{margin:4px 0 0;padding-left:1.4em}
 .alert-ok{border-left-color:var(--ok);color:var(--ok)}
 .alert-ok::before{content:"\2713";font-weight:700;margin-right:.5em}
 
@@ -106,3 +107,10 @@ body:has(.nav){padding-bottom:calc(72px + env(safe-area-inset-bottom))}
 .nav button{margin-top:0}
 body:has(.nav){padding-bottom:16px}
 }
+
+/* Bare pages (login, install, error) and the install progress */
+body.bare{max-width:520px}
+.progress{margin:0 0 4px;font-weight:700}
+.dots{display:flex;gap:6px;margin:0 0 16px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.dot-on{background:var(--accent)}

@@ -8,7 +8,7 @@ $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'employees']) ?><?php $this->stop() ?>
 <?php if ($errors !== []): ?>
-<div class="error">
+<div class="alert alert-stop">
     <p>次の点を直してから、もう一度取り込んでください。1 行でも間違いがあると、何も取り込みません。</p>
     <ul>
 <?php foreach ($errors as $error): ?>

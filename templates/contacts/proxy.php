@@ -12,11 +12,13 @@ $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more']) ?><?php $this->stop() ?>
 <?php if ($errors !== []): ?>
-<ul class="error">
+<div class="alert alert-stop">
+<ul>
 <?php foreach ($errors as $error): ?>
     <li><?= $this->e($error) ?></li>
 <?php endforeach ?>
 </ul>
+</div>
 <?php endif ?>
 <p><?= $this->e($contact->employeeName) ?> さん（<?= $this->e($quake?->title ?? '') ?>）</p>
 <p><?= $this->e($record) ?></p>
@@ -26,8 +28,8 @@ $this->layout('layout', ['title' => $title]);
 <?php if ($from === 'home'): ?>
     <input type="hidden" name="from" value="home">
 <?php endif ?>
-    <label><input type="radio" name="answer" value="safe" style="width:auto"<?= $values['answer'] === 'safe' ? ' checked' : '' ?>> 無事</label>
-    <label><input type="radio" name="answer" value="needs_check" style="width:auto"<?= $values['answer'] === 'needs_check' ? ' checked' : '' ?>> 要確認</label>
+    <label><input type="radio" name="answer" value="safe"<?= $values['answer'] === 'safe' ? ' checked' : '' ?>> 無事</label>
+    <label><input type="radio" name="answer" value="needs_check"<?= $values['answer'] === 'needs_check' ? ' checked' : '' ?>> 要確認</label>
     <label>メモ（けが、出社できないなどの事情） <textarea name="note" rows="4" maxlength="2000"><?= $this->e($values['note']) ?></textarea></label>
     <button type="submit">記録する</button>
 </form>

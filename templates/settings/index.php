@@ -12,11 +12,13 @@ $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more', 'page' => 'settings']) ?><?php $this->stop() ?>
 <?php if ($errors !== []): ?>
-<ul class="error">
+<div class="alert alert-stop">
+<ul>
 <?php foreach ($errors as $error): ?>
     <li><?= $this->e($error) ?></li>
 <?php endforeach ?>
 </ul>
+</div>
 <?php endif ?>
 <form method="post" action="<?= $this->e($this->url('/settings')) ?>">
     <?= $this->csrf() ?>

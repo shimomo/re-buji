@@ -8,11 +8,13 @@ $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more', 'page' => 'drills']) ?><?php $this->stop() ?>
 <?php if ($errors !== []): ?>
-<ul class="error">
+<div class="alert alert-stop">
+<ul>
 <?php foreach ($errors as $error): ?>
     <li><?= $this->e($error) ?></li>
 <?php endforeach ?>
 </ul>
+</div>
 <?php endif ?>
 <p>訓練の連絡を送ります。件名に【訓練】が付き、本文の先頭に「これは訓練です。」と入ります。返信や再送は本番と同じで、結果は「地震」の一覧に訓練として出ます。停止中の人には送りません。</p>
 <?php if ($people === []): ?>
@@ -22,12 +24,12 @@ $this->layout('layout', ['title' => $title]);
     <?= $this->csrf() ?>
     <fieldset>
         <legend>送る人</legend>
-        <label><input type="radio" name="target" value="all" checked style="width:auto"> 全員（<?= count($people) ?> 人）</label>
-        <label><input type="radio" name="target" value="chosen" style="width:auto"> 下で選んだ人</label>
+        <label><input type="radio" name="target" value="all" checked> 全員（<?= count($people) ?> 人）</label>
+        <label><input type="radio" name="target" value="chosen"> 下で選んだ人</label>
 <?php foreach ($people as $person): ?>
-        <label><input type="checkbox" name="employees[]" value="<?= $person['id'] ?>" style="width:auto"> <?= $this->e($person['name']) ?><?= $person['department'] === '' ? '' : '（' . $this->e($person['department']) . '）' ?></label>
+        <label><input type="checkbox" name="employees[]" value="<?= $person['id'] ?>"> <?= $this->e($person['name']) ?><?= $person['department'] === '' ? '' : '（' . $this->e($person['department']) . '）' ?></label>
 <?php endforeach ?>
     </fieldset>
-    <button type="submit">訓練の連絡を送る</button>
+    <button type="submit" class="btn-primary">訓練の連絡を送る</button>
 </form>
 <?php endif ?>
