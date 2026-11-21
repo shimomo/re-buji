@@ -6,11 +6,14 @@ namespace ReBuji\Install\Steps;
 
 use Override;
 use Psr\Clock\ClockInterface;
+use ReBuji\Auth\AdminRepository;
+use ReBuji\Database\Database;
 use ReBuji\Install\InstallContext;
 use ReBuji\Install\InstallKey;
 use ReBuji\Install\InstallStep;
 use ReBuji\Install\StepResult;
 use ReBuji\Time;
+use Throwable;
 
 /**
  * Shows what to set up outside the app (cron and the status URL) and then marks the copy as installed. The status
@@ -55,6 +58,17 @@ final class FinishStep implements InstallStep
     #[Override]
     public function submit(InstallContext $context, array $input): StepResult
     {
+        // The earlier steps are done in this session only: the database may have changed since, leaving nobody to log in.
+        try {
+            $admins = (new AdminRepository(Database::fromConfig($context->config(), $context->paths), $this->clock))->count();
+        } catch (Throwable) {
+            return StepResult::failed(['データベースにつなげません。「データベース」の段からやり直してください。']);
+        }
+
+        if ($admins === 0) {
+            return StepResult::failed(['管理者がいません。「最初の管理者」の段で作ってから、完了してください。']);
+        }
+
         $context->saveConfig(['status.token' => $this->token($context), 'installed_at' => Time::format($this->clock->now())]);
         $this->key->forget();
 
