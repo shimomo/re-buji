@@ -61,6 +61,29 @@ final class LayoutTest extends TestCase
     }
 
     #[Test]
+    public function marksTheBodyOnlyWhenThePageHasANav(): void
+    {
+        [$app, $container, $root] = TestApp::installed();
+
+        try {
+            TestApp::logIn($app, $container);
+            $this->assertStringContainsString('<body class="has-nav">', (string) $app->handle(TestApp::request('GET', '/employees'))->getBody());
+
+            [$bareApp, , $bareRoot] = TestApp::create();
+
+            try {
+                $bare = (string) $bareApp->handle(TestApp::request('GET', '/install/environment'))->getBody();
+                $this->assertStringContainsString('class="bare"', $bare);
+                $this->assertStringNotContainsString('has-nav', $bare);
+            } finally {
+                TemporaryDirectory::remove($bareRoot);
+            }
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function aBarePageKeepsTheBrandButDropsTheNav(): void
     {
         [, $container, $root] = TestApp::create();

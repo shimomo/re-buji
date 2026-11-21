@@ -2,6 +2,7 @@
 :root{
 --bg:#f4f6f8;--surface:#ffffff;--text:#26323a;--muted:#5f6b74;--line:#e3e7eb;
 --accent:#2b6cb0;--danger:#c0392b;--warn:#9a5800;--ok:#237356;
+--ok-bg:#eaf5f0;--on-accent:#ffffff;
 --radius:12px;--shadow:0 1px 3px rgba(0,0,0,.08);
 }
 *{box-sizing:border-box}
@@ -22,7 +23,7 @@ p>a{white-space:nowrap}
 /* Card */
 .card,fieldset{background:var(--surface);border:0;border-radius:14px;box-shadow:var(--shadow);padding:16px;margin:0 0 16px;min-width:0}
 .card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 8px;font-weight:700}
-.calm{background:#eaf5f0;border:1px solid var(--ok);border-radius:14px;box-shadow:var(--shadow);padding:16px;margin:0 0 16px;color:var(--ok)}
+.calm{background:var(--ok-bg);border:1px solid var(--ok);border-radius:14px;box-shadow:var(--shadow);padding:16px;margin:0 0 16px;color:var(--ok)}
 .card>:first-child{margin-top:0}
 .card>:last-child{margin-bottom:0}
 .card>form:first-child>label:first-of-type{margin-top:0}
@@ -49,7 +50,7 @@ label>:is(input:not([type=checkbox],[type=radio]),select,textarea){display:block
 
 /* Buttons */
 button,a:where(.btn){display:inline-flex;align-items:center;justify-content:center;font:inherit;min-height:44px;padding:8px 18px;margin-top:1rem;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:10px;cursor:pointer;text-decoration:none}
-.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .btn-danger{background:var(--surface);border-color:var(--danger);color:var(--danger)}
 form button{width:100%}
 @media (min-width:600px){form button{width:auto}}
@@ -111,12 +112,12 @@ table.stack td::before{content:attr(data-label);display:block;font-size:12px;col
 .tab-mark{font-size:20px;line-height:1}
 .badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--danger);color:#fff;font-size:12px;font-weight:700;line-height:1}
 .nav .badge{position:absolute;top:2px;left:calc(50% + 8px)}
-body:has(.nav){padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+body.has-nav{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
 .row-link{display:flex;align-items:center;min-height:44px;padding:8px 4px;border-bottom:1px solid var(--line);color:var(--text);text-decoration:none}
 .row-link:last-child{border-bottom:0}
 @media (min-width:768px){
 /* Brand and name on the first line with logout at its right; the 8 items get the whole second line */
-header:has(.nav){position:relative}
+header{position:relative}
 header .who{order:1;margin-left:auto;margin-right:128px;min-height:44px;display:flex;align-items:center}
 .nav{order:2;flex-basis:100%;position:static;display:flex;flex-wrap:wrap;align-items:center;gap:4px;background:none;border:0;padding:0}
 .nav form{position:absolute;top:0;right:0}
@@ -127,7 +128,7 @@ header .who{order:1;margin-left:auto;margin-right:128px;min-height:44px;display:
 .nav .badge{position:static;margin-left:4px}
 .nav form{margin:0}
 .nav button{margin-top:0}
-body:has(.nav){padding-bottom:16px}
+body.has-nav{padding-bottom:16px}
 }
 
 /* Bare pages (login, install, error) and the install progress */

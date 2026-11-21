@@ -35,6 +35,7 @@ final class PendingMigrationsGateTest extends TestCase
             $this->assertSame(200, $update->getStatusCode());
             $this->assertStringContainsString('DB の更新を当てるまで、ほかの画面は開けません。', (string) $update->getBody());
             $this->assertStringNotContainsString('<nav', (string) $update->getBody());
+            $this->assertStringNotContainsString('has-nav', (string) $update->getBody());
             $this->assertStringContainsString('action="/logout"', (string) $update->getBody());
 
             $this->assertSame('/login', $app->handle(TestApp::request('POST', '/logout', TestApp::csrf($container)))->getHeaderLine('Location'));

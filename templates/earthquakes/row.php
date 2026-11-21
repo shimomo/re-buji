@@ -19,7 +19,7 @@
     <p class="person-body muted"><?= $this->e($row->proxy) ?></p>
 <?php endif ?>
 <?php if ($check): ?>
-    <form method="post" action="<?= $this->e($this->url('/contacts/' . $row->contactId . '/check')) ?>"><?= $this->csrf() ?><?php if ($from === 'home'): ?><input type="hidden" name="from" value="home"><?php endif ?><button type="submit" class="btn-primary">確認済みにする</button></form>
+    <form method="post" action="<?= $this->e($this->url('/contacts/' . $row->contactId . '/check')) ?>"><?= $this->csrf() ?><?php if ($from === 'home'): ?><input type="hidden" name="from" value="home"><?php endif ?><button type="submit">確認済みにする</button></form>
 <?php endif ?>
     <p class="person-body muted"><a href="<?= $this->e($this->url('/contacts/' . $row->contactId . '/proxy' . ($from === 'home' ? '?from=home' : ''))) ?>">代理で記録</a></p>
 </div>

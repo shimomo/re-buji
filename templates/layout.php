@@ -3,6 +3,8 @@
 /** @var string $title */
 /** @var bool $bare */
 $bare ??= false;
+$nav = $bare ? '' : trim((string) $this->section('nav'));
+$classes = array_filter([$bare ? 'bare' : '', $nav !== '' ? 'has-nav' : '']);
 ?><!doctype html>
 <html lang="ja">
 <head>
@@ -12,8 +14,8 @@ $bare ??= false;
 <title><?= $this->e($title) ?> - Re:無事</title>
 <link rel="stylesheet" href="<?= $this->e($this->url('/assets/app.css')) ?>?v=<?= $this->e(ReBuji\Version::CURRENT) ?>">
 </head>
-<body<?= $bare ? ' class="bare"' : '' ?>>
-<header><strong>Re:無事</strong><?= $bare ? '' : $this->section('nav') ?></header>
+<body<?= $classes === [] ? '' : ' class="' . implode(' ', $classes) . '"' ?>>
+<header><strong>Re:無事</strong><?= $nav ?></header>
 <h1><?= $this->e($title) ?></h1>
 <?php $notice = $this->flash(); ?>
 <?php if ($notice !== null): ?>

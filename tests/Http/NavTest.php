@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use ReBuji\Quakes\Earthquake;
+use ReBuji\Quakes\Notification;
 use ReBuji\Replies\ReplyRepository;
 use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\QuakeRecords;
@@ -36,6 +37,27 @@ final class NavTest extends TestCase
             $this->assertStringContainsString('href="/" aria-current="page"', $home);
             $this->assertSame(2, substr_count($home, 'aria-current="page"'));
             $this->assertStringContainsString('href="/employees" aria-current="page"', (string) $app->handle(TestApp::request('GET', '/employees'))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function theProxyFormMarksTheTabItCameFrom(): void
+    {
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => new FrozenClock()]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $records = new QuakeRecords($container);
+            $contact = $records->contact($records->quake('e1', '地震', '2026-11-05T03:00:00Z'), Notification::SENT);
+
+            $fromHome = (string) $app->handle(TestApp::request('GET', '/contacts/' . $contact . '/proxy?from=home'))->getBody();
+            $this->assertStringContainsString('class="tab" href="/" aria-current="page"', $fromHome);
+
+            $plain = (string) $app->handle(TestApp::request('GET', '/contacts/' . $contact . '/proxy'))->getBody();
+            $this->assertStringContainsString('class="tab" href="/earthquakes" aria-current="page"', $plain);
+            $this->assertSame(2, substr_count($plain, 'aria-current="page"'));
         } finally {
             TemporaryDirectory::remove($root);
         }

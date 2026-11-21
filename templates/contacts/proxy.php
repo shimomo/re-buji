@@ -10,7 +10,7 @@
 /** @var string $from 'home' or '' */
 $this->layout('layout', ['title' => $title]);
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more']) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => $from === 'home' ? 'home' : 'earthquakes']) ?><?php $this->stop() ?>
 <?php if ($errors !== []): ?>
 <div class="alert alert-stop">
 <ul>
