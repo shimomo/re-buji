@@ -26,11 +26,6 @@ final class InstallKey
     public function ensure(): void
     {
         $path = $this->path();
-
-        if (is_file($path)) {
-            return;
-        }
-
         $alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         $key = '';
 
@@ -41,6 +36,11 @@ final class InstallKey
         try {
             PrivateFile::write($path, $key . "\n");
         } catch (RuntimeException) {
+            // Already made, perhaps by a request that opened the page at the same moment: that key stands.
+            if (is_file($path)) {
+                return;
+            }
+
             throw new RuntimeException('Cannot write ' . $path);
         }
     }

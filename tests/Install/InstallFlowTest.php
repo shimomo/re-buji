@@ -262,6 +262,7 @@ final class InstallFlowTest extends TestCase
 
             $this->assertSame(200, $response->getStatusCode());
             $this->assertStringContainsString('管理者がいません。「最初の管理者」の段で作ってから、完了してください。', (string) $response->getBody());
+            $this->assertStringContainsString('<a href="/install/admin">「最初の管理者」の段へ戻る</a>', (string) $response->getBody());
             $this->assertNull((new ConfigFile($root . '/storage/config.php'))->load()->get('installed_at'));
             $this->assertFileExists($root . '/storage/install-key.txt');
 
@@ -290,6 +291,7 @@ final class InstallFlowTest extends TestCase
 
             $this->assertSame(200, $response->getStatusCode());
             $this->assertStringContainsString('データベースにつなげません。「データベース」の段からやり直してください。', (string) $response->getBody());
+            $this->assertStringContainsString('<a href="/install/database">「データベース」の段へ戻る</a>', (string) $response->getBody());
             $this->assertNull((new ConfigFile($root . '/storage/config.php'))->load()->get('installed_at'));
         } finally {
             TemporaryDirectory::remove($root);
