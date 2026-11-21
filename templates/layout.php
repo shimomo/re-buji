@@ -13,9 +13,7 @@ $bare ??= false;
 <link rel="stylesheet" href="<?= $this->e($this->url('/assets/app.css')) ?>?v=<?= $this->e(ReBuji\Version::CURRENT) ?>">
 </head>
 <body<?= $bare ? ' class="bare"' : '' ?>>
-<?php if (!$bare): ?>
-<header><strong>Re:無事</strong><?= $this->section('nav') ?></header>
-<?php endif ?>
+<header><strong>Re:無事</strong><?= $bare ? '' : $this->section('nav') ?></header>
 <h1><?= $this->e($title) ?></h1>
 <?php $notice = $this->flash(); ?>
 <?php if ($notice !== null): ?>
