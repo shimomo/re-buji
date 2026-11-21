@@ -43,12 +43,76 @@ final class QuakeBoardPageTest extends TestCase
             $this->assertStringContainsString('11月5日 12:12 ごろ　宮城県沖（M6.8）最大震度6弱', $page);
             $this->assertStringContainsString('震源・震度に関する情報（12:17 発表）をもとに判定　｜　対象：震度5弱以上の市町村に登録した人', $page);
             $this->assertStringContainsString('通常（訓練ではない）', $page);
-            $positions = array_map(static fn(string $text): int|false => strpos($page, $text), ['対象 3 人', '返信なし 1 人', '要確認（本文あり） 1 人', '無事（空の返信） 1 人', '<h2>返信なし', '<h2>要確認', '<h2>無事']);
+            $positions = array_map(static fn(string $text): int|false => strpos($page, $text), ['<span class="tile-label">返信なし</span>', '<span class="tile-label">要確認</span>', '<span class="tile-label">無事</span>', '<span class="tile-label">対象</span>', '<h2>返信なし', '<h2>要確認', '<h2>無事']);
             $this->assertNotContains(false, $positions);
             $sorted = $positions;
             sort($sorted);
             $this->assertSame($sorted, $positions);
             $this->assertStringContainsString('/contacts/' . $check . '/check', $page);
+            $this->assertStringContainsString('<span class="tile-n">3</span><span class="tile-label">対象</span>', $page);
+            $this->assertStringContainsString('<span class="tile-n">1</span><span class="tile-label">返信なし</span>', $page);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function countsTheCheckedApartFromThoseToCheck(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+            $first = $records->contact($quake, Notification::SENT);
+            $second = $records->contact($quake, Notification::SENT);
+            $records->notifications->recordAnswer($first, Notification::NEEDS_CHECK, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:28:00Z'));
+            $records->notifications->recordAnswer($second, Notification::NEEDS_CHECK, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:29:00Z'));
+            $records->notifications->markChecked($first, '安否 太郎', new DateTimeImmutable('2026-11-05T03:30:00Z'));
+
+            $page = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody();
+
+            $this->assertStringContainsString('<span class="tile-n">1</span><span class="tile-label">要確認</span>', $page);
+            $this->assertStringContainsString('うち確認済み 1 人', $page);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function foldsTheNoReplyListAfterTwenty(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+
+            for ($i = 0; $i < 21; $i++) {
+                $records->contact($quake, Notification::SENT);
+            }
+
+            $this->assertStringContainsString('ほか 1 人を表示', (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function doesNotFoldThoseToCheck(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+
+            for ($i = 0; $i < 21; $i++) {
+                $contact = $records->contact($quake, Notification::SENT);
+                $records->notifications->recordAnswer($contact, Notification::NEEDS_CHECK, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:28:00Z'));
+            }
+
+            $this->assertStringNotContainsString('ほか', (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody());
         } finally {
             TemporaryDirectory::remove($root);
         }
@@ -124,6 +188,56 @@ final class QuakeBoardPageTest extends TestCase
             $this->assertNotNull($checked);
             $this->assertEquals(new DateTimeImmutable('2026-11-05T03:12:00Z'), $checked->checkedAt);
             $this->assertSame('安否 太郎', $checked->checkedBy);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function returnsToWhereTheCheckWasPressed(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+            $contacts = [];
+
+            foreach (range(1, 3) as $ignored) {
+                $contact = $records->contact($quake, Notification::SENT);
+                $records->notifications->recordAnswer($contact, Notification::NEEDS_CHECK, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:28:00Z'));
+                $contacts[] = $contact;
+            }
+
+            $home = $app->handle(TestApp::request('POST', '/contacts/' . $contacts[0] . '/check', ['from' => 'home'] + TestApp::csrf($container)));
+            $none = $app->handle(TestApp::request('POST', '/contacts/' . $contacts[1] . '/check', TestApp::csrf($container)));
+            $outside = $app->handle(TestApp::request('POST', '/contacts/' . $contacts[2] . '/check', ['from' => 'https://example.com'] + TestApp::csrf($container)));
+
+            $this->assertSame('/', $home->getHeaderLine('Location'));
+            $this->assertSame('/earthquakes/' . $quake, $none->getHeaderLine('Location'));
+            $this->assertSame('/earthquakes/' . $quake, $outside->getHeaderLine('Location'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function asksTheHomeToReturnHere(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+            $contact = $records->contact($quake, Notification::SENT);
+            $records->notifications->recordAnswer($contact, Notification::NEEDS_CHECK, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:28:00Z'));
+
+            $home = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+            $detail = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody();
+
+            $this->assertStringContainsString('name="from" value="home"', $home);
+            $this->assertStringContainsString('/contacts/' . $contact . '/proxy?from=home', $home);
+            $this->assertStringNotContainsString('name="from"', $detail);
         } finally {
             TemporaryDirectory::remove($root);
         }

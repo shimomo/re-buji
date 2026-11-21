@@ -7,11 +7,12 @@
 /** @var bool $sqlite */
 /** @var bool $mysql */
 /** @var array<string, mixed> $values */
-$this->layout('layout', ['title' => $title]);
+$this->layout('layout', ['title' => $title, 'bare' => true]);
 $value = fn(string $key, string $default = ''): string => is_string($values[$key] ?? null) ? (string) $values[$key] : $default;
 ?>
 <?= $this->insert('install/progress', ['steps' => $steps, 'step' => $step]) ?>
 <?= $this->insert('install/errors', ['errors' => $errors]) ?>
+<div class="card">
 <form method="post" action="<?= $this->e($this->url('/install/database')) ?>">
     <?= $this->csrf() ?>
     <label><input type="radio" name="driver" value="sqlite" <?= $value('driver', 'sqlite') === 'sqlite' ? 'checked' : '' ?> <?= $sqlite ? '' : 'disabled' ?>> SQLite（MySQL が無いサーバー向け。storage/database.sqlite に作ります）</label>
@@ -26,3 +27,4 @@ $value = fn(string $key, string $default = ''): string => is_string($values[$key
     </fieldset>
     <button type="submit">接続して次へ</button>
 </form>
+</div>

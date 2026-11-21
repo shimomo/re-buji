@@ -335,6 +335,21 @@ final class InstallFlowTest extends TestCase
     }
 
     #[Test]
+    public function saysWhichStepOfEightThisIs(): void
+    {
+        [$app, , $root] = TestApp::create();
+
+        try {
+            $body = (string) $app->handle(TestApp::request('GET', '/install/environment'))->getBody();
+
+            $this->assertStringContainsString('全 8 段階のうち 1 段階目：環境の確認', $body);
+            $this->assertSame(8, substr_count($body, '<span class="dot'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function reportsADatabaseConnectionFailure(): void
     {
         [$app, $container, $root] = TestApp::create();

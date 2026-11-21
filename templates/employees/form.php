@@ -11,13 +11,15 @@
 /** @var string $cityData */
 $this->layout('layout', ['title' => $title]);
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'employees']) ?><?php $this->stop() ?>
 <?php if ($errors !== []): ?>
-<ul class="error">
+<div class="alert alert-stop">
+<ul>
 <?php foreach ($errors as $error): ?>
     <li><?= $this->e($error) ?></li>
 <?php endforeach ?>
 </ul>
+</div>
 <?php endif ?>
 <form method="post" action="<?= $this->e($this->url($action)) ?>">
     <?= $this->csrf() ?>
@@ -31,7 +33,7 @@ $this->layout('layout', ['title' => $title]);
     </fieldset>
     <fieldset>
         <legend>市町村（1〜<?= count($rows) ?> 件。どれかで基準の震度になれば連絡します）</legend>
-        <noscript><p class="warning">市町村を選ぶには JavaScript が必要です。使えないときは、CSV の取り込みで登録してください。</p></noscript>
+        <noscript><p class="alert alert-act">市町村を選ぶには JavaScript が必要です。使えないときは、CSV の取り込みで登録してください。</p></noscript>
 <?php foreach ($rows as $i => $row): ?>
         <div class="row">
             <label>都道府県
@@ -66,7 +68,7 @@ $this->layout('layout', ['title' => $title]);
 <?php if ($id !== null): ?>
 <form method="post" action="<?= $this->e($this->url('/employees/' . $id . '/delete')) ?>" data-confirm="<?= $this->e($values['name'] . ' さんを削除しますか？') ?>" onsubmit="return confirm(this.dataset.confirm)">
     <?= $this->csrf() ?>
-    <button type="submit">削除する</button>
+    <button type="submit" class="btn-danger">削除する</button>
 </form>
 <?php endif ?>
 <p><a href="<?= $this->e($this->url('/employees')) ?>">一覧へ戻る</a></p>

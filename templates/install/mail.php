@@ -5,12 +5,13 @@
 /** @var string $step */
 /** @var list<string> $errors */
 /** @var array<string, string> $values */
-$this->layout('layout', ['title' => $title]);
+$this->layout('layout', ['title' => $title, 'bare' => true]);
 $value = fn(string $key): string => $values[$key] ?? '';
 $thresholds = ['4' => '震度4', '5-' => '震度5弱', '5+' => '震度5強', '6-' => '震度6弱', '6+' => '震度6強', '7' => '震度7'];
 ?>
 <?= $this->insert('install/progress', ['steps' => $steps, 'step' => $step]) ?>
 <?= $this->insert('install/errors', ['errors' => $errors]) ?>
+<div class="card">
 <p>連絡を送るメールのアカウントと、返信を受けるメールボックスを登録します。返信を受けるのは、送信元のアドレスと同じアカウントにしてください。保存すると、最初の管理者にテストメールを送ります。</p>
 <form method="post" action="<?= $this->e($this->url('/install/mail')) ?>">
     <?= $this->csrf() ?>
@@ -60,3 +61,4 @@ $thresholds = ['4' => '震度4', '5-' => '震度5弱', '5+' => '震度5強', '6-
     </fieldset>
     <button type="submit">保存してテストメールを送る</button>
 </form>
+</div>

@@ -6,11 +6,12 @@
 /** @var list<string> $errors */
 /** @var bool $exists */
 /** @var array<string, mixed> $values */
-$this->layout('layout', ['title' => $title]);
+$this->layout('layout', ['title' => $title, 'bare' => true]);
 $value = fn(string $key): string => is_string($values[$key] ?? null) ? (string) $values[$key] : '';
 ?>
 <?= $this->insert('install/progress', ['steps' => $steps, 'step' => $step]) ?>
 <?= $this->insert('install/errors', ['errors' => $errors]) ?>
+<div class="card">
 <form method="post" action="<?= $this->e($this->url('/install/admin')) ?>">
     <?= $this->csrf() ?>
 <?php if ($exists): ?>
@@ -23,3 +24,4 @@ $value = fn(string $key): string => is_string($values[$key] ?? null) ? (string) 
 <?php endif ?>
     <button type="submit">次へ</button>
 </form>
+</div>

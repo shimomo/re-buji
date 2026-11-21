@@ -189,7 +189,7 @@ final class UnmatchedPageTest extends TestCase
 
             $page = (string) $app->handle(TestApp::request('GET', '/mail/unmatched'))->getBody();
 
-            $this->assertStringContainsString('style="width:auto" aria-label="a@example.net からのメールを選ぶ"', $page);
+            $this->assertStringContainsString('aria-label="a@example.net からのメールを選ぶ"', $page);
             $this->assertStringContainsString('aria-label="&quot;Taro&quot; &lt;taro@example.net&gt; からのメールを選ぶ"', $page);
         } finally {
             TemporaryDirectory::remove($root);

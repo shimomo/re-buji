@@ -8,30 +8,32 @@
 /** @var array{name: string, email: string} $values */
 $this->layout('layout', ['title' => $title]);
 ?>
-<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin]) ?><?php $this->stop() ?>
+<?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more', 'page' => 'admins']) ?><?php $this->stop() ?>
 <?php if ($errors !== []): ?>
-<ul class="error">
+<div class="alert alert-stop">
+<ul>
 <?php foreach ($errors as $error): ?>
     <li><?= $this->e($error) ?></li>
 <?php endforeach ?>
 </ul>
+</div>
 <?php endif ?>
 <p class="muted">管理者は全員が同じことをできます（従業員の登録、地震の確認、設定）。</p>
-<table>
+<table class="stack">
     <thead><tr><th>名前</th><th>メールアドレス</th><th>追加した日</th><th></th></tr></thead>
     <tbody>
 <?php foreach ($admins as $row): ?>
         <tr>
-            <td><?= $this->e($row['name']) ?></td>
-            <td><?= $this->e($row['email']) ?></td>
-            <td><?= $this->e($row['created']) ?></td>
+            <td data-label="名前"><?= $this->e($row['name']) ?></td>
+            <td data-label="メールアドレス"><?= $this->e($row['email']) ?></td>
+            <td data-label="追加した日"><?= $this->e($row['created']) ?></td>
             <td>
 <?php if ($row['id'] === $currentId): ?>
                 <span class="muted">（あなた）</span>
 <?php else: ?>
                 <form method="post" action="<?= $this->e($this->url('/admins/' . $row['id'] . '/delete')) ?>" data-confirm="<?= $this->e($row['name'] . ' さんを管理者から外しますか？') ?>" onsubmit="return confirm(this.dataset.confirm)">
                     <?= $this->csrf() ?>
-                    <button type="submit">外す</button>
+                    <button type="submit" class="btn-danger">外す</button>
                 </form>
 <?php endif ?>
             </td>

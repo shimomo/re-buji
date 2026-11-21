@@ -49,7 +49,7 @@ final class ContactsController
 
         $this->notifications->markChecked($contact->id, self::adminName($request), $this->clock->now());
 
-        return $this->backTo($contact);
+        return $this->backTo($contact, self::from($request->getParsedBody()));
     }
 
     /**
@@ -59,7 +59,7 @@ final class ContactsController
      */
     public function proxyForm(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        return $this->renderProxy($request, $this->contact($request, $args), [], ['answer' => '', 'note' => '']);
+        return $this->renderProxy($request, $this->contact($request, $args), [], ['answer' => '', 'note' => ''], self::from($request->getQueryParams()));
     }
 
     /**
@@ -70,6 +70,7 @@ final class ContactsController
         $contact = $this->contact($request, $args);
         $body = $request->getParsedBody();
         $body = is_array($body) ? $body : [];
+        $from = self::from($body);
         $answer = self::text($body['answer'] ?? null);
         $note = trim(str_replace("\r\n", "\n", self::text($body['note'] ?? null)));
         $errors = [];
@@ -83,13 +84,13 @@ final class ContactsController
         }
 
         if ($errors !== []) {
-            return $this->renderProxy($request, $contact, $errors, ['answer' => $answer, 'note' => $note]);
+            return $this->renderProxy($request, $contact, $errors, ['answer' => $answer, 'note' => $note], $from);
         }
 
         $this->notifications->recordAnswer($this->answering($contact)->id, $answer, 'proxy', self::adminName($request), $note === '' ? null : $note, $this->clock->now());
         $this->flash->put('代理の記録を残しました。');
 
-        return $this->backTo($contact);
+        return $this->backTo($contact, $from);
     }
 
     /**
@@ -104,7 +105,7 @@ final class ContactsController
      * @param list<string> $errors
      * @param array{answer: string, note: string} $values
      */
-    private function renderProxy(ServerRequestInterface $request, Notification $contact, array $errors, array $values): ResponseInterface
+    private function renderProxy(ServerRequestInterface $request, Notification $contact, array $errors, array $values, string $from): ResponseInterface
     {
         $response = $this->responses->createResponse(200);
         $response->getBody()->write($this->templates->render('contacts/proxy', [
@@ -115,6 +116,7 @@ final class ContactsController
             'quake' => $this->earthquakes->find($contact->earthquakeId),
             'errors' => $errors,
             'values' => $values,
+            'from' => $from,
         ]));
 
         return $response;
@@ -146,9 +148,22 @@ final class ContactsController
         return '今の記録：' . ($contact->answer === Notification::SAFE ? '無事' : '要確認') . '（' . $how . '）';
     }
 
-    private function backTo(Notification $contact): ResponseInterface
+    /**
+     * Only the fixed value 'home' sends the admin back to the home page; anything else goes to the quake.
+     */
+    private function backTo(Notification $contact, string $from): ResponseInterface
     {
-        return $this->responses->createResponse(302)->withHeader('Location', $this->url->to('/earthquakes/' . $contact->earthquakeId));
+        $path = $from === 'home' ? '/' : '/earthquakes/' . $contact->earthquakeId;
+
+        return $this->responses->createResponse(302)->withHeader('Location', $this->url->to($path));
+    }
+
+    /**
+     * Reduces the submitted return target to 'home' or '' so templates never see anything else.
+     */
+    private static function from(mixed $input): string
+    {
+        return is_array($input) && ($input['from'] ?? null) === 'home' ? 'home' : '';
     }
 
     private static function text(mixed $value): string

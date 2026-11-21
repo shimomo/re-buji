@@ -6,10 +6,11 @@
 /** @var list<string> $errors */
 /** @var string $cronPath */
 /** @var string $statusUrl */
-$this->layout('layout', ['title' => $title]);
+$this->layout('layout', ['title' => $title, 'bare' => true]);
 ?>
 <?= $this->insert('install/progress', ['steps' => $steps, 'step' => $step]) ?>
 <?= $this->insert('install/errors', ['errors' => $errors]) ?>
+<div class="card">
 <p>完了する前に、次の 2 つを控えてください。完了すると、この画面は開けなくなります。</p>
 <h2>1. cron</h2>
 <p>サーバーの管理画面で、次の PHP ファイルを 5 分ごと（できれば 1 分ごと）に動かす cron を登録してください。</p>
@@ -23,3 +24,4 @@ $this->layout('layout', ['title' => $title]);
     <?= $this->csrf() ?>
     <button type="submit">初期設定を完了する</button>
 </form>
+</div>
