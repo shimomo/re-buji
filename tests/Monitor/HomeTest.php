@@ -453,4 +453,58 @@ final class HomeTest extends TestCase
             TemporaryDirectory::remove($root);
         }
     }
+
+    #[Test]
+    public function putsTheAcknowledgeButtonRightAfterTheGapWarningOnce(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $state = $container->get(SystemState::class);
+            $this->assertInstanceOf(SystemState::class, $state);
+            $state->set('feed.last_checked_at', Time::format($clock->now()->modify('-1 minute')));
+            $state->set('feed.gap_since', Time::format($clock->now()->modify('-2 hours')));
+            $records = new QuakeRecords($container);
+            $records->contact($records->quake('20261105121200', '宮城県沖・最大震度6弱', '2026-11-05T03:00:00Z'), Notification::SENT);
+
+            $body = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+
+            $gap = strpos($body, '気象庁の情報に抜けがあります');
+            $form = strpos($body, 'action="/feed/acknowledge"');
+            $tile = strpos($body, '<span class="tile-label">返信なし</span>');
+            $this->assertNotFalse($gap);
+            $this->assertNotFalse($form);
+            $this->assertNotFalse($tile);
+            $this->assertLessThan($form, $gap);
+            $this->assertLessThan($tile, $form);
+            $this->assertSame(1, substr_count($body, 'action="/feed/acknowledge"'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function showsZeroToCheckWhenEveryoneIsChecked(): void
+    {
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => new FrozenClock()]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $records = new QuakeRecords($container);
+            $quake = $records->quake('20261105121200', '宮城県沖・最大震度6弱', '2026-11-05T03:00:00Z');
+            $check = $records->contact($quake, Notification::SENT);
+            $records->notifications->recordAnswer($check, Notification::NEEDS_CHECK, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:10:00Z'));
+            $records->notifications->markChecked($check, 'admin', new DateTimeImmutable('2026-11-05T03:11:00Z'));
+
+            $body = (string) $app->handle(TestApp::request('GET', '/'))->getBody();
+
+            $this->assertStringContainsString('<span class="tile-n">0</span><span class="tile-label">要確認</span>', $body);
+            $this->assertStringContainsString('うち確認済み 1 人', $body);
+            $this->assertStringContainsString('<h2>⚠ 要確認</h2>', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
 }

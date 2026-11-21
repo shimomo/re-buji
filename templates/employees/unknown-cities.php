@@ -3,7 +3,7 @@
 /** @var list<array{employee_id: int, name: string, code: string}> $unknownCities */
 ?>
 <?php if ($unknownCities !== []): ?>
-<div class="error">
+<div class="alert alert-act">
     <p>判定に使えない市町村が登録されています。直さないと、地震があってもこの人たちに連絡が届きません。</p>
     <ul>
 <?php foreach ($unknownCities as $unknown): ?>

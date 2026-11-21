@@ -34,6 +34,10 @@ $this->layout('layout', ['title' => $title]);
 <?php endif ?>
 <?php if ($feedGap !== null): ?>
 <p class="alert alert-stop">気象庁の情報に抜けがあります（<?= $this->e($feedGap) ?> 以降）。この間の地震は連絡されていない可能性があります。</p>
+<form method="post" action="<?= $this->e($this->url('/feed/acknowledge')) ?>">
+    <?= $this->csrf() ?>
+    <button type="submit">確かめた（この警告を消す）</button>
+</form>
 <?php endif ?>
 <?php if ($smtpMissing): ?>
 <p class="alert alert-stop">メールの送信の設定がありません。「設定」で SMTP を登録してください。<a href="<?= $this->e($this->url('/settings')) ?>">設定</a></p>
@@ -76,14 +80,16 @@ $this->layout('layout', ['title' => $title]);
 <?php elseif ($waiting > 0): ?>
 <p class="alert alert-act">送信待ちの連絡が <?= $waiting ?> 件あります。次の cron で送ります。</p>
 <?php endif ?>
-<?php if ($feedGap !== null || $failedTelegrams !== []): ?>
+<?php if ($failedTelegrams !== []): ?>
 <?php foreach ($failedTelegrams as $failed): ?>
 <p class="alert alert-act"><?= $failed['unreadable'] ? '読めなかった' : '取れなかった' ?>電文があります：<?= $this->e($failed['title']) ?>（<?= $this->e($failed['at']) ?>）</p>
 <?php endforeach ?>
+<?php if ($feedGap === null): ?>
 <form method="post" action="<?= $this->e($this->url('/feed/acknowledge')) ?>">
     <?= $this->csrf() ?>
     <button type="submit">確かめた（この警告を消す）</button>
 </form>
+<?php endif ?>
 <?php endif ?>
 <?php /* 4. Notices. */ ?>
 <?php if ($lastError !== null): ?>
