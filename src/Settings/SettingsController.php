@@ -70,11 +70,19 @@ final class SettingsController
         }
 
         // Mail already in the mailbox is not read when the mailbox changes (see ReplyJob).
-        if ($values['imap_host'] !== $this->settings->get('imap.host') || $values['imap_username'] !== $this->settings->get('imap.username')) {
+        $mailboxChanged = $values['imap_host'] !== $this->settings->get('imap.host') || $values['imap_username'] !== $this->settings->get('imap.username');
+
+        if ($mailboxChanged) {
             $this->state->set('imap.since', Time::format($this->clock->now()));
         }
 
         $this->settings->save(SettingsForm::toSettings($values));
+
+        // bin/console boot (Docker) remembers the mailbox to see a change made in the environment: it learns of this
+        // one too, or the next start would read the mailbox anew once more. The key exists only where boot ran.
+        if ($mailboxChanged && $this->state->get('imap.account') !== null) {
+            $this->state->set('imap.account', $this->settings->imap()?->account() ?? '');
+        }
         $this->flash->put('設定を保存しました。');
 
         return $this->redirect();

@@ -25,4 +25,12 @@ final readonly class ImapSettings
     ) {
         //
     }
+
+    /**
+     * Which mailbox this is: its server and user name. When it changes, replies are read anew from that time.
+     */
+    public function account(): string
+    {
+        return $this->host . "\n" . $this->username;
+    }
 }

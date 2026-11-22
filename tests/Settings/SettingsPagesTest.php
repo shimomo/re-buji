@@ -9,10 +9,13 @@ use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use ReBuji\Config\Environment;
+use ReBuji\Console\Console;
+use ReBuji\Console\ConsoleIo;
 use ReBuji\Database\Database;
 use ReBuji\Mail\Imap\ImapSettings;
 use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\MailSender;
+use ReBuji\Paths;
 use ReBuji\Settings\Settings;
 use ReBuji\SystemState;
 use ReBuji\Tests\Support\EnvExample;
@@ -382,6 +385,41 @@ final class SettingsPagesTest extends TestCase
         } finally {
             TemporaryDirectory::remove($root);
         }
+    }
+
+    #[Test]
+    public function aRestartKeepsTheSinceOfAMailboxSavedHere(): void
+    {
+        $clock = new FrozenClock();
+        $environment = new Environment(['REBUJI_ENV_CONFIG' => '1']);
+        $services = [Environment::class => $environment, MailSender::class => new RecordingMailSender(), ClockInterface::class => $clock];
+        [$app, $container, $root] = TestApp::installed($services);
+        $boot = static fn(): int => (new Console(new Paths($root), $environment, TestApp::build($root, $services)[1]))->run(['boot'], ConsoleIo::memory());
+
+        try {
+            $this->assertSame(0, $boot());
+            TestApp::logIn($app, $container);
+            $clock->advance('+10 minutes');
+            $response = $app->handle(TestApp::request('POST', '/settings', self::form() + self::imap() + TestApp::csrf($container)));
+            $this->assertSame(302, $response->getStatusCode());
+            $since = self::state($container)->get('imap.since');
+            $this->assertNotNull($since);
+            $clock->advance('+1 hour');
+
+            $this->assertSame(0, $boot());
+
+            $this->assertSame($since, self::state(TestApp::build($root, $services)[1])->get('imap.since'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    private static function state(ContainerInterface $container): SystemState
+    {
+        $state = $container->get(SystemState::class);
+        assert($state instanceof SystemState);
+
+        return $state;
     }
 
     /**

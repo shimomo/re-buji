@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use ReBuji\Config\ConfigFile;
 use ReBuji\Config\Environment;
+use ReBuji\Console\BootCommand;
 use ReBuji\Console\Console;
 use ReBuji\Console\ConsoleIo;
 use ReBuji\Container;
@@ -170,6 +171,71 @@ final class BootCommandTest extends TestCase
             $this->assertStringContainsString('環境変数 REBUJI_DB_NAME がありません。', $io->errors());
             $this->assertStringContainsString('環境変数 REBUJI_DB_USERNAME がありません。', $io->errors());
             $this->assertStringNotContainsString('REBUJI_DB_HOST がありません', $io->errors());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function waitsForTheDatabaseThenGivesUp(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            $paths = new Paths($root);
+            $env = new Environment([
+                'REBUJI_ENV_CONFIG' => '1',
+                'REBUJI_DB_DRIVER' => 'mysql',
+                'REBUJI_DB_HOST' => '127.0.0.1',
+                'REBUJI_DB_PORT' => '1',
+                'REBUJI_DB_NAME' => 'rebuji',
+                'REBUJI_DB_USERNAME' => 'rebuji',
+            ]);
+            $container = Container::build($paths, [Environment::class => $env, ClockInterface::class => new FrozenClock()]);
+            $slept = [];
+            $command = new BootCommand($paths, $env, $container, static function (int $seconds) use (&$slept): void {
+                $slept[] = $seconds;
+            }, 3);
+            $io = ConsoleIo::memory();
+
+            $this->assertSame(1, $command->run([], $io));
+            $this->assertMatchesRegularExpression('/\Aデータベースにつながりません：.+/u', trim($io->errors()));
+            $this->assertSame([2, 2], $slept);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function reportsAFailedMigration(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            $broken = new class () implements Migration {
+                #[Override]
+                public function version(): string
+                {
+                    return '9999';
+                }
+
+                #[Override]
+                public function description(): string
+                {
+                    return 'broken';
+                }
+
+                #[Override]
+                public function statements(string $driver): array
+                {
+                    return ['THIS IS NOT SQL'];
+                }
+            };
+
+            [$code, $io] = $this->boot($root, self::MAIL, null, ['migrations' => [...Migrations::all(), $broken]]);
+
+            $this->assertSame(1, $code);
+            $this->assertStringContainsString('データベースを更新できません：', $io->errors());
         } finally {
             TemporaryDirectory::remove($root);
         }

@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace ReBuji\Console;
 
+use Closure;
 use Override;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use ReBuji\Config\Config;
 use ReBuji\Config\ConfigFile;
 use ReBuji\Config\Environment;
+use ReBuji\Database\Database;
 use ReBuji\Database\Migrator;
 use ReBuji\Monitor\StatusToken;
 use ReBuji\Paths;
 use ReBuji\Settings\Settings;
 use ReBuji\SystemState;
 use ReBuji\Time;
+use Throwable;
 
 /**
  * What a Docker container does at every start: checks the environment, makes the directories, applies the database
@@ -25,10 +28,24 @@ use ReBuji\Time;
  */
 final class BootCommand implements Command
 {
+    /**
+     * Seconds between tries to reach the database. With DATABASE_ATTEMPTS, about a minute in all: a database started
+     * next to the app may take that long to accept connections.
+     */
+    private const int DATABASE_PAUSE = 2;
+
+    private const int DATABASE_ATTEMPTS = 30;
+
+    /**
+     * @param (Closure(int): void)|null $sleep waits that many seconds; replaced in tests so they need not wait
+     * @param int $databaseAttempts how many times to try the database before giving up
+     */
     public function __construct(
         private readonly Paths $paths,
         private readonly Environment $environment,
         private readonly ContainerInterface $container,
+        private readonly ?Closure $sleep = null,
+        private readonly int $databaseAttempts = self::DATABASE_ATTEMPTS,
     ) {
         //
     }
@@ -78,6 +95,12 @@ final class BootCommand implements Command
             $configFile->save(new Config([]));
         }
 
+        $unreachable = $this->waitForDatabase();
+
+        if ($unreachable !== null) {
+            return $this->fail(['データベースにつながりません：' . $unreachable], $io);
+        }
+
         $settings = $this->service(Settings::class);
         $problems = $settings->environmentErrors();
 
@@ -85,8 +108,12 @@ final class BootCommand implements Command
             return $this->fail($problems, $io);
         }
 
-        foreach ($this->service(Migrator::class)->migrate() as $version) {
-            $io->line('データベースを更新しました：' . $version);
+        try {
+            foreach ($this->service(Migrator::class)->migrate() as $version) {
+                $io->line('データベースを更新しました：' . $version);
+            }
+        } catch (Throwable $exception) {
+            return $this->fail(['データベースを更新できません：' . $exception->getMessage()], $io);
         }
 
         $clock = $this->service(ClockInterface::class);
@@ -97,16 +124,17 @@ final class BootCommand implements Command
         }
 
         $imap = $settings->imap();
+        $state = $this->service(SystemState::class);
+        // Empty until a mailbox is given. The settings page keeps it in step when the mailbox is changed there.
+        $account = $imap?->account() ?? '';
 
-        if ($imap !== null) {
-            $state = $this->service(SystemState::class);
-            $account = $imap->host . "\n" . $imap->username;
-
+        if ($state->get('imap.account') !== $account) {
             // Replies are read from the time the mailbox became this one: mail from before is not ours.
-            if ($state->get('imap.account') !== $account) {
+            if ($account !== '') {
                 $state->set('imap.since', Time::format($clock->now()));
-                $state->set('imap.account', $account);
             }
+
+            $state->set('imap.account', $account);
         }
 
         if ($settings->smtp() === null || $imap === null) {
@@ -114,6 +142,41 @@ final class BootCommand implements Command
         }
 
         return 0;
+    }
+
+    /**
+     * Tries the database until it answers. Null once it does, or why the last try failed.
+     */
+    private function waitForDatabase(): ?string
+    {
+        $problem = null;
+
+        for ($attempt = 1; $attempt <= $this->databaseAttempts; $attempt++) {
+            if ($attempt > 1) {
+                $this->sleep(self::DATABASE_PAUSE);
+            }
+
+            try {
+                $this->service(Database::class)->fetchValue('SELECT 1');
+
+                return null;
+            } catch (Throwable $exception) {
+                $problem = $exception->getMessage();
+            }
+        }
+
+        return $problem;
+    }
+
+    private function sleep(int $seconds): void
+    {
+        if ($this->sleep !== null) {
+            ($this->sleep)($seconds);
+
+            return;
+        }
+
+        sleep($seconds);
     }
 
     /**
