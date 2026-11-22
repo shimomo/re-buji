@@ -68,6 +68,11 @@ final class EmployeeImport
                 $errors[] = $prefix . $error;
             }
 
+            // Whose row this is cannot be told: comparing its addresses would blame the wrong person.
+            if ($row['badId']) {
+                continue;
+            }
+
             $keys = [];
 
             foreach ($row['input']->emails as $address) {

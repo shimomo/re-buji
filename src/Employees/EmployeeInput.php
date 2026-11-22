@@ -43,7 +43,7 @@ final readonly class EmployeeInput
 
         foreach ($cities as $city) {
             $code = Cities::normalizeCode($city['code']);
-            $label = trim($city['label']);
+            $label = Text::trim($city['label']);
 
             if ($code !== '' || $label !== '' || trim($city['prefecture'] ?? '') !== '') {
                 $places[] = new EmployeeCity($code, $label);

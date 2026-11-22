@@ -31,8 +31,8 @@ if [ -n "$tagged" ] && [ "$tagged" != "$(git -C "$root" rev-parse HEAD)" ]; then
     exit 1
 fi
 
-if [ -n "$(git -C "$root" status --porcelain --untracked-files=no)" ]; then
-    echo "warning: uncommitted changes are not in the zip" >&2
+if [ -n "$(git -C "$root" status --porcelain --untracked-files=normal)" ]; then
+    echo "warning: uncommitted or untracked files are not in the zip" >&2
 fi
 
 (cd "$app" && composer install --no-dev --optimize-autoloader --classmap-authoritative --no-interaction --no-progress --quiet)
