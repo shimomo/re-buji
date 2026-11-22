@@ -124,7 +124,11 @@ final class HomeTest extends TestCase
             $records->contact($late, Notification::HELD, '2026-11-04T20:00:00Z');
             $records->earthquakes->markCancelled($late, new DateTimeImmutable('2026-11-05T00:00:00Z'));
 
-            $this->assertStringNotContainsString('遅れて届いた地震が', (string) $app->handle(TestApp::request('GET', '/'))->getBody());
+            $response = $app->handle(TestApp::request('GET', '/'));
+
+            // Without this, an error page would pass too: it says nothing of late quakes either.
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertStringNotContainsString('遅れて届いた地震が', (string) $response->getBody());
         } finally {
             TemporaryDirectory::remove($root);
         }
