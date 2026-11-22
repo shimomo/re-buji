@@ -146,6 +146,35 @@ cron が止まると、地震があっても連絡が送られません。ホー
 
 ## バージョンアップ
 
+### SSH で上げる（0.3.1 から）
+
+SSH で入れるサーバーでは、次の 1 行で上げられます。GitHub で最新の版を探し、zip を取って sha256 を確かめ、上書きと DB の更新までを済ませます。
+
+```bash
+sh ~/re-buji/bin/upgrade.sh
+```
+
+- 上げる版と DB の更新の有無を示し、「上げますか？」と聞いてから進みます。`--yes` を付けると聞きません
+- 上書きの前に、今の中身（`storage/` を除く）と `database.sqlite` を `storage/upgrade-backups/` に写します。戻し方は、終わったときに出ます。問題なく動いていれば、写しは消して構いません。MySQL の DB は写さないので、先に `mysqldump` で取ってください
+- 上げているあいだ cron は止まります（動いている途中なら、終わるのを待ってから始めます）
+- `public/` の中身だけを公開ディレクトリに置いている場合は、初回だけ `--public` で公開ディレクトリを渡します。`index.php` と `assets/` を置き換えます（`.htaccess` と `rebuji-root.php` はそのまま）。2 回目からは覚えています
+
+  ```bash
+  sh ~/re-buji/bin/upgrade.sh --public ~/www/re-buji
+  ```
+- `php` が 8.3 より古いサーバーでは、cron と同じように版を指定した php を渡します：`env PHP=/usr/local/php/8.3/bin/php sh ~/re-buji/bin/upgrade.sh`
+- 特定の版を入れるときは `--version 0.3.1`、サーバーに置いた zip から入れるときは `--zip re-buji-0.3.1.zip` を付けます
+
+**0.3.0 までから上げるとき**は、まだ `bin/upgrade.sh` が無いので、初回だけスクリプトを取ってきて、設置した場所を `--root` で渡します。
+
+```bash
+curl -fsSL -o ~/rebuji-upgrade.sh https://raw.githubusercontent.com/shimomo/re-buji/v0.3.1/bin/upgrade.sh
+sh ~/rebuji-upgrade.sh --root ~/re-buji --public ~/www/re-buji
+rm ~/rebuji-upgrade.sh
+```
+
+### FTP で上げる
+
 新しい zip の中身を FTP で上書きします（`storage/` は上書きしません）。そのあと、管理画面の「DB の更新」を開いて、ボタンを押します。
 
 `public/` の中身だけを公開ディレクトリに置いている場合は、本体を上書きした後で、公開ディレクトリも新しい `public/` の中身で上書きしてください。`assets/` のフォルダ（画面の見た目の `app.css`）を先に、`index.php` を最後に上げます（`rebuji-root.php` はそのまま残します）。`assets/` を上げないと、画面の見た目がそろいません。`index.php` を本体より先に上げると、本体を上げ終わるまで画面がエラーになります。
