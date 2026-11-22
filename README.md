@@ -137,6 +137,8 @@ cron が止まると、地震があっても連絡が送られません。ホー
 
 上書きしてから「DB の更新」を押すまでは、管理画面は「DB の更新」の画面しか開けず、cron も地震の情報を取りに行きません（15 分たつと、見張りの URL が 503 を返します）。上書きしたら、すぐに押してください。DB の変更が無い版では、押す必要はありません。
 
+0.2.0 までに設置した場合、`storage/database.sqlite` とログ（`storage/logs/re-buji.log`）は、同じサーバーのほかの利用者にも読める権限（644 など）で作られています。0.2.1 からは新しく作るときに自分だけが読める 600 にしますが、今あるファイルの権限は変えません。web と cron が同じユーザーで動くサーバー（さくらのレンタルサーバなど）なら、`chmod 600 storage/database.sqlite storage/logs/re-buji.log` で直してください。
+
 ## 開発
 
 ```bash
@@ -144,9 +146,9 @@ composer install
 composer test       # PHPUnit
 composer analyse    # Psalm
 composer lint       # Pint
-bin/build-release.sh 0.2.2   # build/re-buji-0.2.2.zip を作る（版は src/Version.php と同じにし、コミットしてから）
-bin/release.sh check 0.2.2   # main で、リリースできるかを確かめて zip を作る
-bin/release.sh publish 0.2.2 notes.md   # 署名つきのタグと GitHub のリリースを作る
+bin/build-release.sh 0.2.3   # build/re-buji-0.2.3.zip を作る（版は src/Version.php と同じにし、コミットしてから）
+bin/release.sh check 0.2.3   # main で、リリースできるかを確かめて zip を作る
+bin/release.sh publish 0.2.3 notes.md   # 署名つきのタグと GitHub のリリースを作る
 ```
 
 ## 出典と注意

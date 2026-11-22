@@ -19,7 +19,7 @@ $this->layout('layout', ['title' => $title]);
     <tbody>
 <?php foreach ($mails as $mail): ?>
         <tr>
-            <td><input type="checkbox" name="ids[]" value="<?= $mail['id'] ?>" form="delete-selected" aria-label="<?= $this->e($mail['from']) ?> からのメールを選ぶ"></td>
+            <td><input type="checkbox" name="ids[]" value="<?= $mail['id'] ?>" form="delete-selected" aria-label="<?= trim($mail['from']) === '' ? '送り主の分からないメールを選ぶ' : $this->e($mail['from']) . ' からのメールを選ぶ' ?>"></td>
             <td data-label="受け取った時刻"><?= $this->e($mail['received']) ?></td>
             <td data-label="種類"><?= $this->e($mail['kind']) ?></td>
             <td data-label="送り主"><?= $this->e($mail['from']) ?></td>

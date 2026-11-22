@@ -193,6 +193,23 @@ final class EmployeeImportTest extends TestCase
         ], $result->errors);
     }
 
+    #[Test]
+    public function countsTheAddressesOfARowWhoseIdIsWrong(): void
+    {
+        [$import] = $this->import();
+
+        // Fixing the ID alone would bring up the overlap; it is told at once instead.
+        $result = $import->run($this->file([
+            ['12a', '新人 一郎', 'new@example.com'],
+            ['', '新人 次郎', 'new@example.com'],
+        ]));
+
+        $this->assertSame([
+            '2 行目：ID は数字で書いてください：12a',
+            '3 行目：このメールアドレスは 2 行目と同じです：new@example.com',
+        ], $result->errors);
+    }
+
     /**
      * @return array{EmployeeImport, EmployeeRepository}
      */

@@ -54,6 +54,7 @@ zip="$root/build/re-buji-$version.zip"
 rm -f "$zip"
 
 # Folders 0755 and files 0644 (0755 if executable), since scp and rsync carry the modes in the zip to the server.
-php "$root/build-files/zip.php" "$app" "$zip"
+# Dated by the commit, so the same commit always makes the same zip (bin/release.sh shows its hash before publishing).
+php "$root/build-files/zip.php" "$app" "$zip" "$(git -C "$root" log -1 --no-show-signature --format=%ct HEAD)"
 
 echo "built $zip"

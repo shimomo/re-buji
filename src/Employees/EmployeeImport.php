@@ -68,11 +68,6 @@ final class EmployeeImport
                 $errors[] = $prefix . $error;
             }
 
-            // Whose row this is cannot be told: comparing its addresses would blame the wrong person.
-            if ($row['badId']) {
-                continue;
-            }
-
             $keys = [];
 
             foreach ($row['input']->emails as $address) {
@@ -87,6 +82,10 @@ final class EmployeeImport
 
                 if ($owner === null) {
                     $owners[$key] = ['line' => $row['line'], 'name' => $row['input']->name];
+                } elseif ($row['badId']) {
+                    // Whose row this is cannot be told: an overlap here would blame the wrong person. Its addresses
+                    // still count against the rows below, as they would once the ID is fixed.
+                    continue;
                 } elseif ($owner['line'] !== null) {
                     $errors[] = $prefix . 'このメールアドレスは ' . $owner['line'] . ' 行目と同じです：' . $address;
                 } else {
