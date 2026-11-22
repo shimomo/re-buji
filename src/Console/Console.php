@@ -26,6 +26,7 @@ final class Console
         StatusUrlCommand::class,
         CheckCommand::class,
         BackupCommand::class,
+        UpgradeInstallCommand::class,
     ];
 
     public function __construct(
