@@ -151,7 +151,13 @@ final class Upgrade
                 continue;
             }
 
-            self::remove($path);
+            try {
+                self::remove($path);
+            } catch (Throwable) {
+                // A folder that cannot be opened (made by root, say): the upgrade has finished all the same, and what
+                // is still there is reported below.
+            }
+
             $result[file_exists($path) ? 'left' : 'removed'][] = $path;
         }
 

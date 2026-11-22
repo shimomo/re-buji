@@ -209,6 +209,35 @@ final class UpgradeInstallCommandTest extends TestCase
         }
     }
 
+    /**
+     * A folder the owner cannot open (made by root, say): the upgrade has still finished, so it says so and how to go
+     * back, and names what is left to remove by hand.
+     */
+    #[Test]
+    public function reportsAnOlderBackupItCannotRemove(): void
+    {
+        $dir = TemporaryDirectory::create();
+        $locked = $dir . '/re-buji/storage/' . Upgrade::BACKUPS . '/0.0.9-20261101-090000/files/src';
+
+        try {
+            [$source, $target] = $this->copies($dir, appliedMigrations: 3);
+            $backups = $target . '/storage/' . Upgrade::BACKUPS;
+            mkdir($locked, 0700, true);
+            file_put_contents($locked . '/marker.txt', 'older');
+            chmod($locked, 0000);
+
+            [$code, $io] = $this->install($source, ['--target=' . $target, '--yes']);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertDirectoryExists($backups . '/0.0.9-20261101-090000');
+            $this->assertStringContainsString('前に上げたときの写しを消せませんでした。手で消してください：' . $backups . '/0.0.9-20261101-090000', $io->output());
+            $this->assertStringContainsString('問題なく動いていれば、' . $backups . '/0.1.0-20261105-121200 は消して構いません。', $io->output());
+        } finally {
+            @chmod($locked, 0700);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
     #[Test]
     public function keepsTheOlderBackupsWhenTheUpgradeFails(): void
     {
