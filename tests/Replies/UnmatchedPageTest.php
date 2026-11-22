@@ -177,6 +177,28 @@ final class UnmatchedPageTest extends TestCase
     }
 
     #[Test]
+    public function namesTheCheckboxOfAMailWithNoSender(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $replies = self::replies($container);
+            $at = new DateTimeImmutable('2026-11-05T03:20:00Z');
+            // A mail that could not be read has no sender.
+            $replies->record(null, 'unreadable', null, '', '', '', null, $at);
+            $replies->record(null, 'reply', null, ' ', '家族です', '無事です', null, $at);
+
+            $page = (string) $app->handle(TestApp::request('GET', '/mail/unmatched'))->getBody();
+
+            $this->assertSame(2, substr_count($page, 'aria-label="送り主の分からないメールを選ぶ"'));
+            $this->assertStringNotContainsString('aria-label=" からのメールを選ぶ"', $page);
+            $this->assertStringNotContainsString('aria-label="  からのメールを選ぶ"', $page);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function namesEachCheckboxByItsSender(): void
     {
         [$app, $container, $root] = self::loggedIn();
