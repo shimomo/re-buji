@@ -128,6 +128,57 @@ final class CheckCommandTest extends TestCase
     }
 
     #[Test]
+    public function saysTheWaitWasSkippedWhenImapIsDown(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            $mailbox = new FakeMailbox();
+            $mailbox->unavailable = true;
+            [$code, $io] = $this->check($root, ['--wait-reply'], new RecordingMailSender(), $mailbox, true);
+
+            $this->assertSame(1, $code);
+            $this->assertStringContainsString('✕ 返信の確認はしませんでした（受信か送信に失敗したため）', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function saysNothingOfTheWaitWithoutWaitReply(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $sender->unavailable = true;
+            [, $io] = $this->check($root, [], $sender, new FakeMailbox(), true);
+
+            $this->assertStringNotContainsString('返信の確認', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function saysTheWaitWasSkippedWhenSendingFails(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $sender->unavailable = true;
+            [$code, $io] = $this->check($root, ['--wait-reply'], $sender, new FakeMailbox(), true);
+
+            $this->assertSame(1, $code);
+            $this->assertStringContainsString('✕ 返信の確認はしませんでした（受信か送信に失敗したため）', $io->output());
+            $this->assertStringNotContainsString('返信を待っています', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function timesOutWithoutReply(): void
     {
         $root = TemporaryDirectory::create();

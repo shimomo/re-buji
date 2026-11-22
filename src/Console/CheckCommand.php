@@ -110,6 +110,8 @@ final class CheckCommand implements Command
 
         if ($wait && $sent['messageId'] !== null && $mailboxProblem === null) {
             $failed = !$this->waitForReply($sent['to'], $sent['messageId'], $sent['number'], $timeout, $io) || $failed;
+        } elseif ($wait) {
+            $io->line('✕ 返信の確認はしませんでした（受信か送信に失敗したため）');
         }
 
         return $failed ? 1 : 0;
