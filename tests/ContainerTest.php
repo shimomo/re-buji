@@ -15,6 +15,8 @@ use ReBuji\Config\Environment;
 use ReBuji\Container;
 use ReBuji\Database\Database;
 use ReBuji\Feed\FeedJob;
+use ReBuji\Http\NativeSession;
+use ReBuji\Http\Session;
 use ReBuji\Mail\MailSender;
 use ReBuji\Mail\SmtpMailSender;
 use ReBuji\Paths;
@@ -22,6 +24,7 @@ use ReBuji\Tests\Support\FakeJmaServer;
 use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\TemporaryDirectory;
 use ReBuji\Tests\Support\TestApp;
+use ReflectionProperty;
 
 /**
  * @author shimomo
@@ -42,6 +45,39 @@ final class ContainerTest extends TestCase
             $this->assertSame(15, $page->timeoutSeconds);
             $this->assertSame(60, $cron->timeoutSeconds);
         } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function trustsRebujiHttpsOnlyInDocker(): void
+    {
+        $this->assertTrue(self::secureSession(['REBUJI_ENV_CONFIG' => '1', 'REBUJI_HTTPS' => '1']));
+        $this->assertFalse(self::secureSession(['REBUJI_HTTPS' => '1']));
+        $this->assertFalse(self::secureSession(['REBUJI_ENV_CONFIG' => '1']));
+    }
+
+    /**
+     * Whether the session cookie is marked Secure, on a plain HTTP request.
+     *
+     * @param array<string, string> $vars
+     */
+    private static function secureSession(array $vars): bool
+    {
+        $root = TemporaryDirectory::create();
+        $https = $_SERVER['HTTPS'] ?? null;
+        unset($_SERVER['HTTPS']);
+
+        try {
+            $session = Container::build(new Paths($root), [Environment::class => new Environment($vars)])->get(Session::class);
+            assert($session instanceof NativeSession);
+
+            return (bool) (new ReflectionProperty(NativeSession::class, 'secure'))->getValue($session);
+        } finally {
+            if ($https !== null) {
+                $_SERVER['HTTPS'] = $https;
+            }
+
             TemporaryDirectory::remove($root);
         }
     }

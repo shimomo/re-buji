@@ -226,7 +226,8 @@ final class Container
         $environment = $c->get(Environment::class);
         assert($environment instanceof Environment);
 
-        if ($environment->get('REBUJI_HTTPS') === '1') {
+        // Behind the proxy overlay (Docker only), the proxy speaks HTTPS and passes plain HTTP to the app.
+        if ($environment->enabled() && $environment->get('REBUJI_HTTPS') === '1') {
             return true;
         }
 
