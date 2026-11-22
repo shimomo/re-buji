@@ -1,8 +1,11 @@
 {
-	# プロキシの後ろ（compose.proxy.yaml）では、プロキシの IP が接続元に見える。内側のネットワークから来た
-	# X-Forwarded-For だけを信じ、ログインの回数制限などが本当の接続元で数えられるようにする。
+	# 接続元（ログインの回数制限が数える IP）を、信じるプロキシが付けた X-Forwarded-For から取るのは、
+	# REBUJI_TRUSTED_PROXIES を決めたときだけ（compose.proxy.yaml が決める）。直接 HTTPS で受けるときは何も
+	# 信じず、X-Forwarded-For は無視する。strict は、右から数えて最初の「信じない相手」を接続元にする
+	# （クライアントが先頭に書いた偽の値は使わない）。
 	servers {
-		trusted_proxies static private_ranges
+		trusted_proxies static {$REBUJI_TRUSTED_PROXIES:127.0.0.1/32}
+		trusted_proxies_strict
 	}
 
 	frankenphp
