@@ -126,21 +126,25 @@ final class Upgrade
     }
 
     /**
-     * Moves each entry of the new copy (but storage/) into place. The old entry is first renamed out of the way, so a
-     * request never finds a half-copied directory, and removed afterwards.
+     * Puts each entry of the new copy (but storage/) in place. The entry is first copied next to the copy (inside
+     * storage/, so on the same disk) and then renamed in, with the old entry renamed out of the way just before: a request
+     * never finds a half-copied directory. The new copy itself is left as it is, because this runs from it and still
+     * loads classes from it.
      *
      * @return list<string> the entries replaced
      */
     public function replace(): array
     {
-        $trash = $this->target . '/storage/upgrade-trash-' . bin2hex(random_bytes(4));
-        self::makeDirectory($trash, 0700);
+        $work = $this->target . '/storage/upgrade-trash-' . bin2hex(random_bytes(4));
+        self::makeDirectory($work . '/new', 0700);
+        self::makeDirectory($work . '/old', 0700);
         $replaced = [];
 
         try {
             foreach ($this->entries($this->source) as $name) {
                 $old = $this->target . '/' . $name;
-                $new = $this->source . '/' . $name;
+                $new = $work . '/new/' . $name;
+                self::copy($this->source . '/' . $name, $new);
 
                 // With the whole copy in the document root there is no pointer; with only public/ there, it lives in
                 // the document root. Either way one left in public/ by hand is kept.
@@ -148,7 +152,7 @@ final class Upgrade
                     self::copy($old . '/rebuji-root.php', $new . '/rebuji-root.php');
                 }
 
-                if (file_exists($old) && !rename($old, $trash . '/' . $name)) {
+                if (file_exists($old) && !rename($old, $work . '/old/' . $name)) {
                     throw new RuntimeException('Cannot move ' . $old);
                 }
 
@@ -159,7 +163,7 @@ final class Upgrade
                 $replaced[] = $name;
             }
         } finally {
-            self::remove($trash);
+            self::remove($work);
         }
 
         return $replaced;

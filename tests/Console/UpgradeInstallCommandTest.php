@@ -50,6 +50,27 @@ final class UpgradeInstallCommandTest extends TestCase
         }
     }
 
+    /**
+     * The command runs from the new copy: moving its files away would leave the running process unable to load the
+     * classes it has not loaded yet (the migrations need some).
+     */
+    #[Test]
+    public function leavesTheRunningCopyWhereItIs(): void
+    {
+        $dir = TemporaryDirectory::create();
+
+        try {
+            [$source, $target] = $this->copies($dir, appliedMigrations: 3);
+            [$code, $io] = $this->install($source, ['--target=' . $target, '--yes']);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertSame('new', file_get_contents($source . '/src/marker.txt'));
+            $this->assertSame('new index', file_get_contents($source . '/public/index.php'));
+        } finally {
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
     #[Test]
     public function keepsACopyOfTheOldFilesAndDatabase(): void
     {
