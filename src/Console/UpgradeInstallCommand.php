@@ -194,6 +194,17 @@ final class UpgradeInstallCommand implements Command
         }
 
         $io->line(sprintf('%s に上げました。', $to));
+        // Only now: until every step has finished, an earlier copy may still be what the owner goes back to.
+        $older = $upgrade->removeBackupsBut($backup);
+
+        foreach ($older['removed'] as $path) {
+            $io->line('前に上げたときの写しを消しました：' . $path);
+        }
+
+        foreach ($older['left'] as $path) {
+            $io->line('前に上げたときの写しを消せませんでした。手で消してください：' . $path);
+        }
+
         $this->howToRestore($io, $target, $backup, $mysql);
 
         return 0;
