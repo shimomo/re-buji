@@ -14,7 +14,7 @@ cd re-buji
 docker compose -f compose.yaml -f compose.dev.yaml up -d --build
 ```
 
-- `http://localhost:8080` が Re:無事、`http://localhost:8081` がウェブメール（Roundcube）です。
+- `http://localhost:8080` が Re:無事、`http://localhost:8081` がウェブメール（Roundcube）です。どちらも、このパソコンの中（`127.0.0.1`）からだけ開けます（ウェブメールはパスワードを確かめないので、同じネットワークの人に見せないため）。
 - 最初は、イメージを作るので数分かかります。`docker compose -f compose.yaml -f compose.dev.yaml ps` で `app` が `healthy` になれば使えます。
 - メールの接続は TLS のままです。手元用に作った CA（ボリューム `dev_certs`）を `app` と `cron` が追加で信頼するので、証明書の確認は切っていません。
 
@@ -61,7 +61,13 @@ docker compose -f compose.yaml -f compose.dev.yaml down -v
 docker/dev/e2e.sh
 ```
 
-ウェブメールを使わずに従業員の返信を送るには、`docker/dev/reply.php` を使います（`php docker/dev/reply.php <送り主> <宛先> <Message-ID> [件名]`）。
+ウェブメールを使わずに従業員の返信を送るには、`docker/dev/reply.php` を使います。テスト用メールサーバーにはコンテナの中からしか届かないので、`app` のイメージで流します。
+
+```bash
+docker compose -f compose.yaml -f compose.dev.yaml run --rm --no-deps -T \
+    -v "$PWD/docker/dev/reply.php:/reply.php:ro" \
+    app php /reply.php <送り主> <宛先> <Message-ID> [件名]
+```
 
 ## VPS で本番として動かす
 
@@ -86,7 +92,11 @@ docker compose exec app php bin/console check --wait-reply
 2. `docker compose up -d` で、Let's Encrypt の証明書を自動で取り、更新します。
 3. `admin:create` で最初の管理者を作ります。パスワードは対話で入れます（`.env` や引数には書きません）。
 4. `check --wait-reply` は、テストメールを送り、その返信を待ちます。メールが受け取れたら、**返信してください**。「✓ 返信を読めた」と出れば、送信も受信も通っています。
-5. `docker compose exec app php bin/console status-url` が出す URL を、外部の監視サービスに登録します。cron が止まると 503 を返します。
+5. `docker compose exec app php bin/console status-url https://<ドメイン>`（`<ドメイン>` は `REBUJI_DOMAIN` に書いたもの）が出す URL を、外部の監視サービスに登録します。cron が止まると 503 を返します。
+
+#### IPv6 で来る接続について
+
+`compose.proxy.yaml` を重ねずに直接 HTTPS で受けるとき、Docker のネットワークで IPv6 を有効にしていないと、IPv6 で来た接続は Docker（docker-proxy）が中継し、接続元がどれも Docker のブリッジのゲートウェイの IP に見えます。ログインの回数制限はこの IP で数えるので、IPv6 で来る人どうしが 1 つの枠を分け合います（だれかがパスワードを続けて間違えると、IPv6 で来る全員がしばらくログインできません）。避けるには、Docker で IPv6 を有効にしてください（Docker の文書の「IPv6 networking」）。IPv4 で来る接続は、本当の接続元で数えます。
 
 ### nginx などのリバースプロキシの後ろで動かす
 
