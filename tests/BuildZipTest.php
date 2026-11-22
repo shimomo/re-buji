@@ -42,6 +42,54 @@ final class BuildZipTest extends TestCase
         }
     }
 
+    #[Test]
+    public function makesTheSameZipFromTheSameFilesAtAnyTime(): void
+    {
+        // So the hash shown at `bin/release.sh check` is the hash of the zip `publish` uploads.
+        $work = TemporaryDirectory::create();
+
+        try {
+            mkdir($work . '/app/sub', 0o755, true);
+            file_put_contents($work . '/app/a.txt', 'a');
+            file_put_contents($work . '/app/sub/b.txt', 'b');
+
+            $this->build($work . '/app', $work . '/one.zip');
+            touch($work . '/app/a.txt', time() + 3600);
+            $this->build($work . '/app', $work . '/two.zip');
+
+            $this->assertSame(hash_file('sha256', $work . '/one.zip'), hash_file('sha256', $work . '/two.zip'));
+            $zip = new ZipArchive();
+            $this->assertTrue($zip->open($work . '/two.zip'));
+
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $stat = $zip->statIndex($i);
+                $this->assertIsArray($stat);
+                $this->assertSame(1700000000, $stat['mtime'], (string) $stat['name']);
+            }
+
+            $zip->close();
+        } finally {
+            TemporaryDirectory::remove($work);
+        }
+    }
+
+    #[Test]
+    public function asksForTheTime(): void
+    {
+        $work = TemporaryDirectory::create();
+
+        try {
+            mkdir($work . '/app');
+            exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(dirname(__DIR__) . '/build-files/zip.php') . ' '
+                . escapeshellarg($work . '/app') . ' ' . escapeshellarg($work . '/three.zip') . ' 2>&1', $output, $status);
+
+            $this->assertSame(1, $status);
+            $this->assertContains('Usage: php build-files/zip.php <source directory> <target zip> <mtime>', array_map(strval(...), $output));
+        } finally {
+            TemporaryDirectory::remove($work);
+        }
+    }
+
     /**
      * @return array<string, int> each entry's Unix mode, by name
      */
@@ -49,7 +97,7 @@ final class BuildZipTest extends TestCase
     {
         $script = dirname(__DIR__) . '/build-files/zip.php';
         exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . ' ' . escapeshellarg($source) . ' '
-            . escapeshellarg($target) . ' 2>&1', $output, $status);
+            . escapeshellarg($target) . ' 1700000000 2>&1', $output, $status);
         $this->assertSame(0, $status, implode("\n", array_map(strval(...), $output)));
 
         $zip = new ZipArchive();
