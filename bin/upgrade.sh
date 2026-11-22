@@ -18,6 +18,9 @@
 
 set -eu
 
+# The copied files keep the zip's modes (755/644) whatever the SSH session's umask is.
+umask 022
+
 repo=shimomo/re-buji
 php=${PHP:-php}
 root=""
@@ -56,11 +59,13 @@ if [ "${REBUJI_ENV_CONFIG:-}" = 1 ]; then
     fail "Docker では使いません。docker compose pull で新しいイメージを取ってください。"
 fi
 
-[ -n "$root" ] || root=$(cd "$(dirname "$0")/.." && pwd)
-root=$(cd "$root" 2>/dev/null && pwd) || fail "設置した場所がありません：$root"
+[ -n "$root" ] || root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH= cd -- "$root" 2>/dev/null && pwd) || fail "設置した場所がありません：$root"
 [ -f "$root/src/Version.php" ] && [ -d "$root/storage" ] || fail "$root に設置した Re:無事 が見つかりません。"
 
-command -v "$php" > /dev/null 2>&1 || fail "php が見つかりません。PHP=/path/to/php を付けて動かしてください。"
+command -v "$php" > /dev/null 2>&1 || fail "php が見つかりません。env PHP=/path/to/php を付けて動かしてください。"
+"$php" -r 'exit(PHP_SAPI === "cli" ? 0 : 1);' > /dev/null 2>&1 \
+    || fail "$php はコマンドラインの php ではありません。env PHP=/path/to/php を付けて動かしてください。"
 command -v unzip > /dev/null 2>&1 || fail "unzip が見つかりません。"
 
 current=$(sed -n "s/.*CURRENT = '\([^']*\)'.*/\1/p" "$root/src/Version.php")
@@ -70,7 +75,8 @@ current=$(sed -n "s/.*CURRENT = '\([^']*\)'.*/\1/p" "$root/src/Version.php")
 # place rather than copied.
 work="$root/storage/upgrade-work-$$"
 mkdir -m 700 "$work" || fail "作業用のディレクトリを作れません：$work"
-trap 'rm -rf "$work"' EXIT INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 1' HUP INT TERM
 
 sha256() {
     if command -v sha256sum > /dev/null 2>&1; then
@@ -116,14 +122,28 @@ else
     url=$(sed -n 2p "$work/release.txt")
     expected=$(sed -n 3p "$work/release.txt")
 
+    # Only a version number, this repository's download URL for it and a 64-digit hex hash are taken from the answer.
+    case "$latest" in
+        ''|*[!0-9.]*) fail "リリースの版を読めません：$latest" ;;
+    esac
+
+    case "$url" in
+        "https://github.com/$repo/releases/download/v$latest/re-buji-$latest.zip") ;;
+        *) fail "zip の URL が思っていたものと違うので、止めます：$url" ;;
+    esac
+
     if ! "$php" -r 'exit(version_compare($argv[1], $argv[2], ">") ? 0 : 1);' "$latest" "$current"; then
         echo "最新です（$current）。"
         exit 0
     fi
 
-    [ -n "$expected" ] || fail "GitHub が zip の sha256 を示していないので、止めます。"
+    case "$expected" in
+        *[!0-9a-f]*|'') fail "GitHub が zip の sha256 を示していないので、止めます。" ;;
+    esac
+
+    [ ${#expected} -eq 64 ] || fail "GitHub が zip の sha256 を示していないので、止めます。"
     echo "$current から $latest に上げます。zip を取っています…"
-    curl -fsSL -o "$work/release.zip" "$url" || fail "zip を取れませんでした：$url"
+    curl -fsSL --proto '=https' --proto-redir '=https' -o "$work/release.zip" "$url" || fail "zip を取れませんでした：$url"
 
     actual=$(sha256 "$work/release.zip")
 
@@ -135,18 +155,16 @@ else
 fi
 
 unzip -q "$work/release.zip" -d "$work/unpacked" || fail "zip を展開できませんでした。"
-[ -f "$work/unpacked/re-buji/bin/console" ] || fail "この zip は bin/upgrade.sh で入れられる形ではありません（bin/console がありません）。"
+[ -f "$work/unpacked/re-buji/src/Console/UpgradeInstallCommand.php" ] \
+    || fail "この版は bin/upgrade.sh で入れられません。zip を展開して上書きしてください。"
 
 set -- --target="$root"
 [ -z "$public" ] || set -- "$@" --public="$public"
 [ -z "$yes" ] || set -- "$@" --yes
 
-# The new copy knows how it is installed. A version without upgrade:install answers with its command list (exit 2).
+# The new copy knows how it is installed. From here a dropped SSH connection or Ctrl-C must not stop it halfway through
+# replacing the files: hang-ups and interrupts are ignored, and php inherits that. It still asks before it starts.
+trap '' HUP INT
 status=0
 "$php" "$work/unpacked/re-buji/bin/console" upgrade:install "$@" || status=$?
-
-if [ "$status" -eq 2 ]; then
-    fail "この版は bin/upgrade.sh で入れられません。zip を展開して上書きしてください。"
-fi
-
 exit "$status"

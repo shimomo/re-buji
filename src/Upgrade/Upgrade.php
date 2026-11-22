@@ -138,10 +138,14 @@ final class Upgrade
         $work = $this->target . '/storage/upgrade-trash-' . bin2hex(random_bytes(4));
         self::makeDirectory($work . '/new', 0700);
         self::makeDirectory($work . '/old', 0700);
-        $replaced = [];
+        $names = $this->entries($this->source);
+        /** @var array<string, bool> $swapped entry => whether an old one was moved away */
+        $swapped = [];
 
         try {
-            foreach ($this->entries($this->source) as $name) {
+            // Every entry is copied before the first swap, so the copy is never left half new by a copy that fails,
+            // and the old and new files sit side by side only for the few renames below.
+            foreach ($names as $name) {
                 $old = $this->target . '/' . $name;
                 $new = $work . '/new/' . $name;
                 self::copy($this->source . '/' . $name, $new);
@@ -151,22 +155,32 @@ final class Upgrade
                 if ($name === 'public' && is_file($old . '/rebuji-root.php') && !file_exists($new . '/rebuji-root.php')) {
                     self::copy($old . '/rebuji-root.php', $new . '/rebuji-root.php');
                 }
+            }
 
-                if (file_exists($old) && !rename($old, $work . '/old/' . $name)) {
+            foreach ($names as $name) {
+                $old = $this->target . '/' . $name;
+                $hadOld = file_exists($old) || is_link($old);
+
+                if ($hadOld && !rename($old, $work . '/old/' . $name)) {
                     throw new RuntimeException('Cannot move ' . $old);
                 }
 
-                if (!rename($new, $old)) {
-                    throw new RuntimeException('Cannot move ' . $new . ' to ' . $old);
-                }
+                $swapped[$name] = $hadOld;
 
-                $replaced[] = $name;
+                if (!rename($work . '/new/' . $name, $old)) {
+                    throw new RuntimeException('Cannot move ' . $work . '/new/' . $name . ' to ' . $old);
+                }
             }
-        } finally {
+        } catch (RuntimeException $exception) {
+            $this->putBack($swapped, $work);
             self::remove($work);
+
+            throw $exception;
         }
 
-        return $replaced;
+        self::remove($work);
+
+        return $names;
     }
 
     /**
@@ -183,23 +197,66 @@ final class Upgrade
      */
     public function updatePublicDir(string $directory): void
     {
-        self::copy($this->target . '/public/index.php', $directory . '/index.php');
-
+        $suffix = bin2hex(random_bytes(4));
         $assets = $directory . '/assets';
-        $old = $directory . '/assets-old-' . bin2hex(random_bytes(4));
+        $newAssets = $directory . '/assets-new-' . $suffix;
+        $oldAssets = $directory . '/assets-old-' . $suffix;
+        $newIndex = $directory . '/index.php.new-' . $suffix;
 
-        if (is_dir($assets) && !rename($assets, $old)) {
-            throw new RuntimeException('Cannot move ' . $assets);
+        try {
+            // assets/ first and index.php last, as for an upload by hand; each is written under another name and
+            // renamed in, so a request never reads half a file.
+            self::copy($this->target . '/public/assets', $newAssets);
+
+            if (is_dir($assets) && !rename($assets, $oldAssets)) {
+                throw new RuntimeException('Cannot move ' . $assets);
+            }
+
+            if (!rename($newAssets, $assets)) {
+                throw new RuntimeException('Cannot move ' . $newAssets . ' to ' . $assets);
+            }
+
+            self::copy($this->target . '/public/index.php', $newIndex);
+
+            if (!rename($newIndex, $directory . '/index.php')) {
+                throw new RuntimeException('Cannot move ' . $newIndex);
+            }
+        } finally {
+            self::remove($newAssets);
+            self::remove($oldAssets);
+            self::remove($newIndex);
         }
-
-        self::copy($this->target . '/public/assets', $assets);
-        self::remove($old);
     }
 
     public function rememberPublicDir(string $directory): void
     {
         $config = $this->config();
-        $config->save(new Config([self::PUBLIC_DIR => $directory] + $config->load()->all()));
+        $values = $config->load()->all();
+
+        if (($values[self::PUBLIC_DIR] ?? null) !== $directory) {
+            $config->save(new Config([self::PUBLIC_DIR => $directory] + $values));
+        }
+    }
+
+    /**
+     * Undoes the renames of replace() in reverse order: each new entry moved back out, each old one moved back in.
+     *
+     * @param array<string, bool> $swapped
+     */
+    private function putBack(array $swapped, string $work): void
+    {
+        foreach (array_reverse($swapped, true) as $name => $hadOld) {
+            $path = $this->target . '/' . $name;
+
+            // The new entry got in when it is no longer waiting in work/new: move it back out of the way.
+            if (!file_exists($work . '/new/' . $name) && (file_exists($path) || is_link($path))) {
+                @rename($path, $work . '/new/' . $name);
+            }
+
+            if ($hadOld) {
+                @rename($work . '/old/' . $name, $path);
+            }
+        }
     }
 
     /**
@@ -228,6 +285,11 @@ final class Upgrade
         if (!is_dir($directory) && !mkdir($directory, $mode, true)) {
             throw new RuntimeException('Cannot create ' . $directory);
         }
+
+        // mkdir() is masked by the umask of whoever runs this (an SSH session may have 077).
+        if (!chmod($directory, $mode)) {
+            throw new RuntimeException('Cannot set the permissions of ' . $directory);
+        }
     }
 
     /**
@@ -236,9 +298,11 @@ final class Upgrade
     private static function copy(string $from, string $to): void
     {
         if (is_link($from) || is_file($from)) {
-            self::makeDirectory(dirname($to), 0755);
+            if (!is_dir(dirname($to))) {
+                self::makeDirectory(dirname($to), 0755);
+            }
 
-            if (!copy($from, $to) || !chmod($to, self::mode($from))) {
+            if (!@copy($from, $to) || !chmod($to, self::mode($from))) {
                 throw new RuntimeException('Cannot copy ' . $from . ' to ' . $to);
             }
 
@@ -254,7 +318,7 @@ final class Upgrade
 
             if ($item->isDir()) {
                 self::makeDirectory($path, $item->getPerms() & 0777);
-            } elseif (!copy($item->getPathname(), $path) || !chmod($path, $item->getPerms() & 0777)) {
+            } elseif (!@copy($item->getPathname(), $path) || !chmod($path, $item->getPerms() & 0777)) {
                 throw new RuntimeException('Cannot copy ' . $item->getPathname());
             }
         }

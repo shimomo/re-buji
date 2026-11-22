@@ -87,7 +87,9 @@ final class UpgradeInstallCommand implements Command
         try {
             $config = $upgrade->config()->load();
             $remembered = is_string($config->get(Upgrade::PUBLIC_DIR)) ? (string) $config->get(Upgrade::PUBLIC_DIR) : null;
-            $public = $options['public'] !== '' ? rtrim($options['public'], '/') : $remembered;
+            // Stored as a full path, so a later run from another directory finds it.
+            $given = $options['public'] !== '' ? realpath($options['public']) : false;
+            $public = $options['public'] === '' ? $remembered : ($given !== false ? $given : rtrim($options['public'], '/'));
 
             if ($public !== null && ($problem = $upgrade->publicDirProblem($public)) !== null) {
                 $io->error($problem);
@@ -113,7 +115,7 @@ final class UpgradeInstallCommand implements Command
         }
 
         if (!$options['yes'] && !in_array(strtolower(trim($io->ask('上げますか？ [y/N] '))), ['y', 'yes'], true)) {
-            $io->line('やめました。何も変えていません。');
+            $io->line('やめました。何も置き換えていません。');
 
             return 1;
         }
@@ -121,6 +123,14 @@ final class UpgradeInstallCommand implements Command
         $lock = $this->lockCron($target, $io);
 
         if ($lock === null) {
+            return 1;
+        }
+
+        // Another run may have upgraded the copy while this one waited for the lock.
+        if (Upgrade::versionOf($target) !== $from) {
+            $io->error('待っているあいだに、ほかで ' . (Upgrade::versionOf($target) ?? '?') . ' に上げられました。何も置き換えていません。');
+            flock($lock, LOCK_UN);
+
             return 1;
         }
 
@@ -137,21 +147,42 @@ final class UpgradeInstallCommand implements Command
         }
 
         try {
-            $upgrade->replace();
+            try {
+                $upgrade->replace();
+            } catch (Throwable $exception) {
+                // replace() has put the old entries back.
+                $io->error('ファイルを置き換えられなかったので、元に戻しました：' . $exception->getMessage());
+
+                return 1;
+            }
+
             $io->line('ファイルを置き換えました。');
-            $applied = $upgrade->migrate();
+
+            try {
+                $applied = $upgrade->migrate();
+            } catch (Throwable $exception) {
+                $io->error('DB を更新できませんでした：' . $exception->getMessage());
+                $io->error('ファイルは ' . $to . ' になっています。管理画面の「DB の更新」で、もう一度当てられます。');
+                $this->howToRestore($io, $target, $backup, $mysql);
+
+                return 1;
+            }
+
             $io->line($applied === [] ? 'DB の更新はありませんでした。' : 'DB を更新しました：' . implode('、', $applied));
 
             if ($public !== null) {
-                $upgrade->updatePublicDir($public);
-                $upgrade->rememberPublicDir($public);
+                try {
+                    $upgrade->updatePublicDir($public);
+                    $upgrade->rememberPublicDir($public);
+                } catch (Throwable $exception) {
+                    $io->error('公開ディレクトリを置き換えられませんでした：' . $exception->getMessage());
+                    $io->error($target . '/public/ の index.php と assets/ を、' . $public . ' に写してください。');
+
+                    return 1;
+                }
+
                 $io->line('公開ディレクトリを置き換えました：' . $public);
             }
-        } catch (Throwable $exception) {
-            $io->error('途中で失敗しました：' . $exception->getMessage());
-            $this->howToRestore($io, $target, $backup, $mysql);
-
-            return 1;
         } finally {
             flock($lock, LOCK_UN);
         }

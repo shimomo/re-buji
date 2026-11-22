@@ -71,6 +71,86 @@ final class UpgradeInstallCommandTest extends TestCase
         }
     }
 
+    /**
+     * Everything is copied next to the copy before the first entry is swapped, so a copy that fails (a full disk, an
+     * unreadable file) leaves the installed copy as it was rather than half new.
+     */
+    #[Test]
+    public function aFailedCopyReplacesNothing(): void
+    {
+        $dir = TemporaryDirectory::create();
+
+        try {
+            [$source, $target] = $this->copies($dir);
+            mkdir($source . '/vendor');
+            file_put_contents($source . '/vendor/unreadable.php', 'x');
+            chmod($source . '/vendor/unreadable.php', 0000);
+
+            [$code, $io] = $this->install($source, ['--target=' . $target, '--yes']);
+
+            $this->assertSame(1, $code);
+            $this->assertStringContainsString('ファイルを置き換えられなかったので、元に戻しました', $io->errors());
+            $this->assertSame('old', file_get_contents($target . '/src/marker.txt'));
+            $this->assertSame('old index', file_get_contents($target . '/public/index.php'));
+            $this->assertSame(Upgrade::versionOf($target), '0.1.0');
+            $this->assertSame([], glob($target . '/storage/upgrade-trash-*'));
+        } finally {
+            @chmod($dir . '/new/vendor/unreadable.php', 0644);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    /**
+     * mkdir() is masked by the umask of the SSH session: with 077 the web server could no longer read public/ and
+     * assets/.
+     */
+    #[Test]
+    public function directoriesKeepTheirModesWhateverTheUmask(): void
+    {
+        $dir = TemporaryDirectory::create();
+        $umask = umask(0077);
+
+        try {
+            [$source, $target] = $this->copies($dir);
+            chmod($source . '/public', 0755);
+            chmod($source . '/public/assets', 0755);
+            $public = $dir . '/www';
+            mkdir($public);
+            file_put_contents($public . '/index.php', 'old index');
+            file_put_contents($public . '/rebuji-root.php', "<?php return '" . $target . "';\n");
+
+            [$code, $io] = $this->install($source, ['--target=' . $target, '--public=' . $public, '--yes']);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertSame('0755', substr(sprintf('%o', (int) fileperms($target . '/public')), -4));
+            $this->assertSame('0755', substr(sprintf('%o', (int) fileperms($target . '/public/assets')), -4));
+            $this->assertSame('0755', substr(sprintf('%o', (int) fileperms($public . '/assets')), -4));
+        } finally {
+            umask($umask);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function remembersTheRealPathOfThePublicDirectory(): void
+    {
+        $dir = TemporaryDirectory::create();
+
+        try {
+            [$source, $target] = $this->copies($dir);
+            mkdir($dir . '/www');
+            file_put_contents($dir . '/www/index.php', 'old index');
+            file_put_contents($dir . '/www/rebuji-root.php', "<?php return '" . $target . "';\n");
+
+            [$code, $io] = $this->install($source, ['--target=' . $target, '--public=' . $dir . '/www/../www/', '--yes']);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertSame(realpath($dir . '/www'), (new ConfigFile($target . '/storage/config.php'))->load()->get(Upgrade::PUBLIC_DIR));
+        } finally {
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
     #[Test]
     public function keepsACopyOfTheOldFilesAndDatabase(): void
     {
@@ -197,7 +277,7 @@ final class UpgradeInstallCommandTest extends TestCase
 
             $this->assertSame(1, $code);
             $this->assertStringContainsString('上げますか？ [y/N] ', $io->output());
-            $this->assertStringContainsString('やめました。何も変えていません。', $io->output());
+            $this->assertStringContainsString('やめました。何も置き換えていません。', $io->output());
             $this->assertSame('old', file_get_contents($target . '/src/marker.txt'));
             $this->assertDirectoryDoesNotExist($target . '/storage/' . Upgrade::BACKUPS);
         } finally {
