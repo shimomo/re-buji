@@ -1,0 +1,86 @@
+# 手元で試す。compose.yaml に重ねて使う。.env は要らない。
+#
+#   docker compose -f compose.yaml -f compose.dev.yaml up -d --build
+#
+# メールは、同梱のテスト用メールサーバー（GreenMail）の中のメールボックスに入るだけで、外へは出ません。
+# 手順は docs/docker.md を見てください。
+
+x-mail-env: &mail-env
+  REBUJI_SMTP_HOST: mail
+  REBUJI_SMTP_PORT: "3465"
+  REBUJI_SMTP_ENCRYPTION: ssl
+  REBUJI_SMTP_USERNAME: anpi@example.test
+  REBUJI_SMTP_PASSWORD: dev
+  REBUJI_MAIL_FROM_ADDRESS: anpi@example.test
+  REBUJI_IMAP_HOST: mail
+  REBUJI_IMAP_PORT: "3993"
+  REBUJI_IMAP_ENCRYPTION: ssl
+  REBUJI_IMAP_USERNAME: anpi@example.test
+  REBUJI_IMAP_PASSWORD: dev
+  REBUJI_MAIL_CA_FILE: /certs/ca.pem
+
+services:
+  # CA と mail の証明書を、一度だけ作る。
+  certs:
+    image: alpine/openssl:3.5.4
+    entrypoint: ["sh", "/make-certs.sh"]
+    volumes:
+      - ./docker/dev/make-certs.sh:/make-certs.sh:ro
+      - dev_certs:/certs
+    restart: "no"
+
+  # テスト用のメールサーバー。どの宛先のメールも外へは出さず、中のメールボックスに入れる。
+  # 設定は GREENMAIL_OPTS に書く（イメージの既定の同じ設定を置き換えるため。JAVA_OPTS に書くと既定が後から勝つ）。
+  # 平文の口（SMTP 3025 / IMAP 3143）はウェブメール用。Re:無事 は TLS の口（3465 / 3993）だけを使う。
+  mail:
+    image: greenmail/standalone:2.1.8
+    environment:
+      GREENMAIL_OPTS: >-
+        -Dgreenmail.setup.test.all
+        -Dgreenmail.hostname=0.0.0.0
+        -Dgreenmail.auth.disabled
+        -Dgreenmail.tls.keystore.file=/certs/mail.p12
+        -Dgreenmail.tls.keystore.password=rebuji-dev
+    volumes:
+      - dev_certs:/certs:ro
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # 従業員として返信するためのウェブメール。http://localhost:8081 を開き、taro@example.test で入る（パスワードは何でもよい）。
+  webmail:
+    image: roundcube/roundcubemail:1.6.11-apache
+    environment:
+      ROUNDCUBEMAIL_DEFAULT_HOST: mail
+      ROUNDCUBEMAIL_DEFAULT_PORT: "3143"
+      ROUNDCUBEMAIL_SMTP_SERVER: mail
+      ROUNDCUBEMAIL_SMTP_PORT: "3025"
+    ports:
+      - "8081:80"
+    depends_on:
+      - mail
+    restart: unless-stopped
+
+  app:
+    environment:
+      <<: *mail-env
+      SERVER_NAME: ":80"
+    env_file: !reset []
+    ports: !override
+      - "8080:80"
+    volumes:
+      - dev_certs:/certs:ro
+    depends_on:
+      mail:
+        condition: service_started
+
+  cron:
+    environment:
+      <<: *mail-env
+    env_file: !reset []
+    volumes:
+      - dev_certs:/certs:ro
+
+volumes:
+  dev_certs:
