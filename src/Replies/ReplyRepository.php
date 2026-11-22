@@ -7,6 +7,7 @@ namespace ReBuji\Replies;
 use DateTimeImmutable;
 use Psr\Clock\ClockInterface;
 use ReBuji\Database\Database;
+use ReBuji\Quakes\Notification;
 use ReBuji\Time;
 
 /**
@@ -131,10 +132,18 @@ final class ReplyRepository
      * Mail that matched nobody, received while answers to this quake's contacts could still come: from its first contact
      * sent to ReplyMatcher::SENDER_DAYS days after its last one, the time a reply is still matched by its sender. Of
      * any kind, like the list it points to. 0 while nothing has gone out.
+     *
+     * A contact folded into another quake's never goes out itself: the one it is folded into is what was sent, as the
+     * quake page shows it (QuakeBoard).
      */
     public function countUnmatchedForQuake(int $earthquakeId): int
     {
-        $sent = $this->db->fetchOne('SELECT MIN(first_sent_at) AS first_at, MAX(last_sent_at) AS last_at FROM notifications WHERE earthquake_id = ?', [$earthquakeId]);
+        $sent = $this->db->fetchOne(
+            'SELECT MIN(t.first_sent_at) AS first_at, MAX(t.last_sent_at) AS last_at FROM notifications n'
+            . ' JOIN notifications t ON t.id = CASE WHEN n.state = ? AND n.merged_into_id IS NOT NULL THEN n.merged_into_id ELSE n.id END'
+            . ' WHERE n.earthquake_id = ?',
+            [Notification::MERGED, $earthquakeId],
+        );
         $first = Time::parseNullable($sent['first_at'] ?? null);
         $last = Time::parseNullable($sent['last_at'] ?? null);
 
