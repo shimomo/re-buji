@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace ReBuji\Install\Steps;
 
-use InvalidArgumentException;
 use Override;
 use Psr\Clock\ClockInterface;
 use ReBuji\Database\Database;
 use ReBuji\Install\InstallContext;
 use ReBuji\Install\InstallStep;
+use ReBuji\Install\SetupReplyFinder;
 use ReBuji\Install\StepResult;
 use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\Imap\MailboxUnavailable;
-use ReBuji\Replies\IncomingMail;
 use ReBuji\SystemState;
 use ReBuji\Time;
 
@@ -64,23 +63,8 @@ final class ReplyStep implements InstallStep
         assert($mailbox instanceof Mailbox);
 
         try {
-            foreach ($mailbox->unseen($since === '' ? $this->clock->now() : Time::parse($since), 50) as $raw) {
-                try {
-                    $mail = IncomingMail::parse($raw->raw);
-                } catch (InvalidArgumentException) {
-                    continue;
-                }
-
-                // Bounces, delays, auto-replies and read receipts are left unseen for the reply job.
-                if ($mail->kind() !== IncomingMail::REPLY) {
-                    continue;
-                }
-
-                if (($messageId !== '' && in_array($messageId, $mail->references, true)) || ($number !== '' && str_contains($mail->subject, '#' . $number))) {
-                    $mailbox->markSeen($raw);
-
-                    return StepResult::done();
-                }
+            if ((new SetupReplyFinder($mailbox))->find($since === '' ? $this->clock->now() : Time::parse($since), $messageId, $number)) {
+                return StepResult::done();
             }
         } catch (MailboxUnavailable $exception) {
             return StepResult::failed(['メールを受信できませんでした：' . $exception->getMessage()]);

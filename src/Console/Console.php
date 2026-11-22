@@ -24,6 +24,8 @@ final class Console
         BootCommand::class,
         AdminCreateCommand::class,
         StatusUrlCommand::class,
+        CheckCommand::class,
+        BackupCommand::class,
     ];
 
     public function __construct(
