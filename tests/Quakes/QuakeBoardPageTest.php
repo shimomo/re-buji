@@ -118,6 +118,57 @@ final class QuakeBoardPageTest extends TestCase
         }
     }
 
+    /**
+     * Someone who wrote from an address of their own, in a new mail, is in the unmatched mails: the admin looking for
+     * those who have not replied hears of them here.
+     */
+    #[Test]
+    public function pointsToTheUnmatchedMailsAfterTheContacts(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+            $records->contact($quake, Notification::SENT);
+            $replies = $container->get(ReplyRepository::class);
+            $this->assertInstanceOf(ReplyRepository::class, $replies);
+            $replies->record(null, 'reply', null, 'private@example.net', '無事です', '無事です', null, new DateTimeImmutable('2026-11-05T03:30:00Z'));
+
+            $page = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody();
+
+            $notice = 'この地震の連絡を送った後に、照合できなかったメールが 1 通届いています。返信なしの人からのメールかもしれません。';
+            $this->assertStringContainsString($notice, $page);
+            $this->assertStringContainsString('href="/mail/unmatched">一覧</a>', $page);
+            $this->assertGreaterThan((int) strpos($page, '<h2>返信なし'), (int) strpos($page, $notice));
+            $this->assertLessThan((int) strpos($page, '<h2>要確認'), (int) strpos($page, $notice));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function saysNothingOfUnmatchedMailsWhenEveryoneAnswered(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+            $contact = $records->contact($quake, Notification::SENT);
+            $records->notifications->recordAnswer($contact, Notification::SAFE, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:20:00Z'));
+            $replies = $container->get(ReplyRepository::class);
+            $this->assertInstanceOf(ReplyRepository::class, $replies);
+            $replies->record(null, 'reply', null, 'private@example.net', '無事です', '無事です', null, new DateTimeImmutable('2026-11-05T03:30:00Z'));
+
+            $page = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody();
+
+            $this->assertStringNotContainsString('この地震の連絡を送った後に', $page);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
     #[Test]
     public function showsWhatAnAutoReplySaid(): void
     {

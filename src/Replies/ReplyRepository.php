@@ -128,6 +128,28 @@ final class ReplyRepository
     }
 
     /**
+     * Mail that matched nobody, received while answers to this quake's contacts could still come: from its first contact
+     * sent to ReplyMatcher::SENDER_DAYS days after its last one, the time a reply is still matched by its sender. Of
+     * any kind, like the list it points to. 0 while nothing has gone out.
+     */
+    public function countUnmatchedForQuake(int $earthquakeId): int
+    {
+        $sent = $this->db->fetchOne('SELECT MIN(first_sent_at) AS first_at, MAX(last_sent_at) AS last_at FROM notifications WHERE earthquake_id = ?', [$earthquakeId]);
+        $first = Time::parseNullable($sent['first_at'] ?? null);
+        $last = Time::parseNullable($sent['last_at'] ?? null);
+
+        if ($first === null || $last === null) {
+            return 0;
+        }
+
+        // The days are added here: SQLite and MySQL write date arithmetic differently.
+        return (int) $this->db->fetchValue(
+            'SELECT COUNT(*) FROM replies WHERE notification_id IS NULL AND received_at >= ? AND received_at <= ?',
+            [Time::format($first), Time::format($last->modify('+' . ReplyMatcher::SENDER_DAYS . ' days'))],
+        );
+    }
+
+    /**
      * Deletes mail that matched nobody. A person's reply is part of their record and goes only with the quake.
      */
     /**

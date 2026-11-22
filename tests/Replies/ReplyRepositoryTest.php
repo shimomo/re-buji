@@ -42,6 +42,32 @@ final class ReplyRepositoryTest extends TestCase
         $this->assertSame(1, $replies->countUnmatched());
     }
 
+    /**
+     * From the quake's first contact sent to ReplyMatcher::SENDER_DAYS days after its last one, both ends included.
+     */
+    #[Test]
+    #[DataProvider('drivers')]
+    public function countsTheUnmatchedMailsOfAQuake(string $driver): void
+    {
+        $db = $this->migrated($driver);
+        $replies = new ReplyRepository($db, new FrozenClock());
+        $contact = $this->contact($db);
+        $quake = (int) $db->fetchValue('SELECT earthquake_id FROM notifications WHERE id = ?', [$contact]);
+
+        foreach (['2026-11-05T02:59:59Z', '2026-11-05T03:00:00Z', '2026-11-13T03:00:00Z', '2026-11-13T03:00:01Z'] as $i => $at) {
+            $replies->record(null, 'reply', null, 'private@example.net', '無事です', '無事です', 'u' . $i . '@phone.example', new DateTimeImmutable($at));
+        }
+
+        $replies->record($contact, 'reply', 'thread', 'hanako@example.com', 'Re: 地震', '無事です', 'm1@phone.example', new DateTimeImmutable('2026-11-05T04:00:00Z'));
+
+        // Nothing went out yet.
+        $this->assertSame(0, $replies->countUnmatchedForQuake($quake));
+
+        $db->execute("UPDATE notifications SET first_sent_at = '2026-11-05T03:00:00Z', last_sent_at = '2026-11-06T03:00:00Z' WHERE id = ?", [$contact]);
+
+        $this->assertSame(2, $replies->countUnmatchedForQuake($quake));
+    }
+
     #[Test]
     #[DataProvider('drivers')]
     public function cutsLongSubjectsAndBodies(string $driver): void

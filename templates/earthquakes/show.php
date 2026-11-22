@@ -6,6 +6,7 @@
 /** @var string $heading */
 /** @var string|null $basis */
 /** @var array{noReply: list<ReBuji\Quakes\Board\BoardRow>, needsCheck: list<ReBuji\Quakes\Board\BoardRow>, checked: list<ReBuji\Quakes\Board\BoardRow>, safe: list<ReBuji\Quakes\Board\BoardRow>, total: int} $board */
+/** @var int $unmatchedMails */
 $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'earthquakes']) ?><?php $this->stop() ?>
@@ -19,6 +20,9 @@ $this->layout('layout', ['title' => $title]);
 <?php endif ?>
 
 <h2>返信なし（<?= count($board['noReply']) ?> 人）</h2>
+<?php if ($unmatchedMails > 0 && $board['noReply'] !== []): ?>
+<p class="alert alert-act">この地震の連絡を送った後に、照合できなかったメールが <?= $unmatchedMails ?> 通届いています。返信なしの人からのメールかもしれません。<a href="<?= $this->e($this->url('/mail/unmatched')) ?>">一覧</a></p>
+<?php endif ?>
 <?= $this->insert('quakes/people', ['rows' => $board['noReply'], 'limit' => 20, 'detail' => 'reason', 'check' => false, 'from' => '']) ?>
 
 <h2>要確認（<?= count($board['needsCheck']) ?> 人）</h2>
