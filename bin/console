@@ -1,0 +1,38 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Run by hand or by the Docker image's entrypoint. Never from the web: bin/ is denied by its .htaccess, and a request
+// that still gets here is refused.
+
+if (isset($_SERVER['REQUEST_METHOD'])) {
+    if (!headers_sent()) {
+        http_response_code(403);
+    }
+
+    echo "403 Forbidden\n";
+    exit(1);
+}
+
+$root = dirname(__DIR__);
+
+// Before the autoloader, so that an older PHP gets this in Japanese rather than Composer's English.
+$check = require $root . '/src/php-version.php';
+$tooOld = $check(PHP_VERSION_ID, PHP_VERSION, true);
+
+if ($tooOld !== null) {
+    file_put_contents('php://stderr', $tooOld . "\n");
+    exit(1);
+}
+
+require $root . '/vendor/autoload.php';
+
+$paths = new ReBuji\Paths($root);
+$console = new ReBuji\Console\Console(
+    $paths,
+    ReBuji\Config\Environment::fromProcess(),
+    ReBuji\Container::build($paths, ['smtp.timeout' => ReBuji\Mail\SmtpMailSender::CRON_TIMEOUT_SECONDS]),
+);
+
+exit($console->run(array_slice($argv, 1), ReBuji\Console\ConsoleIo::process()));

@@ -27,7 +27,7 @@ final class StatusTokenController
 
     public function regenerate(): ResponseInterface
     {
-        $this->configFile->save(new Config(['status.token' => bin2hex(random_bytes(16))] + $this->configFile->load()->all()));
+        $this->configFile->save(new Config(['status.token' => StatusToken::generate()] + $this->configFile->load()->all()));
 
         return $this->responses->createResponse(302)->withHeader('Location', $this->url->to('/'));
     }

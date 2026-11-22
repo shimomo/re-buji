@@ -12,6 +12,7 @@ use ReBuji\Install\InstallContext;
 use ReBuji\Install\InstallKey;
 use ReBuji\Install\InstallStep;
 use ReBuji\Install\StepResult;
+use ReBuji\Monitor\StatusToken;
 use ReBuji\Time;
 use Throwable;
 
@@ -81,7 +82,7 @@ final class FinishStep implements InstallStep
         $token = isset($draft['status.token']) && is_string($draft['status.token']) ? $draft['status.token'] : null;
 
         if ($token === null) {
-            $token = bin2hex(random_bytes(16));
+            $token = StatusToken::generate();
             $context->putDraft('status.token', $token);
         }
 
