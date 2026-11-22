@@ -1,0 +1,39 @@
+# Re:無事 を VPS で動かす（本番用）。使い方は .env.example と docs/docker.md を見てください。
+
+services:
+  app:
+    image: ghcr.io/shimomo/re-buji:${REBUJI_VERSION:-0.3.0}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    environment:
+      SERVER_NAME: ${REBUJI_DOMAIN:-}
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - storage:/app/storage
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+  # cron は app と同じイメージ（作るのは app だけ）。
+  cron:
+    image: ghcr.io/shimomo/re-buji:${REBUJI_VERSION:-0.3.0}
+    command: cron
+    healthcheck:
+      disable: true
+    env_file: .env
+    volumes:
+      - storage:/app/storage
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  storage:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,29 @@
+{
+	# プロキシの後ろ（compose.proxy.yaml）では、プロキシの IP が接続元に見える。内側のネットワークから来た
+	# X-Forwarded-For だけを信じ、ログインの回数制限などが本当の接続元で数えられるようにする。
+	servers {
+		trusted_proxies static private_ranges
+	}
+
+	frankenphp
+}
+
+(app) {
+	root * /app/public
+
+	# PHP の REMOTE_ADDR に、信じる相手を除いた本当の接続元（client_ip）を入れる。
+	php_server {
+		env REMOTE_ADDR {client_ip}
+	}
+}
+
+# SERVER_NAME は、ドメイン（HTTPS を自動で取る）か、:80（プロキシの後ろ）。
+{$SERVER_NAME} {
+	import app
+}
+
+# コンテナの中だけの待ち受け。HEALTHCHECK が使う。
+http://127.0.0.1:8081 {
+	bind 127.0.0.1
+	import app
+}

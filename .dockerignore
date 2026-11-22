@@ -1,0 +1,15 @@
+.git
+.github
+.claude
+.superpowers
+.env
+.env.*
+!.env.example
+build
+docs
+tests
+vendor
+storage/*
+!storage/.htaccess
+compose*.yaml
+*.log

@@ -1,0 +1,13 @@
+# すでに nginx などのリバースプロキシがある人向け。HTTPS は持たず、127.0.0.1:8080 だけで待ち受ける。
+#
+#   docker compose -f compose.yaml -f compose.proxy.yaml up -d
+#
+# プロキシは Host と X-Forwarded-For を渡し、https で受けたものを http://127.0.0.1:8080 へ回す。
+
+services:
+  app:
+    environment:
+      SERVER_NAME: ":80"
+      REBUJI_HTTPS: "1"
+    ports: !override
+      - "127.0.0.1:8080:80"
