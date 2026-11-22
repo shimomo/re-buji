@@ -11,7 +11,9 @@ declare(strict_types=1);
 // rsync, carries that to the server as it is. So folders are 0755, and files keep only their owner's execute bit.
 //
 // Every entry is dated MTIME (a Unix time; the release takes the commit's), so the same files always make the same zip
-// and the hash shown before a release is the hash of the zip that goes up.
+// and the hash shown before a release is the hash of the zip that goes up. For that, the entries go in by name (a
+// folder lists its files in the order its file system keeps them, which on tmpfs is the order they were made), and
+// the times are written in UTC (libzip turns them into local DOS times).
 
 [$source, $target, $mtime] = array_slice($argv, 1) + [null, null, null];
 
@@ -20,6 +22,7 @@ if (!is_string($source) || !is_string($target) || !is_dir($source) || !is_string
     exit(1);
 }
 
+putenv('TZ=UTC');
 $zip = new ZipArchive();
 
 if ($zip->open($target, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
@@ -41,9 +44,18 @@ $entries = new RecursiveIteratorIterator(
     RecursiveIteratorIterator::SELF_FIRST,
 );
 
+$sorted = [];
+
 /** @var SplFileInfo $entry */
 foreach ($entries as $entry) {
-    $name = substr($entry->getPathname(), strlen($base) + 1);
+    $sorted[substr($entry->getPathname(), strlen($base) + 1)] = $entry;
+}
+
+// A folder's name sorts before the names inside it, so each folder goes in before its files.
+ksort($sorted, SORT_STRING);
+
+foreach ($sorted as $name => $entry) {
+    $name = (string) $name;
 
     if ($entry->isDir()) {
         $folder($name);

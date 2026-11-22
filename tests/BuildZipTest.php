@@ -48,6 +48,8 @@ final class BuildZipTest extends TestCase
         // So the hash shown at `bin/release.sh check` is the hash of the zip `publish` uploads.
         $work = TemporaryDirectory::create();
 
+        $zone = false;
+
         try {
             mkdir($work . '/app/sub', 0o755, true);
             file_put_contents($work . '/app/a.txt', 'a');
@@ -58,6 +60,9 @@ final class BuildZipTest extends TestCase
             $this->build($work . '/app', $work . '/two.zip');
 
             $this->assertSame(hash_file('sha256', $work . '/one.zip'), hash_file('sha256', $work . '/two.zip'));
+            // A zip's times carry no zone; zip.php writes them in UTC, so they are read in UTC.
+            $zone = getenv('TZ');
+            putenv('TZ=UTC');
             $zip = new ZipArchive();
             $this->assertTrue($zip->open($work . '/two.zip'));
 
@@ -68,6 +73,50 @@ final class BuildZipTest extends TestCase
             }
 
             $zip->close();
+        } finally {
+            putenv($zone === false ? 'TZ' : 'TZ=' . $zone);
+            TemporaryDirectory::remove($work);
+        }
+    }
+
+    #[Test]
+    public function ordersTheEntriesWhateverOrderTheFilesWereMadeIn(): void
+    {
+        // A folder lists its files in the order the file system keeps them, which on tmpfs is the order they were made.
+        $shm = is_dir('/dev/shm') && is_writable('/dev/shm');
+        $work = $shm ? '/dev/shm/rebuji-test-' . bin2hex(random_bytes(6)) : TemporaryDirectory::create();
+        $shm && mkdir($work);
+
+        try {
+            foreach (['one' => ['b.txt', 'a.txt', 'c/d.txt'], 'two' => ['c/d.txt', 'a.txt', 'b.txt']] as $copy => $files) {
+                foreach ($files as $file) {
+                    @mkdir(dirname($work . '/' . $copy . '/app/' . $file), 0o755, true);
+                    file_put_contents($work . '/' . $copy . '/app/' . $file, $file);
+                }
+
+                $this->build($work . '/' . $copy . '/app', $work . '/' . $copy . '.zip');
+            }
+
+            $this->assertSame(hash_file('sha256', $work . '/one.zip'), hash_file('sha256', $work . '/two.zip'));
+        } finally {
+            TemporaryDirectory::remove($work);
+        }
+    }
+
+    #[Test]
+    public function datesTheEntriesTheSameInAnyTimeZone(): void
+    {
+        $work = TemporaryDirectory::create();
+
+        try {
+            mkdir($work . '/app');
+            file_put_contents($work . '/app/a.txt', 'a');
+            $script = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(dirname(__DIR__) . '/build-files/zip.php') . ' ' . escapeshellarg($work . '/app') . ' ';
+            exec('TZ=UTC ' . $script . escapeshellarg($work . '/utc.zip') . ' 1700000000', $output, $first);
+            exec('TZ=Asia/Tokyo ' . $script . escapeshellarg($work . '/tokyo.zip') . ' 1700000000', $output, $second);
+
+            $this->assertSame([0, 0], [$first, $second]);
+            $this->assertSame(hash_file('sha256', $work . '/utc.zip'), hash_file('sha256', $work . '/tokyo.zip'));
         } finally {
             TemporaryDirectory::remove($work);
         }
