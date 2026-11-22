@@ -18,6 +18,7 @@ use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
 use ReBuji\Paths;
 use ReBuji\SystemState;
+use ReBuji\Tests\Support\EnvExample;
 use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\TemporaryDirectory;
 
@@ -214,6 +215,35 @@ final class BootCommandTest extends TestCase
 
             $this->assertSame(0, $code);
             $this->assertStringContainsString('メールの設定がありません。ホーム画面にも出ます。', $io->output() . $io->errors());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function bootsWithTheEnvExample(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            [$code, $io] = $this->boot($root, ['REBUJI_DOMAIN' => 'anpi.example.jp'] + EnvExample::vars());
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertStringContainsString('メールの設定がありません。ホーム画面にも出ます。', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function bootsWithBlankMailValues(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            [$code, $io] = $this->boot($root, EnvExample::blankMail());
+
+            $this->assertSame(0, $code, $io->errors());
         } finally {
             TemporaryDirectory::remove($root);
         }

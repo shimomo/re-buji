@@ -83,13 +83,14 @@ final class Settings
     }
 
     /**
-     * The name of the environment variable that decides this setting, or null when the admins can change it.
+     * The name of the environment variable that decides this setting, or null when the admins can change it. A blank
+     * value decides nothing: Compose passes "NAME=" lines of .env as empty strings.
      */
     public function lockedBy(string $name): ?string
     {
         $variable = self::ENVIRONMENT[$name] ?? null;
 
-        if ($variable === null || !$this->environment->enabled() || $this->environment->get($variable) === null) {
+        if ($variable === null || !$this->environment->enabled() || ($this->environment->get($variable) ?? '') === '') {
             return null;
         }
 
@@ -123,6 +124,22 @@ final class Settings
 
         if ($from !== null && !EmployeeValidator::isAddress($from)) {
             $errors[] = self::ENVIRONMENT['mail.from_address'] . ' がメールアドレスの形ではありません。';
+        }
+
+        // The same limit as the settings page's, which would otherwise refuse every save.
+        $fromName = $this->environmentValue('mail.from_name');
+
+        if ($fromName !== null && mb_strlen($fromName) > 50) {
+            $errors[] = self::ENVIRONMENT['mail.from_name'] . ' は 1〜50 文字にしてください。';
+        }
+
+        // The account's secrets without its server would leave the sending half-decided: the settings page asks for
+        // the server and the sender whenever an account is given.
+        $credentials = $this->environmentValue('smtp.username') !== null || $this->environmentValue('smtp.password') !== null;
+
+        if ($credentials && ($this->environmentValue('smtp.host') === null || $from === null)) {
+            $errors[] = self::ENVIRONMENT['smtp.username'] . ' か ' . self::ENVIRONMENT['smtp.password'] . ' を決めたときは、'
+                . self::ENVIRONMENT['smtp.host'] . ' と ' . self::ENVIRONMENT['mail.from_address'] . ' も決めてください。';
         }
 
         return $errors;

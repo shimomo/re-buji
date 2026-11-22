@@ -202,6 +202,52 @@ final class SettingsTest extends TestCase
     }
 
     #[Test]
+    public function blankEnvironmentValuesAreNotLocked(): void
+    {
+        $db = $this->migrated('sqlite');
+        (new Settings($db, new FrozenClock()))->save(['smtp.host' => 'db.example']);
+        $settings = new Settings($db, new FrozenClock(), new Environment([
+            'REBUJI_ENV_CONFIG' => '1',
+            'REBUJI_SMTP_HOST' => '',
+            'REBUJI_MAIL_FROM_ADDRESS' => '',
+            'REBUJI_MAIL_FROM_NAME' => '',
+            'REBUJI_IMAP_PASSWORD' => '',
+        ]));
+
+        $this->assertNull($settings->lockedBy('mail.from_name'));
+        $this->assertSame('安否確認', $settings->get('mail.from_name'));
+        $this->assertNull($settings->lockedBy('smtp.host'));
+        $this->assertSame('db.example', $settings->get('smtp.host'));
+        $this->assertNull($settings->lockedBy('imap.password'));
+        $this->assertSame([], $settings->environmentErrors());
+    }
+
+    #[Test]
+    public function reportsWhatTheSettingsPageWouldReject(): void
+    {
+        $settings = new Settings($this->migrated('sqlite'), new FrozenClock(), new Environment([
+            'REBUJI_ENV_CONFIG' => '1',
+            'REBUJI_SMTP_USERNAME' => 'anpi@example.co.jp',
+            'REBUJI_SMTP_PASSWORD' => 'secret',
+            'REBUJI_MAIL_FROM_ADDRESS' => 'anpi@example.co.jp',
+            'REBUJI_MAIL_FROM_NAME' => str_repeat('あ', 51),
+        ]));
+
+        $errors = $settings->environmentErrors();
+
+        $this->assertCount(2, $errors);
+        $this->assertContains('REBUJI_MAIL_FROM_NAME は 1〜50 文字にしてください。', $errors);
+        $this->assertContains('REBUJI_SMTP_USERNAME か REBUJI_SMTP_PASSWORD を決めたときは、REBUJI_SMTP_HOST と REBUJI_MAIL_FROM_ADDRESS も決めてください。', $errors);
+        $this->assertSame([], (new Settings($this->migrated('sqlite'), new FrozenClock(), new Environment([
+            'REBUJI_ENV_CONFIG' => '1',
+            'REBUJI_SMTP_HOST' => 'smtp.example.co.jp',
+            'REBUJI_MAIL_FROM_ADDRESS' => 'anpi@example.co.jp',
+            'REBUJI_SMTP_USERNAME' => 'anpi@example.co.jp',
+            'REBUJI_MAIL_FROM_NAME' => str_repeat('あ', 50),
+        ])))->environmentErrors());
+    }
+
+    #[Test]
     public function passesTheCaFile(): void
     {
         $settings = new Settings($this->migrated('sqlite'), new FrozenClock(), new Environment([

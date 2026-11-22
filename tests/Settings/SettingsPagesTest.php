@@ -15,6 +15,7 @@ use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\MailSender;
 use ReBuji\Settings\Settings;
 use ReBuji\SystemState;
+use ReBuji\Tests\Support\EnvExample;
 use ReBuji\Tests\Support\FakeMailbox;
 use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\RecordingMailSender;
@@ -358,6 +359,26 @@ final class SettingsPagesTest extends TestCase
             $state = $container->get(SystemState::class);
             $this->assertInstanceOf(SystemState::class, $state);
             $this->assertNull($state->get('imap.since'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function savesWithBlankEnvironmentMail(): void
+    {
+        $environment = new Environment(['REBUJI_ENV_CONFIG' => '1'] + EnvExample::blankMail());
+        [$app, $container, $root] = TestApp::installed([Environment::class => $environment, MailSender::class => new RecordingMailSender(), ClockInterface::class => new FrozenClock()]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $response = $app->handle(TestApp::request('POST', '/settings', ['mail_from_name' => '総務部'] + self::form() + self::imap() + TestApp::csrf($container)));
+
+            $this->assertSame(302, $response->getStatusCode());
+            $settings = self::settings($container);
+            $this->assertSame('総務部', $settings->get('mail.from_name'));
+            $this->assertSame('smtp.example.co.jp', $settings->get('smtp.host'));
+            $this->assertSame('imap.example.co.jp', $settings->get('imap.host'));
         } finally {
             TemporaryDirectory::remove($root);
         }
