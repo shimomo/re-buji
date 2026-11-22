@@ -38,7 +38,7 @@ fi
 (cd "$app" && composer install --no-dev --optimize-autoloader --classmap-authoritative --no-interaction --no-progress --quiet)
 
 rm -rf "$app/tests" "$app/docs" "$app/.github" "$app/build-files" \
-    "$app/phpunit.xml.dist" "$app/psalm.xml.dist" "$app/pint.json" "$app/bin/build-release.sh"
+    "$app/phpunit.xml.dist" "$app/psalm.xml.dist" "$app/pint.json" "$app/bin/build-release.sh" "$app/bin/release.sh" "$app/.claude"
 cp "$root/build-files/vendor.htaccess" "$app/vendor/.htaccess"
 
 files=$(find "$app/vendor" -type f | wc -l | tr -d ' ')
