@@ -23,6 +23,9 @@ services:
   cron:
     image: ghcr.io/shimomo/re-buji:${REBUJI_VERSION:-0.3.0}
     command: cron
+    # 止めるときは、流している回（メールの送信など）が終わってから抜ける。init は終わった子プロセスを片づける。
+    init: true
+    stop_grace_period: 2m
     healthcheck:
       disable: true
     env_file: .env
