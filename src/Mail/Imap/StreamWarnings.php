@@ -15,7 +15,8 @@ final class StreamWarnings
     /**
      * Calls a stream function with PHP's errors caught instead of shown, as the @ operator would, and keeps its warnings.
      * Under a web server html_errors is on, and PHP would hand the handler the message escaped for HTML ("&quot;"), which
-     * the page then escapes again; it is off during the call.
+     * the page then escapes again; it is off during the call. A server that pins html_errors on (php_admin_flag) makes
+     * ini_set() fail, so a warning that still comes escaped is decoded back.
      *
      * @template T
      *
@@ -30,7 +31,8 @@ final class StreamWarnings
         set_error_handler(static function (int $level, string $message) use (&$warnings): bool {
             // Only a warning says why; a deprecation or a notice on the way is not the reason.
             if ($level === E_WARNING) {
-                $warnings[] = $message;
+                $escaped = !in_array(strtolower((string) ini_get('html_errors')), ['', '0', 'off'], true);
+                $warnings[] = $escaped ? html_entity_decode($message, ENT_QUOTES | ENT_HTML5, 'UTF-8') : $message;
             }
 
             return true;
