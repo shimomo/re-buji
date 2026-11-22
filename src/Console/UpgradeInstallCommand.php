@@ -11,6 +11,7 @@ use Psr\Container\ContainerInterface;
 use ReBuji\Config\Environment;
 use ReBuji\Database\Migration;
 use ReBuji\Paths;
+use ReBuji\Upgrade\PartialReplace;
 use ReBuji\Upgrade\Upgrade;
 use ReBuji\Version;
 use Throwable;
@@ -149,6 +150,11 @@ final class UpgradeInstallCommand implements Command
         try {
             try {
                 $upgrade->replace();
+            } catch (PartialReplace $exception) {
+                $io->error('ファイルを置き換えられず、元にも戻せませんでした：' . $exception->getMessage());
+                $this->howToRestore($io, $target, $backup, $mysql);
+
+                return 1;
             } catch (Throwable $exception) {
                 // replace() has put the old entries back.
                 $io->error('ファイルを置き換えられなかったので、元に戻しました：' . $exception->getMessage());

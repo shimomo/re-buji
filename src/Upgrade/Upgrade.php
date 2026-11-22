@@ -17,6 +17,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use SplFileInfo;
+use Throwable;
 
 /**
  * Puts the copy unpacked at $source in place of the installed copy at $target (bin/upgrade.sh): everything but storage/
@@ -171,8 +172,12 @@ final class Upgrade
                     throw new RuntimeException('Cannot move ' . $work . '/new/' . $name . ' to ' . $old);
                 }
             }
-        } catch (RuntimeException $exception) {
-            $this->putBack($swapped, $work);
+        } catch (Throwable $exception) {
+            if (!$this->putBack($swapped, $work)) {
+                // Leave work/ alone: it holds the old entries that could not be moved back.
+                throw new PartialReplace($exception->getMessage() . '（元に戻せなかったものが ' . $work . '/old にあります）', 0, $exception);
+            }
+
             self::remove($work);
 
             throw $exception;
@@ -213,6 +218,11 @@ final class Upgrade
             }
 
             if (!rename($newAssets, $assets)) {
+                // Never leave the public directory without assets/.
+                if (is_dir($oldAssets)) {
+                    @rename($oldAssets, $assets);
+                }
+
                 throw new RuntimeException('Cannot move ' . $newAssets . ' to ' . $assets);
             }
 
@@ -242,9 +252,13 @@ final class Upgrade
      * Undoes the renames of replace() in reverse order: each new entry moved back out, each old one moved back in.
      *
      * @param array<string, bool> $swapped
+     *
+     * @return bool whether everything is back as it was
      */
-    private function putBack(array $swapped, string $work): void
+    private function putBack(array $swapped, string $work): bool
     {
+        $restored = true;
+
         foreach (array_reverse($swapped, true) as $name => $hadOld) {
             $path = $this->target . '/' . $name;
 
@@ -253,10 +267,12 @@ final class Upgrade
                 @rename($path, $work . '/new/' . $name);
             }
 
-            if ($hadOld) {
-                @rename($work . '/old/' . $name, $path);
+            if ($hadOld && !@rename($work . '/old/' . $name, $path)) {
+                $restored = false;
             }
         }
+
+        return $restored;
     }
 
     /**
