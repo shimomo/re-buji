@@ -16,6 +16,7 @@
 
 - 新しいファイルが加わります：{足したファイル}。`vendor/composer/` の中も変わるので、`src/`・`templates/`・`vendor/` は、まとめて上書きしてください
 - `public/` の中身（`index.php`、`assets/`）は変わっていません
+- Docker で動かしている場合は、`REBUJI_VERSION` を `{版}` に上げて、`docker compose pull && docker compose up -d` を実行します
 - `scp` や `rsync` で上げる場合、この zip のフォルダの権限は 755、ファイルは 644 です
 
 ## 確かめたこと
