@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReBuji\Config\Config;
 use ReBuji\Config\ConfigFile;
+use ReBuji\Config\Environment;
 use ReBuji\Tests\PrivateFileTest;
 use ReBuji\Tests\Support\TemporaryDirectory;
 use RuntimeException;
@@ -98,6 +99,39 @@ final class ConfigFileTest extends TestCase
             $this->assertFalse($file->exists());
             $this->expectException(RuntimeException::class);
             $file->load();
+        } finally {
+            TemporaryDirectory::remove($directory);
+        }
+    }
+
+    #[Test]
+    public function environmentWinsOverTheFile(): void
+    {
+        $directory = TemporaryDirectory::create();
+
+        try {
+            (new ConfigFile($directory . '/config.php'))->save(new Config(['db.driver' => 'mysql', 'status.token' => 'abc']));
+            $file = new ConfigFile($directory . '/config.php', new Environment(['REBUJI_ENV_CONFIG' => '1']));
+
+            $this->assertSame('sqlite', $file->load()->get('db.driver'));
+            $this->assertSame('abc', $file->load()->get('status.token'));
+        } finally {
+            TemporaryDirectory::remove($directory);
+        }
+    }
+
+    #[Test]
+    public function saveLeavesEnvironmentValuesOut(): void
+    {
+        $directory = TemporaryDirectory::create();
+
+        try {
+            $environment = new Environment(['REBUJI_ENV_CONFIG' => '1']);
+            $file = new ConfigFile($directory . '/config.php', $environment);
+            $file->save(new Config(['status.token' => 'x'] + $environment->databaseConfig()));
+
+            // A file without the environment shows what was written.
+            $this->assertSame(['status.token' => 'x'], (new ConfigFile($directory . '/config.php'))->load()->all());
         } finally {
             TemporaryDirectory::remove($directory);
         }

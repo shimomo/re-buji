@@ -10,6 +10,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Http\Client\ClientInterface;
+use ReBuji\Config\Config;
+use ReBuji\Config\Environment;
 use ReBuji\Container;
 use ReBuji\Database\Database;
 use ReBuji\Feed\FeedJob;
@@ -65,6 +67,21 @@ final class ContainerTest extends TestCase
 
             $this->assertSame(2, (int) $db->fetchValue('SELECT COUNT(*) FROM feed_states'));
             $this->assertSame(1, (int) $db->fetchValue('SELECT COUNT(*) FROM feed_seen'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function readsTheDatabaseFromTheEnvironment(): void
+    {
+        $root = TestApp::root(new Config(['installed_at' => '2026-01-01 00:00:00']));
+
+        try {
+            $container = Container::build(new Paths($root), [Environment::class => new Environment(['REBUJI_ENV_CONFIG' => '1'])]);
+
+            $this->assertInstanceOf(Database::class, $container->get(Database::class));
+            $this->assertFileExists($root . '/storage/database.sqlite');
         } finally {
             TemporaryDirectory::remove($root);
         }

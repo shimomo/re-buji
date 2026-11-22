@@ -14,7 +14,7 @@ use RuntimeException;
  */
 final class ConfigFile
 {
-    public function __construct(private readonly string $path)
+    public function __construct(private readonly string $path, private readonly Environment $environment = new Environment([]))
     {
         //
     }
@@ -38,7 +38,7 @@ final class ConfigFile
         }
 
         /** @var array<string, mixed> $values */
-        return new Config($values);
+        return new Config($this->environment->databaseConfig() + $values);
     }
 
     /**
@@ -47,7 +47,9 @@ final class ConfigFile
     public function save(Config $config): void
     {
         $temporary = $this->path . '.' . bin2hex(random_bytes(6));
-        $contents = "<?php\n\nreturn " . var_export($config->all(), true) . ";\n";
+        // What the environment supplies stays in the environment, not in the file.
+        $values = array_diff_key($config->all(), $this->environment->databaseConfig());
+        $contents = "<?php\n\nreturn " . var_export($values, true) . ";\n";
 
         try {
             PrivateFile::write($temporary, $contents);
