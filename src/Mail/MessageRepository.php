@@ -91,6 +91,24 @@ final class MessageRepository
     }
 
     /**
+     * When the latest test mail (the settings page's, the installer's or bin/console check's) among these Message-IDs
+     * was sent, or null when none of them is one.
+     *
+     * @param list<string> $messageIds
+     */
+    public function testSentAt(array $messageIds): ?DateTimeImmutable
+    {
+        if ($messageIds === []) {
+            return null;
+        }
+
+        $marks = implode(', ', array_fill(0, count($messageIds), '?'));
+        $at = $this->db->fetchValue("SELECT MAX(attempted_at) FROM messages WHERE kind = 'test' AND message_id IN ({$marks})", $messageIds);
+
+        return $at === null ? null : Time::parse((string) $at);
+    }
+
+    /**
      * The latest mail that went out to the address, for a bounce that does not say which mail it returns.
      *
      * @return array{id: int, notificationId: ?int, address: string}|null

@@ -9,6 +9,7 @@ use LogicException;
 use Psr\Clock\ClockInterface;
 use Psr\Log\NullLogger;
 use ReBuji\Auth\AdminRepository;
+use ReBuji\Config\Environment;
 use ReBuji\Database\Database;
 use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
@@ -178,11 +179,11 @@ final class QuakeWorld
         return new ReplyMatcher($this->db, $this->messages, $this->clock);
     }
 
-    public function replyJob(?ClockInterface $clock = null): ReplyJob
+    public function replyJob(?ClockInterface $clock = null, ?Environment $environment = null): ReplyJob
     {
         $recorder = new ReplyRecorder($this->db, $this->matcher(), $this->replies, $this->notifications, $this->messages, $this->clock);
 
-        return new ReplyJob($this->mailbox, $recorder, $this->replies, $this->settings, $this->state, $clock ?? $this->clock, new NullLogger());
+        return new ReplyJob($this->mailbox, $recorder, $this->replies, $this->settings, $this->state, $clock ?? $this->clock, new NullLogger(), $this->messages, $environment ?? new Environment([]));
     }
 
     public function contactNow(int $id): Notification
