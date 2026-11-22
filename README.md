@@ -145,6 +145,8 @@ composer test       # PHPUnit
 composer analyse    # Psalm
 composer lint       # Pint
 bin/build-release.sh 0.2.2   # build/re-buji-0.2.2.zip を作る（版は src/Version.php と同じにし、コミットしてから）
+bin/release.sh check 0.2.2   # main で、リリースできるかを確かめて zip を作る
+bin/release.sh publish 0.2.2 notes.md   # 署名つきのタグと GitHub のリリースを作る
 ```
 
 ## 出典と注意
