@@ -115,6 +115,13 @@ final class Container
 
                 return new FeedClient($http, $requests, $store, self::clock($c), 'Re-Buji/' . Version::CURRENT . ' (+https://github.com/shimomo/re-buji)');
             },
+            Settings::class => static function (ContainerInterface $c): Settings {
+                $db = $c->get(Database::class);
+                $environment = $c->get(Environment::class);
+                assert($db instanceof Database && $environment instanceof Environment);
+
+                return new Settings($db, self::clock($c), $environment);
+            },
             Mailbox::class => static function (ContainerInterface $c): Mailbox {
                 $settings = $c->get(Settings::class);
                 assert($settings instanceof Settings);

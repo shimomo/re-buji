@@ -8,7 +8,10 @@
 /** @var bool $hasPassword */
 /** @var bool $hasImapPassword */
 /** @var list<string> $placeholders */
+/** @var array<string, string> $locked the form fields an environment variable decides, with its name */
 $this->layout('layout', ['title' => $title]);
+$lock = static fn(string $field): string => isset($locked[$field]) ? ' readonly' : '';
+$note = fn(string $field): string => isset($locked[$field]) ? '<small class="muted">環境変数 ' . $this->e($locked[$field]) . ' で決まっています。</small>' : '';
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'more', 'page' => 'settings']) ?><?php $this->stop() ?>
 <?php if ($errors !== []): ?>
@@ -63,36 +66,46 @@ $this->layout('layout', ['title' => $title]);
     </fieldset>
     <fieldset>
         <legend>メールのアカウント（返信を受けるアドレスと同じアカウントにしてください）</legend>
-        <label>SMTP のサーバー名 <input name="smtp_host" value="<?= $this->e($values['smtp_host']) ?>" autocomplete="off"></label>
+        <label>SMTP のサーバー名 <input name="smtp_host" value="<?= $this->e($values['smtp_host']) ?>" autocomplete="off"<?= $lock('smtp_host') ?>><?= $note('smtp_host') ?></label>
         <div class="row">
-            <label>ポート番号 <input name="smtp_port" inputmode="numeric" value="<?= $this->e($values['smtp_port']) ?>"></label>
+            <label>ポート番号 <input name="smtp_port" inputmode="numeric" value="<?= $this->e($values['smtp_port']) ?>"<?= $lock('smtp_port') ?>><?= $note('smtp_port') ?></label>
             <label>暗号化
-                <select name="smtp_encryption">
+                <select name="smtp_encryption"<?= isset($locked['smtp_encryption']) ? ' disabled' : '' ?>>
                     <option value="starttls"<?= $values['smtp_encryption'] === 'starttls' ? ' selected' : '' ?>>STARTTLS（ふつうは 587 番）</option>
                     <option value="ssl"<?= $values['smtp_encryption'] === 'ssl' ? ' selected' : '' ?>>SSL/TLS（ふつうは 465 番）</option>
                 </select>
+                <?php if (isset($locked['smtp_encryption'])): ?><input type="hidden" name="smtp_encryption" value="<?= $this->e($values['smtp_encryption']) ?>"><?php endif ?><?= $note('smtp_encryption') ?>
             </label>
         </div>
-        <label>ユーザー名 <input name="smtp_username" value="<?= $this->e($values['smtp_username']) ?>" autocomplete="off"></label>
+        <label>ユーザー名 <input name="smtp_username" value="<?= $this->e($values['smtp_username']) ?>" autocomplete="off"<?= $lock('smtp_username') ?>><?= $note('smtp_username') ?></label>
+        <?php if (isset($locked['smtp_password'])): ?>
+        <p class="muted">パスワード：環境変数 <?= $this->e($locked['smtp_password']) ?> で決まっています。</p>
+<?php else: ?>
         <label>パスワード<?= $hasPassword ? '（保存してあります。変えるときだけ入れてください）' : '' ?> <input type="password" name="smtp_password" value="" autocomplete="new-password"></label>
-        <label>送信元のアドレス <input type="text" inputmode="email" name="mail_from_address" value="<?= $this->e($values['mail_from_address']) ?>" autocomplete="off"></label>
-        <label>送信元の名前 <input name="mail_from_name" value="<?= $this->e($values['mail_from_name']) ?>" maxlength="50"></label>
+<?php endif ?>
+        <label>送信元のアドレス <input type="text" inputmode="email" name="mail_from_address" value="<?= $this->e($values['mail_from_address']) ?>" autocomplete="off"<?= $lock('mail_from_address') ?>><?= $note('mail_from_address') ?></label>
+        <label>送信元の名前 <input name="mail_from_name" value="<?= $this->e($values['mail_from_name']) ?>" maxlength="50"<?= $lock('mail_from_name') ?>><?= $note('mail_from_name') ?></label>
     </fieldset>
     <fieldset>
         <legend>返信を受けるアカウント（IMAP。上の送信元のアドレスに届いた返信を読みます）</legend>
         <?= $this->insert('mail/dedicated') ?>
-        <label>IMAP のサーバー名 <input name="imap_host" value="<?= $this->e($values['imap_host']) ?>" autocomplete="off"></label>
+        <label>IMAP のサーバー名 <input name="imap_host" value="<?= $this->e($values['imap_host']) ?>" autocomplete="off"<?= $lock('imap_host') ?>><?= $note('imap_host') ?></label>
         <div class="row">
-            <label>ポート番号 <input name="imap_port" inputmode="numeric" value="<?= $this->e($values['imap_port']) ?>"></label>
+            <label>ポート番号 <input name="imap_port" inputmode="numeric" value="<?= $this->e($values['imap_port']) ?>"<?= $lock('imap_port') ?>><?= $note('imap_port') ?></label>
             <label>暗号化
-                <select name="imap_encryption">
+                <select name="imap_encryption"<?= isset($locked['imap_encryption']) ? ' disabled' : '' ?>>
                     <option value="ssl"<?= $values['imap_encryption'] === 'ssl' ? ' selected' : '' ?>>SSL/TLS（ふつうは 993 番）</option>
                     <option value="starttls"<?= $values['imap_encryption'] === 'starttls' ? ' selected' : '' ?>>STARTTLS（ふつうは 143 番）</option>
                 </select>
+                <?php if (isset($locked['imap_encryption'])): ?><input type="hidden" name="imap_encryption" value="<?= $this->e($values['imap_encryption']) ?>"><?php endif ?><?= $note('imap_encryption') ?>
             </label>
         </div>
-        <label>ユーザー名（空なら送信と同じ） <input name="imap_username" value="<?= $this->e($values['imap_username']) ?>" autocomplete="off"></label>
+        <label>ユーザー名（空なら送信と同じ） <input name="imap_username" value="<?= $this->e($values['imap_username']) ?>" autocomplete="off"<?= $lock('imap_username') ?>><?= $note('imap_username') ?></label>
+        <?php if (isset($locked['imap_password'])): ?>
+        <p class="muted">パスワード：環境変数 <?= $this->e($locked['imap_password']) ?> で決まっています。</p>
+<?php else: ?>
         <label>パスワード（空なら送信と同じ<?= $hasImapPassword ? '。保存してあるものを変えるときだけ入れてください' : '' ?>） <input type="password" name="imap_password" value="" autocomplete="new-password"></label>
+<?php endif ?>
     </fieldset>
     <button type="submit">保存する</button>
 </form>

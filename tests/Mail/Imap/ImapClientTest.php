@@ -233,6 +233,17 @@ final class ImapClientTest extends TestCase
         (new ImapMailbox(null))->unseen(new DateTimeImmutable(self::SINCE), 50);
     }
 
+    #[Test]
+    public function trustsTheGivenCa(): void
+    {
+        $with = new ImapSettings('imap.example.co.jp', 993, 'ssl', 'anpi', 'secret', '/certs/ca.pem');
+        $without = new ImapSettings('imap.example.co.jp', 993, 'ssl', 'anpi', 'secret');
+
+        $this->assertSame('/certs/ca.pem', ImapClient::sslOptions($with)['cafile'] ?? null);
+        $this->assertSame('imap.example.co.jp', ImapClient::sslOptions($with)['peer_name'] ?? null);
+        $this->assertArrayNotHasKey('cafile', ImapClient::sslOptions($without));
+    }
+
     private static function settings(int $port): ImapSettings
     {
         return new ImapSettings('127.0.0.1', $port, 'none', 'anpi', 'secret');

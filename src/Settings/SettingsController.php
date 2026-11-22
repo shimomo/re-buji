@@ -57,6 +57,12 @@ final class SettingsController
     {
         $body = $request->getParsedBody();
         $values = SettingsForm::read(is_array($body) ? $body : []);
+
+        // What the environment decides cannot be changed here, whatever was posted.
+        foreach ($this->locked() as $field => $variable) {
+            $values[$field] = in_array($field, ['smtp_password', 'imap_password'], true) ? '' : $this->settings->get(SettingsForm::FIELDS[$field]);
+        }
+
         $errors = SettingsForm::validate($values, false);
 
         if ($errors !== []) {
@@ -144,6 +150,26 @@ final class SettingsController
     }
 
     /**
+     * The form fields the environment decides, with the variable's name.
+     *
+     * @return array<string, string>
+     */
+    private function locked(): array
+    {
+        $locked = [];
+
+        foreach (SettingsForm::FIELDS as $field => $name) {
+            $variable = $this->settings->lockedBy($name);
+
+            if ($variable !== null) {
+                $locked[$field] = $variable;
+            }
+        }
+
+        return $locked;
+    }
+
+    /**
      * @param array<string, string> $values
      * @param list<string> $errors
      */
@@ -155,7 +181,8 @@ final class SettingsController
             'title' => '設定',
             'admin' => $request->getAttribute('admin'),
             'values' => $values,
-            'errors' => $errors,
+            'errors' => [...$this->settings->environmentErrors(), ...$errors],
+            'locked' => $this->locked(),
             'thresholds' => $thresholds,
             'hasPassword' => $this->settings->get('smtp.password') !== '',
             'hasImapPassword' => $this->settings->get('imap.password') !== '',

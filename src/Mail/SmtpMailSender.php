@@ -8,6 +8,7 @@ use Override;
 use ReBuji\Settings\SmtpSettings;
 use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Mime\Exception\RfcComplianceException;
@@ -86,6 +87,14 @@ final class SmtpMailSender implements MailSender
             // Without TLS the password would cross the network in clear text: refuse a server that does not offer
             // STARTTLS. 'none' is only for the test servers.
             $transport->setRequireTls($this->settings->encryption === 'starttls');
+
+            // An extra CA to trust, for a mail server with a private certificate. TLS stays on and the name is still checked.
+            if ($this->settings->caFile !== '') {
+                $stream = $transport->getStream();
+                assert($stream instanceof SocketStream);
+                /** @psalm-suppress InternalMethod */
+                $stream->setStreamOptions(['ssl' => ['cafile' => $this->settings->caFile]]);
+            }
 
             if ($this->settings->username !== '') {
                 $transport->setUsername($this->settings->username);

@@ -21,6 +21,7 @@ final readonly class ImapSettings
         public string $encryption,
         public string $username,
         public string $password,
+        public string $caFile = '',
     ) {
         //
     }

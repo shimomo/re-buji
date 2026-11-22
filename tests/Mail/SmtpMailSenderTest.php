@@ -13,6 +13,9 @@ use ReBuji\Mail\RecipientRefused;
 use ReBuji\Mail\SmtpMailSender;
 use ReBuji\Settings\SmtpSettings;
 use ReBuji\Tests\Support\FakeSmtpServer;
+use ReflectionMethod;
+use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
+use Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream;
 
 /**
  * @author shimomo
@@ -168,6 +171,30 @@ final class SmtpMailSenderTest extends TestCase
         $this->expectExceptionMessage('メールの送信の設定がありません');
 
         (new SmtpMailSender(null))->send(self::mail('ok@example.com'));
+    }
+
+    #[Test]
+    public function trustsTheGivenCa(): void
+    {
+        $settings = new SmtpSettings('smtp.example.co.jp', 465, 'ssl', 'anpi', 'secret', 'anpi@example.co.jp', '安否確認', '/certs/ca.pem');
+
+        $this->assertSame(['ssl' => ['cafile' => '/certs/ca.pem']], self::streamOptions($settings));
+        $this->assertSame([], self::streamOptions(self::settings(25)));
+    }
+
+    /**
+     * @return array<array-key, mixed>
+     */
+    private static function streamOptions(SmtpSettings $settings): array
+    {
+        $transport = (new ReflectionMethod(SmtpMailSender::class, 'transport'))->invoke(new SmtpMailSender($settings));
+        assert($transport instanceof EsmtpTransport);
+        $stream = $transport->getStream();
+        assert($stream instanceof SocketStream);
+
+        // The only way to see what the transport will give the socket.
+        /** @psalm-suppress InternalMethod */
+        return $stream->getStreamOptions();
     }
 
     /**
