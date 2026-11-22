@@ -9,6 +9,7 @@ use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use ReBuji\Config\Environment;
 use ReBuji\Http\Session;
 use ReBuji\Http\Url;
 
@@ -39,6 +40,7 @@ final class LoginController
         private readonly Engine $templates,
         private readonly ResponseFactoryInterface $responses,
         private readonly Url $url,
+        private readonly Environment $environment,
     ) {
         //
     }
@@ -109,7 +111,7 @@ final class LoginController
     private function render(string $email, ?string $error): ResponseInterface
     {
         $response = $this->responses->createResponse(200);
-        $response->getBody()->write($this->templates->render('login', ['title' => 'ログイン', 'email' => $email, 'error' => $error]));
+        $response->getBody()->write($this->templates->render('login', ['title' => 'ログイン', 'email' => $email, 'error' => $error, 'needsAdmin' => $this->environment->enabled() && $this->admins->count() === 0]));
 
         return $response;
     }

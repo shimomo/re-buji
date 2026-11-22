@@ -64,6 +64,24 @@ final class AdminStep implements InstallStep
         $password = $input['password'] ?? '';
         $context->putDraft('name', $name);
         $context->putDraft('email', $email);
+        $errors = self::validate($name, $email, $password, $input['password_confirmation'] ?? '');
+
+        if ($errors !== []) {
+            return StepResult::failed($errors);
+        }
+
+        $admins->create($name, $email, $password);
+
+        return StepResult::done();
+    }
+
+    /**
+     * What is wrong with a new admin's details, in the words both the installer and bin/console admin:create show.
+     *
+     * @return list<string>
+     */
+    public static function validate(string $name, string $email, string $password, string $confirmation): array
+    {
         $errors = [];
 
         if ($name === '') {
@@ -76,17 +94,11 @@ final class AdminStep implements InstallStep
 
         $errors = [...$errors, ...PasswordPolicy::validate($password)];
 
-        if ($password !== ($input['password_confirmation'] ?? '')) {
+        if ($password !== $confirmation) {
             $errors[] = '確認のパスワードが一致しません。';
         }
 
-        if ($errors !== []) {
-            return StepResult::failed($errors);
-        }
-
-        $admins->create($name, $email, $password);
-
-        return StepResult::done();
+        return $errors;
     }
 
     private function admins(InstallContext $context): AdminRepository

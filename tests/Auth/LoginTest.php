@@ -9,7 +9,11 @@ use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use ReBuji\Auth\AdminRepository;
+use ReBuji\Config\Config;
+use ReBuji\Config\Environment;
 use ReBuji\Database\Database;
+use ReBuji\Database\Migrations;
+use ReBuji\Database\Migrator;
 use ReBuji\Http\ArraySession;
 use ReBuji\Http\Session;
 use ReBuji\Tests\Support\FrozenClock;
@@ -215,5 +219,62 @@ final class LoginTest extends TestCase
         assert($admins instanceof AdminRepository);
 
         return $admins->findByEmail(TestApp::ADMIN_EMAIL)['password_hash'] ?? '';
+    }
+
+    #[Test]
+    public function pointsToAdminCreateWhenDockerHasNoAdmin(): void
+    {
+        [$app, $root] = $this->docker(false);
+
+        try {
+            $this->assertStringContainsString(self::GUIDE, (string) $app->handle(TestApp::request('GET', '/login'))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function staysQuietOnceDockerHasAnAdmin(): void
+    {
+        [$app, $root] = $this->docker(true);
+
+        try {
+            $this->assertStringNotContainsString(self::GUIDE, (string) $app->handle(TestApp::request('GET', '/login'))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function staysQuietOutsideDocker(): void
+    {
+        [$app, , $root] = TestApp::create([], TestApp::installedConfig());
+
+        try {
+            $this->assertStringNotContainsString(self::GUIDE, (string) $app->handle(TestApp::request('GET', '/login'))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    private const string GUIDE = 'まだ管理者がいません。サーバーで docker compose exec app php bin/console admin:create を流して作ってください。';
+
+    /**
+     * @return array{\Slim\App<ContainerInterface>, string}
+     */
+    private function docker(bool $withAdmin): array
+    {
+        [$app, $container, $root] = TestApp::create([Environment::class => new Environment(['REBUJI_ENV_CONFIG' => '1'])], new Config(['installed_at' => '2026-11-05T03:00:00Z']));
+        $db = $container->get(Database::class);
+        $clock = $container->get(ClockInterface::class);
+        $this->assertInstanceOf(Database::class, $db);
+        $this->assertInstanceOf(ClockInterface::class, $clock);
+        (new Migrator($db, Migrations::all(), $clock))->migrate();
+
+        if ($withAdmin) {
+            (new AdminRepository($db, $clock))->create('安否 太郎', TestApp::ADMIN_EMAIL, TestApp::ADMIN_PASSWORD);
+        }
+
+        return [$app, $root];
     }
 }

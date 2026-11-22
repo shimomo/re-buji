@@ -32,6 +32,7 @@ final class ConsoleTest extends TestCase
 
             $this->assertStringContainsString('boot', $io->output());
             $this->assertStringContainsString('status-url', $io->output());
+            $this->assertStringContainsString('admin:create', $io->output());
         } finally {
             TemporaryDirectory::remove($root);
         }

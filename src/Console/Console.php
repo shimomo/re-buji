@@ -22,6 +22,7 @@ final class Console
      */
     public const array COMMANDS = [
         BootCommand::class,
+        AdminCreateCommand::class,
         StatusUrlCommand::class,
     ];
 
