@@ -19,6 +19,10 @@ RUN install-php-extensions pdo_sqlite pdo_mysql mbstring
 
 ENV REBUJI_ENV_CONFIG=1
 
+# 本番向けの php.ini（エラーを画面に出さない）。PHP の版を応答に出さない。
+RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+    && printf 'expose_php = Off\n' > "$PHP_INI_DIR/conf.d/zz-rebuji.ini"
+
 # root でないユーザーで動かす。setcap は、そのユーザーが 80 番と 443 番を開けるようにする。
 RUN useradd --uid 1000 --user-group --no-create-home --shell /usr/sbin/nologin rebuji \
     && setcap cap_net_bind_service=+ep /usr/local/bin/frankenphp \
