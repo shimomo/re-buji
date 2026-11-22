@@ -8,9 +8,11 @@ use DateTimeImmutable;
 use Override;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
+use ReBuji\Config\Environment;
 use ReBuji\Cron\CronJob;
 use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\Imap\MailboxUnavailable;
+use ReBuji\Mail\MessageRepository;
 use ReBuji\Settings\Settings;
 use ReBuji\SystemState;
 use ReBuji\Time;
@@ -31,6 +33,11 @@ final class ReplyJob implements CronJob
 
     public const int MAX_SECONDS = 60;
 
+    /**
+     * How long a reply to a test mail is left for bin/console check --wait-reply to find (Docker only).
+     */
+    public const int TEST_REPLY_MINUTES = 60;
+
     public function __construct(
         private readonly Mailbox $mailbox,
         private readonly ReplyRecorder $recorder,
@@ -39,6 +46,8 @@ final class ReplyJob implements CronJob
         private readonly SystemState $state,
         private readonly ClockInterface $clock,
         private readonly LoggerInterface $logger,
+        private readonly MessageRepository $messages,
+        private readonly Environment $environment,
     ) {
         //
     }
@@ -75,10 +84,17 @@ final class ReplyJob implements CronJob
                 // listed for the admins instead. A failure of the mailbox itself still stops the run.
                 try {
                     $mail = IncomingMail::parse($raw->raw);
+                    $test = $this->testSentAt($mail);
+
+                    if ($test !== null && $now->getTimestamp() - $test->getTimestamp() < self::TEST_REPLY_MINUTES * 60) {
+                        // bin/console check --wait-reply may be waiting for it: left unseen for its finder.
+                        continue;
+                    }
 
                     // Recorded already: the run that read it stopped before marking it seen, or the same mail came
-                    // twice. A mail without a Message-ID is known by its text.
-                    if (!$this->replies->knows($mail->key)) {
+                    // twice. A mail without a Message-ID is known by its text. A reply to an old test mail answers
+                    // nobody, so it is not listed as unmatched either.
+                    if ($test === null && !$this->replies->knows($mail->key)) {
                         $this->recorder->record($mail);
                     }
                 } catch (MailboxUnavailable $exception) {
@@ -103,5 +119,18 @@ final class ReplyJob implements CronJob
 
         $this->state->set('imap.last_checked_at', Time::format($now));
         $this->state->set('imap.last_error', '');
+    }
+
+    /**
+     * When the test mail this reply answers was sent. Only in Docker, where bin/console check sends and waits for one;
+     * the rental copy lists such replies as before.
+     */
+    private function testSentAt(IncomingMail $mail): ?DateTimeImmutable
+    {
+        if (!$this->environment->enabled() || $mail->kind() !== IncomingMail::REPLY) {
+            return null;
+        }
+
+        return $this->messages->testSentAt($mail->references);
     }
 }

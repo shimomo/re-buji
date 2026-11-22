@@ -57,6 +57,12 @@ final class SettingsController
     {
         $body = $request->getParsedBody();
         $values = SettingsForm::read(is_array($body) ? $body : []);
+
+        // What the environment decides cannot be changed here, whatever was posted.
+        foreach ($this->locked() as $field => $variable) {
+            $values[$field] = in_array($field, ['smtp_password', 'imap_password'], true) ? '' : $this->settings->get(SettingsForm::FIELDS[$field]);
+        }
+
         $errors = SettingsForm::validate($values, false);
 
         if ($errors !== []) {
@@ -64,11 +70,19 @@ final class SettingsController
         }
 
         // Mail already in the mailbox is not read when the mailbox changes (see ReplyJob).
-        if ($values['imap_host'] !== $this->settings->get('imap.host') || $values['imap_username'] !== $this->settings->get('imap.username')) {
+        $mailboxChanged = $values['imap_host'] !== $this->settings->get('imap.host') || $values['imap_username'] !== $this->settings->get('imap.username');
+
+        if ($mailboxChanged) {
             $this->state->set('imap.since', Time::format($this->clock->now()));
         }
 
         $this->settings->save(SettingsForm::toSettings($values));
+
+        // bin/console boot (Docker) remembers the mailbox to see a change made in the environment: it learns of this
+        // one too, or the next start would read the mailbox anew once more. The key exists only where boot ran.
+        if ($mailboxChanged && $this->state->get('imap.account') !== null) {
+            $this->state->set('imap.account', $this->settings->imap()?->account() ?? '');
+        }
         $this->flash->put('設定を保存しました。');
 
         return $this->redirect();
@@ -144,6 +158,26 @@ final class SettingsController
     }
 
     /**
+     * The form fields the environment decides, with the variable's name.
+     *
+     * @return array<string, string>
+     */
+    private function locked(): array
+    {
+        $locked = [];
+
+        foreach (SettingsForm::FIELDS as $field => $name) {
+            $variable = $this->settings->lockedBy($name);
+
+            if ($variable !== null) {
+                $locked[$field] = $variable;
+            }
+        }
+
+        return $locked;
+    }
+
+    /**
      * @param array<string, string> $values
      * @param list<string> $errors
      */
@@ -155,7 +189,8 @@ final class SettingsController
             'title' => '設定',
             'admin' => $request->getAttribute('admin'),
             'values' => $values,
-            'errors' => $errors,
+            'errors' => [...$this->settings->environmentErrors(), ...$errors],
+            'locked' => $this->locked(),
             'thresholds' => $thresholds,
             'hasPassword' => $this->settings->get('smtp.password') !== '',
             'hasImapPassword' => $this->settings->get('imap.password') !== '',

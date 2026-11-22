@@ -7,7 +7,9 @@ namespace ReBuji\Settings;
 use JmaXml\Earthquake\SeismicIntensity;
 use LogicException;
 use Psr\Clock\ClockInterface;
+use ReBuji\Config\Environment;
 use ReBuji\Database\Database;
+use ReBuji\Employees\EmployeeValidator;
 use ReBuji\Mail\Imap\ImapSettings;
 use ReBuji\Time;
 
@@ -54,14 +56,108 @@ final class Settings
         'imap.password' => '',
     ];
 
-    public function __construct(private readonly Database $db, private readonly ClockInterface $clock)
-    {
+    /**
+     * The settings that REBUJI_* environment variables decide (when REBUJI_ENV_CONFIG=1), by setting name.
+     */
+    public const array ENVIRONMENT = [
+        'smtp.host' => 'REBUJI_SMTP_HOST',
+        'smtp.port' => 'REBUJI_SMTP_PORT',
+        'smtp.encryption' => 'REBUJI_SMTP_ENCRYPTION',
+        'smtp.username' => 'REBUJI_SMTP_USERNAME',
+        'smtp.password' => 'REBUJI_SMTP_PASSWORD',
+        'mail.from_address' => 'REBUJI_MAIL_FROM_ADDRESS',
+        'mail.from_name' => 'REBUJI_MAIL_FROM_NAME',
+        'imap.host' => 'REBUJI_IMAP_HOST',
+        'imap.port' => 'REBUJI_IMAP_PORT',
+        'imap.encryption' => 'REBUJI_IMAP_ENCRYPTION',
+        'imap.username' => 'REBUJI_IMAP_USERNAME',
+        'imap.password' => 'REBUJI_IMAP_PASSWORD',
+    ];
+
+    public function __construct(
+        private readonly Database $db,
+        private readonly ClockInterface $clock,
+        private readonly Environment $environment = new Environment([]),
+    ) {
         //
+    }
+
+    /**
+     * The name of the environment variable that decides this setting, or null when the admins can change it. A blank
+     * value decides nothing: Compose passes "NAME=" lines of .env as empty strings.
+     */
+    public function lockedBy(string $name): ?string
+    {
+        $variable = self::ENVIRONMENT[$name] ?? null;
+
+        if ($variable === null || !$this->environment->enabled() || ($this->environment->get($variable) ?? '') === '') {
+            return null;
+        }
+
+        return $variable;
+    }
+
+    /**
+     * Problems in the values given by environment variables, in Japanese. Only those values are checked.
+     *
+     * @return list<string>
+     */
+    public function environmentErrors(): array
+    {
+        $errors = [];
+
+        foreach (['smtp', 'imap'] as $account) {
+            $port = $this->environmentValue($account . '.port');
+
+            if ($port !== null && !(ctype_digit($port) && (int) $port >= 1 && (int) $port <= 65535)) {
+                $errors[] = self::ENVIRONMENT[$account . '.port'] . ' は 1〜65535 の数にしてください。';
+            }
+
+            $encryption = $this->environmentValue($account . '.encryption');
+
+            if ($encryption !== null && !in_array($encryption, ['ssl', 'starttls'], true)) {
+                $errors[] = self::ENVIRONMENT[$account . '.encryption'] . ' は ssl か starttls にしてください。';
+            }
+        }
+
+        $from = $this->environmentValue('mail.from_address');
+
+        if ($from !== null && !EmployeeValidator::isAddress($from)) {
+            $errors[] = self::ENVIRONMENT['mail.from_address'] . ' がメールアドレスの形ではありません。';
+        }
+
+        // The same limit as the settings page's, which would otherwise refuse every save.
+        $fromName = $this->environmentValue('mail.from_name');
+
+        if ($fromName !== null && mb_strlen($fromName) > 50) {
+            $errors[] = self::ENVIRONMENT['mail.from_name'] . ' は 1〜50 文字にしてください。';
+        }
+
+        // The account's secrets without its server would leave the sending half-decided: the settings page asks for
+        // the server and the sender whenever an account is given.
+        $credentials = $this->environmentValue('smtp.username') !== null || $this->environmentValue('smtp.password') !== null;
+
+        if ($credentials && ($this->environmentValue('smtp.host') === null || $from === null)) {
+            $errors[] = self::ENVIRONMENT['smtp.username'] . ' か ' . self::ENVIRONMENT['smtp.password'] . ' を決めたときは、'
+                . self::ENVIRONMENT['smtp.host'] . ' と ' . self::ENVIRONMENT['mail.from_address'] . ' も決めてください。';
+        }
+
+        return $errors;
+    }
+
+    private function environmentValue(string $name): ?string
+    {
+        return $this->lockedBy($name) === null ? null : $this->environment->get(self::ENVIRONMENT[$name]);
     }
 
     public function get(string $name): string
     {
         self::assertKnown($name);
+
+        if ($this->lockedBy($name) !== null) {
+            return (string) $this->environment->get(self::ENVIRONMENT[$name]);
+        }
+
         $value = $this->db->fetchValue('SELECT value FROM settings WHERE name = ?', [$name]);
 
         return $value === null ? self::DEFAULTS[$name] : (string) $value;
@@ -94,6 +190,7 @@ final class Settings
             $this->get('smtp.password'),
             $from,
             $this->get('mail.from_name'),
+            $this->caFile(),
         );
     }
 
@@ -118,10 +215,18 @@ final class Settings
             $this->get('imap.encryption'),
             $username === '' ? $this->get('smtp.username') : $username,
             $password === '' ? $this->get('smtp.password') : $password,
+            $this->caFile(),
         );
     }
 
+    private function caFile(): string
+    {
+        return $this->environment->enabled() ? ($this->environment->get('REBUJI_MAIL_CA_FILE') ?? '') : '';
+    }
+
     /**
+     * Names decided by the environment are skipped without a word: they cannot be changed here.
+     *
      * @param array<string, string> $values
      */
     public function save(array $values): void
@@ -129,6 +234,8 @@ final class Settings
         foreach (array_keys($values) as $name) {
             self::assertKnown($name);
         }
+
+        $values = array_filter($values, fn(string $name): bool => $this->lockedBy($name) === null, ARRAY_FILTER_USE_KEY);
 
         $this->db->transaction(function (Database $db) use ($values): void {
             $now = Time::format($this->clock->now());

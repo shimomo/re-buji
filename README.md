@@ -5,7 +5,7 @@
 気象庁防災情報XML（[jmaxml](https://github.com/shimomo/jmaxml-php)）を使います。**非公式**で、気象庁とは関係ありません。
 
 > [!NOTE]
-> v0.1.0 が最初の版です。さくらのレンタルサーバで、設置から訓練の連絡への返信までを確かめました。ロリポップなど、ほかのサーバーではまだ試していません。設計は [docs/superpowers/specs/2026-11-05-re-buji-design.md](docs/superpowers/specs/2026-11-05-re-buji-design.md) にあります。
+> v0.1.0 が最初の版です。さくらのレンタルサーバで、設置から訓練の連絡への返信までを確かめました。ロリポップなど、ほかのサーバーではまだ試していません。v0.3.0 から、Docker でも動かせます（技術者向け。[docs/docker.md](docs/docker.md)）。設計は [docs/superpowers/specs/2026-11-05-re-buji-design.md](docs/superpowers/specs/2026-11-05-re-buji-design.md) にあります。
 
 ## 必要なもの
 
@@ -15,6 +15,21 @@
 - HTTPS（レンタルサーバーの無料 SSL で足ります）
 
 ## 設置
+
+### Docker で動かす（技術者向け、おすすめ）
+
+手元で試すなら、次の 4 行で立ち上がります。メールは同梱のテスト用メールサーバーに留まり、外へは出ません。
+
+```bash
+git clone https://github.com/shimomo/re-buji.git && cd re-buji
+docker compose -f compose.yaml -f compose.dev.yaml up -d --build
+docker compose -f compose.yaml -f compose.dev.yaml exec app php bin/console admin:create
+# http://localhost:8080 が Re:無事、http://localhost:8081 がウェブメール
+```
+
+VPS で HTTPS 付きの本番として動かす手順、更新、バックアップは [docs/docker.md](docs/docker.md) にあります。
+
+### レンタルサーバーに置く
 
 1. [リリース](https://github.com/shimomo/re-buji/releases)から `re-buji-<版>.zip` を取り、展開します。
 2. 中の `re-buji/` を FTP でアップロードします。置き方は 2 通りです。
@@ -146,9 +161,9 @@ composer install
 composer test       # PHPUnit
 composer analyse    # Psalm
 composer lint       # Pint
-bin/build-release.sh 0.2.3   # build/re-buji-0.2.3.zip を作る（版は src/Version.php と同じにし、コミットしてから）
-bin/release.sh check 0.2.3   # main で、リリースできるかを確かめて zip を作る
-bin/release.sh publish 0.2.3 notes.md   # 署名つきのタグと GitHub のリリースを作る
+bin/build-release.sh 0.3.0   # build/re-buji-0.3.0.zip を作る（版は src/Version.php と同じにし、コミットしてから）
+bin/release.sh check 0.3.0   # main で、リリースできるかを確かめて zip を作る
+bin/release.sh publish 0.3.0 notes.md   # 署名つきのタグと GitHub のリリースを作る
 ```
 
 ## 出典と注意

@@ -7,6 +7,7 @@ namespace ReBuji\Tests\Replies;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReBuji\Config\Environment;
 use ReBuji\Mail\Imap\MailboxUnavailable;
 use ReBuji\Quakes\Notification;
 use ReBuji\Tests\Support\MailFixtures;
@@ -390,6 +391,65 @@ final class ReplyJobTest extends TestCase
         $world->replyJob()->run($world->clock->now());
 
         $this->assertSame([], $world->mailbox->asked);
+    }
+
+    #[Test]
+    public function leavesAReplyToAFreshTestMailForTheCheckCommand(): void
+    {
+        [$world] = self::sent();
+        $world->messages->record(null, 'test', 'admin@example.co.jp', 'check-1@rebuji.example', true, '', $world->clock->now()->modify('-59 minutes'));
+        $world->mailbox->add(MailFixtures::reply('admin@example.co.jp', '', 'check-1@rebuji.example', 'Re: [Re:無事 #a1b2c3d4] テスト'));
+
+        $world->replyJob(null, self::docker())->run($world->clock->now());
+
+        $this->assertSame([], $world->mailbox->seen);
+        $this->assertSame(0, $world->replies->countUnmatched());
+    }
+
+    #[Test]
+    public function dropsAReplyToAnOldTestMail(): void
+    {
+        [$world] = self::sent();
+        $world->messages->record(null, 'test', 'admin@example.co.jp', 'check-1@rebuji.example', true, '', $world->clock->now()->modify('-61 minutes'));
+        $uid = $world->mailbox->add(MailFixtures::reply('admin@example.co.jp', '', 'check-1@rebuji.example', 'Re: [Re:無事 #a1b2c3d4] テスト'));
+
+        $world->replyJob(null, self::docker())->run($world->clock->now());
+
+        $this->assertSame([$uid], $world->mailbox->seen);
+        $this->assertSame(0, $world->replies->countUnmatched());
+    }
+
+    #[Test]
+    public function readsOrdinaryRepliesAsBeforeInDocker(): void
+    {
+        [$world, $contact] = self::sent();
+        $world->messages->record(null, 'test', 'admin@example.co.jp', 'check-1@rebuji.example', true, '', $world->clock->now());
+        $reply = $world->mailbox->add(MailFixtures::reply('person1@example.com', '', $world->messageIdSentTo('person1@example.com'), 'Re: ' . $world->mailer->sent[0]->subject));
+        $stranger = $world->mailbox->add(MailFixtures::reply('stranger@example.net', "無事です。\n", null, '無事です'));
+
+        $world->replyJob(null, self::docker())->run($world->clock->now());
+
+        $this->assertSame(Notification::SAFE, $world->contactNow($contact)->answer);
+        $this->assertSame([$reply, $stranger], $world->mailbox->seen);
+        $this->assertSame(1, $world->replies->countUnmatched());
+    }
+
+    #[Test]
+    public function keepsListingRepliesToTestMailsOutsideDocker(): void
+    {
+        [$world] = self::sent();
+        $world->messages->record(null, 'test', 'admin@example.co.jp', 'check-1@rebuji.example', true, '', $world->clock->now()->modify('-1 minute'));
+        $uid = $world->mailbox->add(MailFixtures::reply('admin@example.co.jp', '', 'check-1@rebuji.example', 'Re: [Re:無事 #a1b2c3d4] テスト'));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame([$uid], $world->mailbox->seen);
+        $this->assertSame(1, $world->replies->countUnmatched());
+    }
+
+    private static function docker(): Environment
+    {
+        return new Environment(['REBUJI_ENV_CONFIG' => '1']);
     }
 
     private static function world(): QuakeWorld

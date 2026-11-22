@@ -9,5 +9,5 @@ namespace ReBuji;
  */
 final class Version
 {
-    public const string CURRENT = '0.2.3';
+    public const string CURRENT = '0.3.0';
 }

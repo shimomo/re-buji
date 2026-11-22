@@ -42,6 +42,9 @@ final class FakeMailbox implements Mailbox
         return $uid;
     }
 
+    /**
+     * @return list<RawMail>
+     */
     #[Override]
     public function unseen(DateTimeImmutable $since, int $limit): array
     {

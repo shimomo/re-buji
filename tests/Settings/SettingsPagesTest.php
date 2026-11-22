@@ -8,12 +8,17 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
+use ReBuji\Config\Environment;
+use ReBuji\Console\Console;
+use ReBuji\Console\ConsoleIo;
 use ReBuji\Database\Database;
 use ReBuji\Mail\Imap\ImapSettings;
 use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\MailSender;
+use ReBuji\Paths;
 use ReBuji\Settings\Settings;
 use ReBuji\SystemState;
+use ReBuji\Tests\Support\EnvExample;
 use ReBuji\Tests\Support\FakeMailbox;
 use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\RecordingMailSender;
@@ -318,6 +323,122 @@ final class SettingsPagesTest extends TestCase
         } finally {
             TemporaryDirectory::remove($root);
         }
+    }
+
+    #[Test]
+    public function lockedFieldsAreReadOnly(): void
+    {
+        [$app, $container, $root] = self::lockedIn();
+
+        try {
+            $page = (string) $app->handle(TestApp::request('GET', '/settings'))->getBody();
+
+            $this->assertMatchesRegularExpression('/<input[^>]*name="smtp_host"[^>]*readonly/', $page);
+            $this->assertMatchesRegularExpression('/<select[^>]*name="smtp_encryption"[^>]*disabled/', $page);
+            $this->assertStringContainsString('<input type="hidden" name="smtp_encryption" value="ssl">', $page);
+            $this->assertStringContainsString('環境変数 REBUJI_SMTP_HOST で決まっています。', $page);
+            $this->assertStringContainsString('環境変数 REBUJI_SMTP_PASSWORD で決まっています。', $page);
+            $this->assertStringNotContainsString('env-secret', $page);
+            $this->assertStringNotContainsString('環境変数 REBUJI_SMTP_USERNAME で決まっています。', $page);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function postedLockedValuesAreIgnored(): void
+    {
+        [$app, $container, $root] = self::lockedIn();
+
+        try {
+            $response = $app->handle(TestApp::request('POST', '/settings', ['smtp_host' => 'evil.example', 'smtp_password' => 'evil', 'imap_host' => 'evil.example', 'hourly_limit' => '300'] + self::form() + self::imap() + TestApp::csrf($container)));
+
+            $this->assertSame(302, $response->getStatusCode());
+            $settings = self::settings($container);
+            $this->assertSame('env.example', $settings->get('smtp.host'));
+            $this->assertSame('env-secret', $settings->get('smtp.password'));
+            $this->assertSame('imap.env.example', $settings->get('imap.host'));
+            $this->assertSame(300, $settings->int('hourly_limit'));
+            $state = $container->get(SystemState::class);
+            $this->assertInstanceOf(SystemState::class, $state);
+            $this->assertNull($state->get('imap.since'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function savesWithBlankEnvironmentMail(): void
+    {
+        $environment = new Environment(['REBUJI_ENV_CONFIG' => '1'] + EnvExample::blankMail());
+        [$app, $container, $root] = TestApp::installed([Environment::class => $environment, MailSender::class => new RecordingMailSender(), ClockInterface::class => new FrozenClock()]);
+
+        try {
+            TestApp::logIn($app, $container);
+            $response = $app->handle(TestApp::request('POST', '/settings', ['mail_from_name' => '総務部'] + self::form() + self::imap() + TestApp::csrf($container)));
+
+            $this->assertSame(302, $response->getStatusCode());
+            $settings = self::settings($container);
+            $this->assertSame('総務部', $settings->get('mail.from_name'));
+            $this->assertSame('smtp.example.co.jp', $settings->get('smtp.host'));
+            $this->assertSame('imap.example.co.jp', $settings->get('imap.host'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function aRestartKeepsTheSinceOfAMailboxSavedHere(): void
+    {
+        $clock = new FrozenClock();
+        $environment = new Environment(['REBUJI_ENV_CONFIG' => '1']);
+        $services = [Environment::class => $environment, MailSender::class => new RecordingMailSender(), ClockInterface::class => $clock];
+        [$app, $container, $root] = TestApp::installed($services);
+        $boot = static fn(): int => (new Console(new Paths($root), $environment, TestApp::build($root, $services)[1]))->run(['boot'], ConsoleIo::memory());
+
+        try {
+            $this->assertSame(0, $boot());
+            TestApp::logIn($app, $container);
+            $clock->advance('+10 minutes');
+            $response = $app->handle(TestApp::request('POST', '/settings', self::form() + self::imap() + TestApp::csrf($container)));
+            $this->assertSame(302, $response->getStatusCode());
+            $since = self::state($container)->get('imap.since');
+            $this->assertNotNull($since);
+            $clock->advance('+1 hour');
+
+            $this->assertSame(0, $boot());
+
+            $this->assertSame($since, self::state(TestApp::build($root, $services)[1])->get('imap.since'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    private static function state(ContainerInterface $container): SystemState
+    {
+        $state = $container->get(SystemState::class);
+        assert($state instanceof SystemState);
+
+        return $state;
+    }
+
+    /**
+     * @return array{App<ContainerInterface>, ContainerInterface, string}
+     */
+    private static function lockedIn(): array
+    {
+        $environment = new Environment([
+            'REBUJI_ENV_CONFIG' => '1',
+            'REBUJI_SMTP_HOST' => 'env.example',
+            'REBUJI_SMTP_ENCRYPTION' => 'ssl',
+            'REBUJI_SMTP_PASSWORD' => 'env-secret',
+            'REBUJI_MAIL_FROM_ADDRESS' => 'anpi@example.co.jp',
+            'REBUJI_IMAP_HOST' => 'imap.env.example',
+        ]);
+        [$app, $container, $root] = TestApp::installed([Environment::class => $environment, MailSender::class => new RecordingMailSender(), ClockInterface::class => new FrozenClock()]);
+        TestApp::logIn($app, $container);
+
+        return [$app, $container, $root];
     }
 
     /**

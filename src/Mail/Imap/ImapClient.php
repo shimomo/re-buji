@@ -38,7 +38,7 @@ final class ImapClient
     {
         $host = $this->settings->host;
         $target = ($this->settings->encryption === 'ssl' ? 'ssl://' : 'tcp://') . $host . ':' . $this->settings->port;
-        $context = stream_context_create(['ssl' => ['peer_name' => $host, 'SNI_enabled' => true]]);
+        $context = stream_context_create(['ssl' => self::sslOptions($this->settings)]);
         $errorMessage = '';
         [$stream, $warning] = StreamWarnings::catch(function () use ($target, $context, &$errorMessage) {
             return stream_socket_client($target, $errorCode, $errorMessage, $this->timeoutSeconds, STREAM_CLIENT_CONNECT, $context);
@@ -65,6 +65,22 @@ final class ImapClient
 
         $this->command('LOGIN ' . self::quote($this->settings->username) . ' ' . self::quote($this->settings->password));
         $this->command('SELECT INBOX');
+    }
+
+    /**
+     * The TLS options of the connection. An extra CA file is added to the trusted ones; the certificate is still checked.
+     *
+     * @return array<string, mixed>
+     */
+    public static function sslOptions(ImapSettings $settings): array
+    {
+        $options = ['peer_name' => $settings->host, 'SNI_enabled' => true];
+
+        if ($settings->caFile !== '') {
+            $options['cafile'] = $settings->caFile;
+        }
+
+        return $options;
     }
 
     /**

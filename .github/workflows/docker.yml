@@ -1,0 +1,20 @@
+name: Docker
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: Docker end-to-end (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run the local stack end to end
+        run: docker/dev/e2e.sh

@@ -16,6 +16,7 @@ use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Log\LoggerInterface;
 use ReBuji\Config\ConfigFile;
+use ReBuji\Config\Environment;
 use ReBuji\Database\Database;
 use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
@@ -67,7 +68,13 @@ final class Container
             'smtp.timeout' => SmtpMailSender::TIMEOUT_SECONDS,
             'migrations' => static fn(): array => Migrations::all(),
             Url::class => static fn(ContainerInterface $c): Url => new Url((string) $c->get('basePath')),
-            ConfigFile::class => static fn(): ConfigFile => new ConfigFile($paths->storage('config.php')),
+            Environment::class => static fn(): Environment => Environment::fromProcess(),
+            ConfigFile::class => static function (ContainerInterface $c) use ($paths): ConfigFile {
+                $environment = $c->get(Environment::class);
+                assert($environment instanceof Environment);
+
+                return new ConfigFile($paths->storage('config.php'), $environment);
+            },
             ClockInterface::class => static fn(): ClockInterface => new SystemClock(),
             LoggerInterface::class => static fn(ContainerInterface $c): LoggerInterface => new FileLogger($paths->storage('logs/re-buji.log'), self::clock($c)),
             Session::class => static function (ContainerInterface $c) use ($paths): Session {
@@ -75,7 +82,7 @@ final class Container
                 assert($url instanceof Url);
 
                 // '/re-buji/' for a copy at /re-buji, '/' at the top of the domain.
-                return new NativeSession($paths->storage('sessions'), self::isHttps(), rtrim($url->basePath(), '/') . '/');
+                return new NativeSession($paths->storage('sessions'), self::isHttps($c), rtrim($url->basePath(), '/') . '/');
             },
             ResponseFactoryInterface::class => static fn(): ResponseFactoryInterface => new ResponseFactory(),
             RequestFactoryInterface::class => static fn(): RequestFactoryInterface => new Psr17Factory(),
@@ -107,6 +114,13 @@ final class Container
                 assert($http instanceof ClientInterface && $requests instanceof RequestFactoryInterface && $store instanceof StateStore);
 
                 return new FeedClient($http, $requests, $store, self::clock($c), 'Re-Buji/' . Version::CURRENT . ' (+https://github.com/shimomo/re-buji)');
+            },
+            Settings::class => static function (ContainerInterface $c): Settings {
+                $db = $c->get(Database::class);
+                $environment = $c->get(Environment::class);
+                assert($db instanceof Database && $environment instanceof Environment);
+
+                return new Settings($db, self::clock($c), $environment);
             },
             Mailbox::class => static function (ContainerInterface $c): Mailbox {
                 $settings = $c->get(Settings::class);
@@ -207,8 +221,16 @@ final class Container
         return $clock;
     }
 
-    private static function isHttps(): bool
+    private static function isHttps(ContainerInterface $c): bool
     {
+        $environment = $c->get(Environment::class);
+        assert($environment instanceof Environment);
+
+        // Behind the proxy overlay (Docker only), the proxy speaks HTTPS and passes plain HTTP to the app.
+        if ($environment->enabled() && $environment->get('REBUJI_HTTPS') === '1') {
+            return true;
+        }
+
         $https = $_SERVER['HTTPS'] ?? '';
 
         return $https !== '' && strtolower($https) !== 'off';

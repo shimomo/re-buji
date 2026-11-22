@@ -23,6 +23,7 @@ final readonly class SmtpSettings
         public string $password,
         public string $fromAddress,
         public string $fromName,
+        public string $caFile = '',
     ) {
         //
     }

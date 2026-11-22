@@ -1,0 +1,32 @@
+{
+	# 接続元（ログインの回数制限が数える IP）を、信じるプロキシが付けた X-Forwarded-For から取るのは、
+	# REBUJI_TRUSTED_PROXIES を決めたときだけ（compose.proxy.yaml が決める）。直接 HTTPS で受けるときは何も
+	# 信じず、X-Forwarded-For は無視する。strict は、右から数えて最初の「信じない相手」を接続元にする
+	# （クライアントが先頭に書いた偽の値は使わない）。
+	servers {
+		trusted_proxies static {$REBUJI_TRUSTED_PROXIES:127.0.0.1/32}
+		trusted_proxies_strict
+	}
+
+	frankenphp
+}
+
+(app) {
+	root * /app/public
+
+	# PHP の REMOTE_ADDR に、信じる相手を除いた本当の接続元（client_ip）を入れる。
+	php_server {
+		env REMOTE_ADDR {client_ip}
+	}
+}
+
+# SERVER_NAME は、ドメイン（HTTPS を自動で取る）か、:80（プロキシの後ろ）。
+{$SERVER_NAME} {
+	import app
+}
+
+# コンテナの中だけの待ち受け。HEALTHCHECK が使う。
+http://127.0.0.1:8081 {
+	bind 127.0.0.1
+	import app
+}
