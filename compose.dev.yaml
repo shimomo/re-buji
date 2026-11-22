@@ -49,6 +49,7 @@ services:
     restart: unless-stopped
 
   # 従業員として返信するためのウェブメール。http://localhost:8081 を開き、taro@example.test で入る（パスワードは何でもよい）。
+  # パスワードを確かめないので、このパソコンの中（127.0.0.1）でだけ待ち受ける。app も同じ。
   webmail:
     image: roundcube/roundcubemail:1.6.11-apache
     environment:
@@ -57,7 +58,7 @@ services:
       ROUNDCUBEMAIL_SMTP_SERVER: mail
       ROUNDCUBEMAIL_SMTP_PORT: "3025"
     ports:
-      - "8081:80"
+      - "127.0.0.1:8081:80"
     depends_on:
       - mail
     restart: unless-stopped
@@ -68,7 +69,7 @@ services:
       SERVER_NAME: ":80"
     env_file: !reset []
     ports: !override
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     volumes:
       - dev_certs:/certs:ro
     depends_on:
