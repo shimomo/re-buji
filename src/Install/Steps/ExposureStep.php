@@ -73,7 +73,7 @@ final class ExposureStep implements InstallStep
                 static fn(string $url): string => 'ウェブから見えています：' . $url . '（状態 ' . ($result->statuses[$url] ?? 0) . '）',
                 $result->exposed,
             );
-            $errors[] = 'このサーバーでは .htaccess が効いていない可能性があります。サーバーの設定を確かめるか、公開ディレクトリの外に本体を置き、public/ の中身だけを公開する方法（README）を使ってください。';
+            $errors[] = 'このサーバーでは .htaccess が効いていない可能性があります。サーバーの設定を確かめるか、公開ディレクトリの外に本体を置き、public/ の中身だけを公開する方法（docs/install.md）を使ってください。';
 
             return StepResult::failed($errors);
         }

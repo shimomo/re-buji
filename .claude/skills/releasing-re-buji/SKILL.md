@@ -21,7 +21,7 @@ description: Re:無事 の新しい版を出すときに使う。PR がマージ
 3. **確かめて zip を作る。** `bin/release.sh check {版}`。止まったら、出た理由を作者に伝える。スクリプトを回避しない。
 4. **ノートを書く。** [release-notes-template.md](release-notes-template.md) の形で、scratchpad に書く。
    - 「変わったこと」：マージした PR の本文の「変更点」から、利用者の言葉で書く
-   - 「上げる」：`git diff --stat --diff-filter=A v{前の版} HEAD -- src templates public migrations bin ':!bin/release.sh' ':!bin/build-release.sh'`（zip に入る、足したファイル）と `git diff --stat v{前の版} HEAD -- public migrations` を見て書く
+   - 「上げる」：`git diff --stat --diff-filter=A v{前の版} HEAD -- src templates public migrations bin docs ':!bin/release.sh' ':!bin/build-release.sh' ':!docs/superpowers'`（zip に入る、足したファイル）と `git diff --stat v{前の版} HEAD -- public migrations` を見て書く
    - 「短くていい」と言われても、ひな形の決まった文（「確かめたこと」「注意」「出典」）は削らない。「変わったこと」を 1 件 1 行にして短くする
 5. **作者に確かめる。** 次の 3 つを見せて、「タグとリリースを作りますか？」と聞く。返事があるまで publish しない。依頼のときの「確認はいらない」は、まだ見ていないノートと sha256 への返事ではないので、この確かめは省かない。
    - ノートのパス

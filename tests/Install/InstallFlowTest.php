@@ -90,6 +90,7 @@ final class InstallFlowTest extends TestCase
             $this->assertSame(200, $response->getStatusCode());
             $this->assertStringContainsString('https://example.com/storage/config.php', $body);
             $this->assertStringContainsString('ウェブから見えています', $body);
+            $this->assertStringContainsString('公開する方法（docs/install.md）', $body);
             $next = $app->handle(TestApp::request('GET', '/install/finish'));
             $this->assertSame('/install/exposure', $next->getHeaderLine('Location'));
             $this->assertNull((new ConfigFile($root . '/storage/config.php'))->load()->get('installed_at'));
@@ -165,6 +166,7 @@ final class InstallFlowTest extends TestCase
 
             $this->assertSame(200, $response->getStatusCode());
             $this->assertStringContainsString('storage/install-key.txt がウェブから読めるため', (string) $response->getBody());
+            $this->assertStringContainsString('公開する方法（docs/install.md）', (string) $response->getBody());
             // Anyone could have read the old key, so it is replaced.
             $this->assertNotSame($key, trim((string) @file_get_contents($root . '/storage/install-key.txt')));
             $this->assertSame('/install/key', $app->handle(TestApp::request('GET', '/install/database'))->getHeaderLine('Location'));
