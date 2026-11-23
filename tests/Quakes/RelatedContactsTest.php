@@ -52,6 +52,35 @@ final class RelatedContactsTest extends TestCase
         $this->assertTrue(self::cities($world, $a)[0]->notYetReceived);
     }
 
+    #[Test]
+    public function stopsHoldingTheContactUpOnceTheFoldedQuakeIsCancelled(): void
+    {
+        $fromB = self::city('0321000', '6-', MatchedCity::BASIS_AREA);
+        [$world, $a] = self::contactForA([$fromB]);
+        $b = self::foldB($world, $a, [$fromB]);
+        $world->notifications->cancelFor($b);
+
+        $world->related->revise(self::contact($world, $a), [self::city('0321000', '4', MatchedCity::BASIS_AREA)], 4);
+
+        $this->assertSame(['4'], array_map(static fn(MatchedCity $city): ?string => $city->intensity, self::cities($world, $a)));
+    }
+
+    #[Test]
+    public function raisesOnlyTheMunicipalitiesTheFoldedQuakeNames(): void
+    {
+        $fromB = self::city('0321000', '6-', MatchedCity::BASIS_AREA);
+        [$world, $a] = self::contactForA([$fromB, self::city('0320300', '5+', MatchedCity::BASIS_CITY)]);
+        self::foldB($world, $a, [$fromB]);
+
+        $world->related->revise(self::contact($world, $a), [self::city('0321000', '4', MatchedCity::BASIS_CITY), self::city('0320300', '5-', MatchedCity::BASIS_CITY)], 5);
+
+        // B does not name 0320300: it takes A's newer reading, weaker as it is.
+        $this->assertSame(
+            [['0321000', '6-', MatchedCity::BASIS_AREA], ['0320300', '5-', MatchedCity::BASIS_CITY]],
+            array_map(static fn(MatchedCity $city): array => [$city->code, $city->intensity, $city->basis], self::cities($world, $a)),
+        );
+    }
+
     /**
      * A world with one person and their pending contact for quake A.
      *

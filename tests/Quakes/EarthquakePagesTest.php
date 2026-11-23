@@ -15,6 +15,7 @@ use ReBuji\Employees\EmployeeRepository;
 use ReBuji\Feed\TelegramRepository;
 use ReBuji\Quakes\DispatchJob;
 use ReBuji\Quakes\Earthquake;
+use ReBuji\Quakes\MatchedCity;
 use ReBuji\Quakes\Notification;
 use ReBuji\Settings\Settings;
 use ReBuji\Tests\Support\FrozenClock;
@@ -59,6 +60,41 @@ final class EarthquakePagesTest extends TestCase
             $this->assertSame(Notification::MERGED, $second->state);
             $this->assertSame($first->id, $second->mergedIntoId);
             $this->assertSame(Earthquake::RELEASED, $records->earthquakes->find($b->id)?->delivery);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function passesALaterStrongerReadingOfAReleasedLateQuakeToTheContact(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $person = self::relatedLateQuakes($container);
+            $records = new QuakeRecords($container);
+            [$a, $b] = self::relatedQuakeIds($records);
+            self::post($app, $container, '/earthquakes/' . $a . '/release');
+            // Released second, B is folded into A's contact (RelatedContacts::foldHeld()).
+            self::post($app, $container, '/earthquakes/' . $b . '/release');
+            $now = self::get($container, ClockInterface::class)->now();
+
+            self::get($container, TelegramRepository::class)->store(
+                JmaSamples::url('later-32-35_08_02_100915_VXSE51.xml'),
+                JmaSamples::edited('32-35_08_02_100915_VXSE51.xml', [
+                    '<DateTime>2010-07-04T21:57:40Z</DateTime>' => '<DateTime>2010-07-04T21:59:40Z</DateTime>',
+                    '<ReportDateTime>2010-07-05T06:57:00+09:00</ReportDateTime>' => '<ReportDateTime>2010-07-05T06:59:00+09:00</ReportDateTime>',
+                    '<Area><Name>岩手県沿岸南部</Name><Code>211</Code><MaxInt>4</MaxInt></Area>' => '<Area><Name>岩手県沿岸南部</Name><Code>211</Code><MaxInt>6-</MaxInt></Area>',
+                ]),
+                $now,
+            );
+            self::get($container, DispatchJob::class)->run($now);
+
+            $this->assertSame(Notification::MERGED, $records->notifications->findFor($b, $person)?->state);
+            $first = $records->notifications->findFor($a, $person);
+            $this->assertNotNull($first);
+            $this->assertSame(7, $first->priority);
+            $this->assertSame(['6-'], array_map(static fn(MatchedCity $city): ?string => $city->intensity, $first->cities));
         } finally {
             TemporaryDirectory::remove($root);
         }
