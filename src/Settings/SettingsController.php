@@ -82,7 +82,7 @@ final class SettingsController
         $this->settings->save(SettingsForm::toSettings($values));
 
         // New sending settings are tried on the next cron run, not an hour later.
-        if ($this->settings->smtp() != $smtp) {
+        if (SmtpSettings::differ($smtp, $this->settings->smtp())) {
             $this->account->checkSoon();
         }
 

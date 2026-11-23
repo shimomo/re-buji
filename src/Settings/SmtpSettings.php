@@ -27,4 +27,17 @@ final readonly class SmtpSettings
     ) {
         //
     }
+
+    /**
+     * Whether the account changed: one of them missing, or any field different. Strictly: inside an object ==, PHP
+     * compares numeric strings as numbers, so a password changed from "0123" to "123" would look the same.
+     */
+    public static function differ(?self $before, ?self $after): bool
+    {
+        if ($before === null || $after === null) {
+            return $before !== $after;
+        }
+
+        return get_object_vars($before) !== get_object_vars($after);
+    }
 }

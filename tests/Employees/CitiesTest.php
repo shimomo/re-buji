@@ -72,4 +72,13 @@ final class CitiesTest extends TestCase
         $this->assertSame('0110100', Cities::normalizeCode('１１０１００'));
         $this->assertSame('1310100', Cities::normalizeCode('　1310100　'));
     }
+
+    #[Test]
+    public function trimsANoBreakSpaceAtEitherEnd(): void
+    {
+        // Copied from a web page.
+        $this->assertSame('1310100', Cities::normalizeCode("\u{00A0}1310100\u{00A0}"));
+        // One inside is kept, so the error shows what was written.
+        $this->assertSame("1310\u{00A0}100", Cities::normalizeCode("1310\u{00A0}100"));
+    }
 }

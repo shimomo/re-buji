@@ -151,6 +151,40 @@ final class SendingAccountTest extends TestCase
         $this->assertTrue($account->isDue($clock->now()));
     }
 
+    #[Test]
+    public function checksOnTheNextRunAfterAStartWhenTheAccountWorks(): void
+    {
+        [$account, , $clock] = self::account();
+        $account->worked();
+        $account->checkAfterStart();
+
+        $this->assertTrue($account->isDue($clock->now()));
+    }
+
+    #[Test]
+    public function waitsAfterAFreshFailureBeforeCheckingAfterAStart(): void
+    {
+        [$account, , $clock] = self::account();
+        $account->failed('x');
+        // A container that keeps restarting must not have cron try a wrong password every run.
+        $account->checkAfterStart();
+
+        $this->assertFalse($account->isDue($clock->now()->modify('+9 minutes')));
+        $this->assertTrue($account->isDue($clock->now()->modify('+10 minutes')));
+    }
+
+    #[Test]
+    public function checksOnTheNextRunAfterAStartLongAfterAFailure(): void
+    {
+        [$account, , $clock] = self::account();
+        $account->failed('x');
+        $clock->advance('+20 minutes');
+        $account->checkAfterStart();
+
+        $this->assertTrue($account->isDue($clock->now()));
+        $this->assertTrue($account->isFailing());
+    }
+
     /**
      * @return array{SendingAccount, SystemState, FrozenClock}
      */

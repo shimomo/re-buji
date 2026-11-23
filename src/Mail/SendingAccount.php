@@ -38,6 +38,12 @@ final class SendingAccount
      */
     public const int LASTING_MINUTES = 30;
 
+    /**
+     * How long after a failure a start of the app waits before cron logs in again. A fix made in .env comes in with a
+     * restart and is soon seen; a container that keeps restarting cannot make cron try a wrong password every run.
+     */
+    public const int START_RECHECK_MINUTES = 10;
+
     public function __construct(private readonly SystemState $state, private readonly ClockInterface $clock)
     {
         //
@@ -104,5 +110,17 @@ final class SendingAccount
     public function checkSoon(): void
     {
         $this->state->set('mail.account.next_check_at', '');
+    }
+
+    /**
+     * Makes the next cron run after a start of the app (Docker) log in, but no sooner than START_RECHECK_MINUTES after
+     * the last failure. A failure stays, as with checkSoon().
+     */
+    public function checkAfterStart(): void
+    {
+        $now = $this->clock->now();
+        $failed = (string) $this->state->get('mail.account.failed_at');
+        $at = $failed === '' ? $now : max($now, Time::parse($failed)->modify('+' . self::START_RECHECK_MINUTES . ' minutes'));
+        $this->state->set('mail.account.next_check_at', Time::format($at));
     }
 }

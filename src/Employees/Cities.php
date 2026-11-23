@@ -6,6 +6,7 @@ namespace ReBuji\Employees;
 
 use JmaXml\Codes\EarthquakeCodes;
 use JmaXml\Codes\Prefecture;
+use ReBuji\Text;
 
 /**
  * The municipalities employees are registered by: JMA's 7-digit codes from jmaxml/codes. A code that
@@ -58,14 +59,15 @@ final class Cities
     }
 
     /**
-     * Reads full-width digits and spaces as half-width, trims the code, and puts back the leading zero that spreadsheets
-     * drop: "110100" (Hokkaido to Fukushima) becomes "0110100". The zero goes back only when it makes a code find()
-     * knows; a six-digit typo such as "131010" stays as written, so the error shows what was written. Anything else is
-     * returned as it is, to be refused by find().
+     * Reads full-width digits and spaces as half-width, trims the code (Unicode spaces too, such as the no-break space a
+     * web page leaves), and puts back the leading zero that spreadsheets drop: "110100" (Hokkaido to Fukushima) becomes
+     * "0110100". The zero goes back only when it makes a code find() knows; a six-digit typo such as "131010" stays as
+     * written, so the error shows what was written. Anything else is returned so, half-width and trimmed, to be refused
+     * by find().
      */
     public static function normalizeCode(string $value): string
     {
-        $code = trim(mb_convert_kana($value, 'ns', 'UTF-8'));
+        $code = Text::trim(mb_convert_kana($value, 'ns', 'UTF-8'));
 
         return preg_match('/^[0-9]{6}$/', $code) === 1 && self::find('0' . $code) !== null ? '0' . $code : $code;
     }
