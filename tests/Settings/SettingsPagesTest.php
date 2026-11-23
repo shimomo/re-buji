@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ReBuji\Tests\Settings;
 
+use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
@@ -15,6 +16,7 @@ use ReBuji\Database\Database;
 use ReBuji\Mail\Imap\ImapSettings;
 use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\MailSender;
+use ReBuji\Mail\SendingAccount;
 use ReBuji\Paths;
 use ReBuji\Settings\Settings;
 use ReBuji\SystemState;
@@ -71,6 +73,44 @@ final class SettingsPagesTest extends TestCase
             $this->assertNotNull($smtp);
             $this->assertSame('smtp.example.co.jp', $smtp->host);
             $this->assertSame('anpi-password', $smtp->password);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function checksTheAccountOnTheNextRunAfterTheSendingSettingsChange(): void
+    {
+        [$app, $container, $root] = self::loggedIn(new RecordingMailSender());
+
+        try {
+            $app->handle(TestApp::request('POST', '/settings', self::form() + TestApp::csrf($container)));
+            $account = self::account($container);
+            $account->worked();
+
+            $this->assertFalse($account->isDue(self::now($container)));
+
+            $app->handle(TestApp::request('POST', '/settings', ['smtp_host' => 'smtp2.example.co.jp'] + self::form() + TestApp::csrf($container)));
+
+            $this->assertTrue($account->isDue(self::now($container)));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function keepsTheCheckScheduleWhenOnlyTheLimitChanges(): void
+    {
+        [$app, $container, $root] = self::loggedIn(new RecordingMailSender());
+
+        try {
+            $app->handle(TestApp::request('POST', '/settings', self::form() + TestApp::csrf($container)));
+            $account = self::account($container);
+            $account->worked();
+            $app->handle(TestApp::request('POST', '/settings', ['hourly_limit' => '300'] + self::form() + TestApp::csrf($container)));
+
+            $this->assertSame(300, self::settings($container)->int('hourly_limit'));
+            $this->assertFalse($account->isDue(self::now($container)));
         } finally {
             TemporaryDirectory::remove($root);
         }
@@ -486,6 +526,22 @@ final class SettingsPagesTest extends TestCase
         TestApp::logIn($app, $container);
 
         return [$app, $container, $root];
+    }
+
+    private static function account(ContainerInterface $container): SendingAccount
+    {
+        $account = $container->get(SendingAccount::class);
+        assert($account instanceof SendingAccount);
+
+        return $account;
+    }
+
+    private static function now(ContainerInterface $container): DateTimeImmutable
+    {
+        $clock = $container->get(ClockInterface::class);
+        assert($clock instanceof ClockInterface);
+
+        return $clock->now();
     }
 
     private static function settings(ContainerInterface $container): Settings

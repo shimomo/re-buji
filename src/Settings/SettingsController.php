@@ -21,6 +21,7 @@ use ReBuji\Mail\NotificationMail;
 use ReBuji\Mail\RateLimit;
 use ReBuji\Mail\RecipientDeferred;
 use ReBuji\Mail\RecipientRefused;
+use ReBuji\Mail\SendingAccount;
 use ReBuji\SystemState;
 use ReBuji\Time;
 
@@ -44,6 +45,7 @@ final class SettingsController
         private readonly ClockInterface $clock,
         private readonly Mailbox $mailbox,
         private readonly SystemState $state,
+        private readonly SendingAccount $account,
     ) {
         //
     }
@@ -76,7 +78,13 @@ final class SettingsController
             $this->state->set('imap.since', Time::format($this->clock->now()));
         }
 
+        $smtp = $this->settings->smtp();
         $this->settings->save(SettingsForm::toSettings($values));
+
+        // New sending settings are tried on the next cron run, not an hour later.
+        if ($this->settings->smtp() != $smtp) {
+            $this->account->checkSoon();
+        }
 
         // bin/console boot (Docker) remembers the mailbox to see a change made in the environment: it learns of this
         // one too, or the next start would read the mailbox anew once more. The key exists only where boot ran.

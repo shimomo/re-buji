@@ -18,6 +18,7 @@ use ReBuji\Mail\NotificationMail;
 use ReBuji\Mail\RateLimit;
 use ReBuji\Mail\RecipientDeferred;
 use ReBuji\Mail\RecipientRefused;
+use ReBuji\Mail\SendingAccount;
 use ReBuji\Quakes\NotificationRepository;
 use ReBuji\Replies\ReplyReading;
 use ReBuji\SystemState;
@@ -30,6 +31,9 @@ use ReBuji\Time;
  * A problem is told at most once in RETRY_MINUTES, even when its words change every run (a different address deferred
  * each time, in a big quake) or it keeps clearing and coming back: those mails would take the hour's room from the
  * contacts. A problem not told within that time goes out on the next run.
+ *
+ * Nothing is sent while the sending account cannot be used (SendingAccount): every attempt would wait for the same
+ * failure. That failure itself is never mailed (once a mail could go, it is over); the status URL tells it instead.
  *
  * @author shimomo
  */
@@ -54,6 +58,7 @@ final class WatchJob implements CronJob
         private readonly ClockInterface $clock,
         private readonly LoggerInterface $logger,
         private readonly ReplyReading $reading,
+        private readonly SendingAccount $account,
     ) {
         //
     }
@@ -83,7 +88,7 @@ final class WatchJob implements CronJob
         // When the limit leaves no room for every admin, the first ones are told: someone hears of it.
         $admins = array_slice($this->admins->all(), 0, max(0, $this->limit->remainingForNotices($now)));
 
-        if ($new === [] || $admins === [] || $this->isRecent('watch.last_attempt_at', $now)) {
+        if ($new === [] || $admins === [] || $this->isRecent('watch.last_attempt_at', $now) || $this->account->isFailing()) {
             return;
         }
 
