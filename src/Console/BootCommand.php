@@ -139,8 +139,10 @@ final class BootCommand implements Command
         }
 
         // Mail settings fixed in .env come in with a restart: the next cron run logs in, rather than up to an hour later.
-        // Every start, changed or not: telling a change apart would mean keeping something made from the password.
-        $this->service(SendingAccount::class)->checkSoon();
+        // Every start, changed or not: telling a change apart would mean keeping something made from the password. Not
+        // right after a failure, though, or a container that keeps restarting would have cron try a wrong password every
+        // run and get the server locked out.
+        $this->service(SendingAccount::class)->checkAfterStart();
 
         if ($settings->smtp() === null || $imap === null) {
             $io->line('メールの設定がありません。ホーム画面にも出ます。');

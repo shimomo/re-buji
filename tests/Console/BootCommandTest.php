@@ -145,6 +145,27 @@ final class BootCommandTest extends TestCase
     }
 
     #[Test]
+    public function holdsTheCheckAfterAStartRightAfterAFailure(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            $clock = new FrozenClock();
+            [, , $first] = $this->boot($root, self::MAIL, $clock);
+            $this->account($first)->failed('535 5.7.8 Authentication failed');
+
+            // A crash loop: the app starts again a minute later, with the same wrong password.
+            $clock->advance('+1 minute');
+            [, , $second] = $this->boot($root, self::MAIL, $clock);
+
+            $this->assertFalse($this->account($second)->isDue($clock->now()));
+            $this->assertTrue($this->account($second)->isDue($clock->now()->modify('+9 minutes')));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function migratesPendingOnUpgrade(): void
     {
         $root = TemporaryDirectory::create();
