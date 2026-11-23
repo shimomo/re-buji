@@ -42,8 +42,23 @@ final class MatchedCityTest extends TestCase
         );
     }
 
-    private static function city(string $code, string $intensity, string $basis): MatchedCity
+    #[Test]
+    public function prefersAReadingNotReceivedYetOnATie(): void
     {
-        return new MatchedCity($code, '自宅', $code, $intensity, false, $basis);
+        // Not in yet counts as 5弱, the least it may be: stronger than a 4 for sure.
+        $this->assertTrue(MatchedCity::raise([self::city('2221300', '4', MatchedCity::BASIS_CITY)], [self::city('2221300', null, MatchedCity::BASIS_CITY, true)])[0]->notYetReceived);
+        // The contact's own reading not in yet stays against a 5弱 for sure.
+        $this->assertTrue(MatchedCity::raise([self::city('2221300', null, MatchedCity::BASIS_CITY, true)], [self::city('2221300', '5-', MatchedCity::BASIS_CITY)])[0]->notYetReceived);
+
+        // As strong, and only the other is not in yet: it may turn out stronger, so the mail keeps saying so.
+        $raised = MatchedCity::raise([self::city('2221300', '5-', MatchedCity::BASIS_CITY)], [self::city('2221300', null, MatchedCity::BASIS_AREA, true)]);
+
+        $this->assertTrue($raised[0]->notYetReceived);
+        $this->assertSame(MatchedCity::BASIS_AREA, $raised[0]->basis);
+    }
+
+    private static function city(string $code, ?string $intensity, string $basis, bool $notYetReceived = false): MatchedCity
+    {
+        return new MatchedCity($code, '自宅', $code, $intensity, $notYetReceived, $basis);
     }
 }

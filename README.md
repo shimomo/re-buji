@@ -59,9 +59,9 @@ composer install
 composer test       # PHPUnit
 composer analyse    # Psalm
 composer lint       # Pint
-bin/build-release.sh 0.3.7   # build/re-buji-0.3.7.zip を作る（版は src/Version.php と同じにし、コミットしてから）
-bin/release.sh check 0.3.7   # main で、リリースできるかを確かめて zip を作る
-bin/release.sh publish 0.3.7 notes.md   # 署名つきのタグと GitHub のリリースを作る
+bin/build-release.sh 0.3.8   # build/re-buji-0.3.8.zip を作る（版は src/Version.php と同じにし、コミットしてから）
+bin/release.sh check 0.3.8   # main で、リリースできるかを確かめて zip を作る
+bin/release.sh publish 0.3.8 notes.md   # 署名つきのタグと GitHub のリリースを作る
 ```
 
 ## 出典と注意

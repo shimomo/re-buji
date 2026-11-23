@@ -68,6 +68,8 @@ final class QuakeWorld
 
     public readonly DispatchJob $dispatch;
 
+    public readonly RelatedContacts $related;
+
     public readonly MessageRepository $messages;
 
     public readonly SystemState $state;
@@ -95,8 +97,8 @@ final class QuakeWorld
         $this->settings = new Settings($this->db, $this->clock);
         $this->state = new SystemState($this->db, $this->clock);
         $events = new QuakeEvents($this->telegrams, new FailedTelegrams($this->state), new NullLogger());
-        $related = new RelatedContacts($events, $this->earthquakes, $this->notifications);
-        $this->dispatch = new DispatchJob($this->db, $this->telegrams, $this->earthquakes, $this->notifications, $this->employees, $this->settings, new NullLogger(), $events, $related);
+        $this->related = new RelatedContacts($events, $this->earthquakes, $this->notifications);
+        $this->dispatch = new DispatchJob($this->db, $this->telegrams, $this->earthquakes, $this->notifications, $this->employees, $this->settings, new NullLogger(), $events, $this->related);
         $this->messages = new MessageRepository($this->db);
         $this->mailer = new RecordingMailSender();
         $this->replies = new ReplyRepository($this->db, $this->clock);

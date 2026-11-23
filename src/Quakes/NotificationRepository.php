@@ -314,10 +314,6 @@ final class NotificationRepository
     }
 
     /**
-     * The quake was cancelled (design 4): nothing more goes out for it, people already reached get a short notice, and
-     * people folded into it get their own contact for the quake they were folded from.
-     */
-    /**
      * Before a quake is deleted: each answer given to one of its contacts is copied to the contacts of other quakes
      * folded into it, which stop pointing at it. Without this, those people would show no answer once the quake is
      * gone. A contact without an answer hands over only that an auto-reply came back, so the absence still shows; the
@@ -376,6 +372,10 @@ final class NotificationRepository
         return $handedOver;
     }
 
+    /**
+     * The quake was cancelled (design 4): nothing more goes out for it, people already reached get a short notice, and
+     * people folded into it get their own contact for the quake they were folded from.
+     */
     public function cancelFor(int $earthquakeId): void
     {
         $now = Time::format($this->clock->now());
