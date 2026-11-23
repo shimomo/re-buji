@@ -40,8 +40,15 @@ final class SmtpMailSender implements MailSender, MailLogin
 
     private ?RecipientAwareSmtpTransport $transport = null;
 
-    public function __construct(private readonly ?SmtpSettings $settings, public readonly int $timeoutSeconds = self::TIMEOUT_SECONDS)
-    {
+    /**
+     * @param SendingAccount|null $account told whether each use of the account worked (none in tests that look only at
+     *                                     the wire)
+     */
+    public function __construct(
+        private readonly ?SmtpSettings $settings,
+        public readonly int $timeoutSeconds = self::TIMEOUT_SECONDS,
+        private readonly ?SendingAccount $account = null,
+    ) {
         //
     }
 
@@ -68,18 +75,33 @@ final class SmtpMailSender implements MailSender, MailLogin
 
             $this->transport()->send($email, new Envelope(new Address($mail->fromAddress), [$recipient]));
         } catch (AccountUnavailableResponse $exception) {
+            $this->account?->failed($exception->getMessage());
+
             throw new AccountUnavailable($exception->getMessage(), 0, $exception);
         } catch (RecipientRefusedResponse $exception) {
+            $this->account?->worked();
+
             throw new RecipientRefused($exception->getMessage(), 0, $exception);
         } catch (RecipientDeferredResponse $exception) {
+            $this->account?->worked();
+
             throw new RecipientDeferred($exception->getMessage(), 0, $exception);
-        } catch (TransportExceptionInterface|RfcComplianceException $exception) {
+        } catch (TransportExceptionInterface $exception) {
+            // Past the log-in (start() would have said otherwise): the sender or the body was refused, or the answer
+            // after the body never came. The account itself works.
+            $this->account?->worked();
+
+            throw new MailUnavailable($exception->getMessage(), 0, $exception);
+        } catch (RfcComplianceException $exception) {
+            // The mail could not be put together: nothing reached the server.
             throw new MailUnavailable($exception->getMessage(), 0, $exception);
         } finally {
             if ($timeout !== false) {
                 ini_set('default_socket_timeout', $timeout);
             }
         }
+
+        $this->account?->worked();
     }
 
     /**
@@ -101,12 +123,16 @@ final class SmtpMailSender implements MailSender, MailLogin
             $transport->start();
             $transport->stop();
         } catch (AccountUnavailableResponse $exception) {
+            $this->account?->failed($exception->getMessage());
+
             throw new AccountUnavailable($exception->getMessage(), 0, $exception);
         } finally {
             if ($timeout !== false) {
                 ini_set('default_socket_timeout', $timeout);
             }
         }
+
+        $this->account?->worked();
     }
 
     private function transport(): RecipientAwareSmtpTransport
