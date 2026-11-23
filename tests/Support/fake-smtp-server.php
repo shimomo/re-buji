@@ -7,7 +7,7 @@ declare(strict_types=1);
 // Prints the port it listens on, then answers connections one after another and appends every line it receives and
 // sends to TRANSCRIPT_FILE. It offers AUTH PLAIN and LOGIN, never STARTTLS, and exits after 30 seconds without a
 // connection. Options: rejectRecipients (550 5.1.1), deferRecipients (450 4.1.2), policyRecipients (554 5.7.1),
-// rejectAuth (535).
+// rejectAuth (535), rejectSender (553 5.7.1 to MAIL FROM).
 
 [, $transcript, $json] = $argv + [null, null, '{}'];
 $options = json_decode((string) $json, true);
@@ -15,6 +15,7 @@ $rejectRecipients = is_array($options) && is_array($options['rejectRecipients'] 
 $deferRecipients = is_array($options) && is_array($options['deferRecipients'] ?? null) ? $options['deferRecipients'] : [];
 $policyRecipients = is_array($options) && is_array($options['policyRecipients'] ?? null) ? $options['policyRecipients'] : [];
 $rejectAuth = is_array($options) && ($options['rejectAuth'] ?? false) === true;
+$rejectSender = is_array($options) && ($options['rejectSender'] ?? false) === true;
 
 $server = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
 
@@ -72,7 +73,7 @@ while (($client = @stream_socket_accept($server, 30)) !== false) {
                 $say('235 2.7.0 Authentication successful');
             }
         } elseif ($command === 'MAIL') {
-            $say('250 2.1.0 Ok');
+            $say($rejectSender ? '553 5.7.1 Sender address rejected: not owned by user' : '250 2.1.0 Ok');
         } elseif ($command === 'RCPT') {
             $reply = '250 2.1.5 Ok';
 

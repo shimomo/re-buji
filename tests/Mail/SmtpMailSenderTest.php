@@ -6,6 +6,7 @@ namespace ReBuji\Tests\Mail;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReBuji\Mail\AccountUnavailable;
 use ReBuji\Mail\MailUnavailable;
 use ReBuji\Mail\OutgoingMail;
 use ReBuji\Mail\RecipientDeferred;
@@ -100,12 +101,12 @@ final class SmtpMailSenderTest extends TestCase
     }
 
     #[Test]
-    public function reportsAFailedLogInAsUnavailable(): void
+    public function reportsAFailedLogInAsAccountUnavailable(): void
     {
         $server = FakeSmtpServer::start(['rejectAuth' => true]);
 
         try {
-            $this->expectException(MailUnavailable::class);
+            $this->expectException(AccountUnavailable::class);
 
             (new SmtpMailSender(self::settings($server->port())))->send(self::mail('ok@example.com'));
         } finally {
@@ -114,12 +115,104 @@ final class SmtpMailSenderTest extends TestCase
     }
 
     #[Test]
-    public function reportsAServerNobodyAnswersAsUnavailable(): void
+    public function reportsAServerNobodyAnswersAsAccountUnavailable(): void
     {
-        $this->expectException(MailUnavailable::class);
+        $this->expectException(AccountUnavailable::class);
 
         // Nothing listens on port 9 (discard).
         (new SmtpMailSender(self::settings(9)))->send(self::mail('ok@example.com'));
+    }
+
+    #[Test]
+    public function keepsARefusedSenderApartFromTheAccount(): void
+    {
+        $server = FakeSmtpServer::start(['rejectSender' => true]);
+
+        try {
+            (new SmtpMailSender(self::settings($server->port())))->send(self::mail('ok@example.com'));
+            $this->fail('A refused sender should be reported');
+        } catch (MailUnavailable $exception) {
+            $this->assertNotInstanceOf(AccountUnavailable::class, $exception);
+            $this->assertStringContainsString('553', $exception->getMessage());
+        } finally {
+            $server->stop();
+        }
+    }
+
+    #[Test]
+    public function logsInWithoutSending(): void
+    {
+        $server = FakeSmtpServer::start();
+
+        try {
+            (new SmtpMailSender(self::settings($server->port())))->logIn();
+
+            $transcript = $server->transcript();
+            $this->assertStringContainsString('C: AUTH ', $transcript);
+            $this->assertStringContainsString('C: QUIT', $transcript);
+            $this->assertStringNotContainsString('C: MAIL FROM', $transcript);
+        } finally {
+            $server->stop();
+        }
+    }
+
+    #[Test]
+    public function logsInAgainOnAFreshConnection(): void
+    {
+        $server = FakeSmtpServer::start();
+
+        try {
+            $sender = new SmtpMailSender(self::settings($server->port()));
+            $sender->send(self::mail('ok@example.com'));
+            $sender->logIn();
+
+            $this->assertSame(2, substr_count($server->transcript(), 'S: 220 fake.example ESMTP'));
+        } finally {
+            $server->stop();
+        }
+    }
+
+    #[Test]
+    public function connectsWithoutAUsername(): void
+    {
+        $server = FakeSmtpServer::start();
+
+        try {
+            (new SmtpMailSender(new SmtpSettings('127.0.0.1', $server->port(), 'none', '', '', 'anpi@example.co.jp', '安否確認')))->logIn();
+
+            $transcript = $server->transcript();
+            $this->assertStringContainsString('C: EHLO', $transcript);
+            $this->assertStringContainsString('C: QUIT', $transcript);
+            $this->assertStringNotContainsString('C: AUTH', $transcript);
+        } finally {
+            $server->stop();
+        }
+    }
+
+    #[Test]
+    public function reportsAFailedLogInCheck(): void
+    {
+        $server = FakeSmtpServer::start(['rejectAuth' => true]);
+
+        try {
+            $this->expectException(AccountUnavailable::class);
+
+            (new SmtpMailSender(self::settings($server->port())))->logIn();
+        } finally {
+            $server->stop();
+        }
+    }
+
+    #[Test]
+    public function reportsMissingSettingsWhenLoggingIn(): void
+    {
+        try {
+            (new SmtpMailSender(null))->logIn();
+            $this->fail('Missing settings should be reported');
+        } catch (MailUnavailable $exception) {
+            $this->assertNotInstanceOf(AccountUnavailable::class, $exception);
+            $this->assertStringContainsString('メールの送信の設定がありません', $exception->getMessage());
+        }
     }
 
     #[Test]
@@ -154,7 +247,7 @@ final class SmtpMailSenderTest extends TestCase
             try {
                 (new SmtpMailSender(self::settings($server->port(), 'starttls')))->send(self::mail('ok@example.com'));
                 $this->fail('A server without STARTTLS should not get the password');
-            } catch (MailUnavailable) {
+            } catch (AccountUnavailable) {
                 // expected
             }
 
