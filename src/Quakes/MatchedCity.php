@@ -67,29 +67,6 @@ final readonly class MatchedCity
     }
 
     /**
-     * The municipalities of two judgements together; where both have the same one, the stronger stays.
-     *
-     * @param list<self> $kept
-     * @param list<self> $added
-     *
-     * @return list<self>
-     */
-    public static function merge(array $kept, array $added): array
-    {
-        $byCode = [];
-
-        foreach ([...$kept, ...$added] as $city) {
-            $known = $byCode[$city->code] ?? null;
-
-            if ($known === null || $city->rank() >= $known->rank()) {
-                $byCode[$city->code] = $city;
-            }
-        }
-
-        return array_values($byCode);
-    }
-
-    /**
      * The municipalities after a later judgement: each one judged again takes its newer reading, even a weaker one;
      * the ones the later telegram no longer names stay as they were, since the person was contacted for them; new
      * ones come last.
@@ -111,8 +88,9 @@ final readonly class MatchedCity
     }
 
     /**
-     * The municipalities with each one raised to another judgement's reading where that is stronger. As strong, the
-     * municipality keeps its own reading: it is the contact's own quake. The others' new ones come last.
+     * The municipalities with each one raised to another quake's reading where that is stronger. As strong, the
+     * municipality keeps its own reading (the contact's own quake), unless only the other says the observation is not
+     * in yet: that one may turn out stronger, and the mail says so. The others' new ones come last.
      *
      * @param list<self> $cities
      * @param list<self> $others
@@ -130,7 +108,10 @@ final readonly class MatchedCity
         foreach ($others as $other) {
             $known = $byCode[$other->code] ?? null;
 
-            if ($known === null || $other->rank() > $known->rank()) {
+            $stronger = $known === null || $other->rank() > $known->rank();
+            $mayBeStronger = $known !== null && $other->rank() === $known->rank() && $other->notYetReceived && !$known->notYetReceived;
+
+            if ($stronger || $mayBeStronger) {
                 $byCode[$other->code] = $other;
             }
         }

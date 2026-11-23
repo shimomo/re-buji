@@ -59,7 +59,8 @@ final class RelatedContacts
     }
 
     /**
-     * The contact that goes out carries the folded quake's shaking too, and its place in the queue if stronger.
+     * The contact that goes out carries the folded quake's shaking where it is stronger (MatchedCity::raise()), and its
+     * place in the queue if stronger.
      *
      * @param list<MatchedCity> $cities
      */
@@ -68,16 +69,17 @@ final class RelatedContacts
         $target = $this->notifications->find($targetId);
 
         if ($target !== null) {
-            $this->notifications->updateCities($target->id, MatchedCity::merge($target->cities, $cities), $priority);
+            $this->notifications->updateCities($target->id, MatchedCity::raise($target->cities, $cities), $priority);
         }
     }
 
     /**
-     * A later judgement of the contact's quake. A contact other quakes are folded into keeps their stronger shaking: a
-     * newer reading of its own quake must not hide a main shock folded into it. A contact folded into another passes
-     * its stronger shaking on to that one, which is the contact that goes out. Neither lowers the other: a folded
-     * quake read weaker later leaves the stronger reading on the contact, since missing the shaking is the worse
-     * failure.
+     * A later judgement of the contact's quake. A contact other quakes are folded into keeps their shaking where it is
+     * stronger than the newer reading of its own quake: a later telegram of its own must not hide a main shock folded
+     * into it. A contact folded into another passes its shaking on to that one, the contact that goes out, where it is
+     * stronger. Both use the folded quakes' current readings, as the stored municipalities do not say which quake each
+     * reading came from: once a folded quake is read weaker, a shared municipality comes down to the stronger of the
+     * two current readings when the contact's own quake judges it again, and not before.
      *
      * @param list<MatchedCity> $cities
      */
