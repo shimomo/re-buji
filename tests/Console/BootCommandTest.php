@@ -134,7 +134,8 @@ final class BootCommandTest extends TestCase
 
             $this->assertFalse($account->isDue($clock->now()));
 
-            // The same settings as the first start: a start cannot tell a fixed .env from an unchanged one, so it checks either way.
+            // The same settings as the first start. A start does not tell a fixed .env from an unchanged one (that
+            // would mean keeping something made from the password), so it checks either way.
             [$code, , $second] = $this->boot($root, self::MAIL, $clock);
 
             $this->assertSame(0, $code);
