@@ -75,9 +75,10 @@ final class LoginController
             return $this->render($email, self::FAILED);
         }
 
-        // The password is at hand only now: a hash made with a lower cost than today's default (10 on PHP 8.3, 12 from
-        // 8.4) is made again, so a server's PHP upgrade strengthens each admin's hash at their next log-in.
-        if (password_needs_rehash($admin['password_hash'], PASSWORD_DEFAULT)) {
+        // The password is at hand only now: a hash weaker than what password_hash() makes today (another algorithm, or a
+        // lower cost: 10 on PHP 8.3, 12 from 8.4) is made again, so a server's PHP upgrade strengthens each admin's hash
+        // at their next log-in. A stronger one stays, so moving the server back to an older PHP does not weaken it.
+        if (self::weakerThanDefault($admin['password_hash'])) {
             $this->admins->setPassword($admin['id'], $password);
         }
 
@@ -98,9 +99,26 @@ final class LoginController
 
     private static function dummyHash(): string
     {
-        $cost = defined('PASSWORD_BCRYPT_DEFAULT_COST') ? PASSWORD_BCRYPT_DEFAULT_COST : 10;
+        return self::DUMMY_HASHES[self::defaultCost()] ?? self::DUMMY_HASHES[10];
+    }
 
-        return self::DUMMY_HASHES[$cost] ?? self::DUMMY_HASHES[10];
+    /**
+     * The bcrypt cost password_hash() uses today.
+     */
+    private static function defaultCost(): int
+    {
+        return defined('PASSWORD_BCRYPT_DEFAULT_COST') ? PASSWORD_BCRYPT_DEFAULT_COST : 10;
+    }
+
+    /**
+     * Whether the hash is weaker than what password_hash() makes today: another algorithm, or bcrypt with a lower cost.
+     */
+    private static function weakerThanDefault(string $hash): bool
+    {
+        $info = password_get_info($hash);
+        $cost = isset($info['options']['cost']) && is_int($info['options']['cost']) ? $info['options']['cost'] : 0;
+
+        return $info['algo'] !== PASSWORD_DEFAULT || $cost < self::defaultCost();
     }
 
     private static function text(mixed $value): string
