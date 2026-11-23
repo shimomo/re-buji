@@ -224,6 +224,23 @@ final class EmployeeImportTest extends TestCase
         ], $result->errors);
     }
 
+    #[Test]
+    public function tellsTheOverlapWithARowAboveARowWhoseIdIsWrong(): void
+    {
+        [$import] = $this->import();
+
+        // Two rows of the file cannot share an address, whoever the second one is: told at once, as above.
+        $result = $import->run($this->file([
+            ['', '新人 一郎', 'new@example.com'],
+            ['12a', '新人 次郎', 'new@example.com'],
+        ]));
+
+        $this->assertSame([
+            '3 行目：ID は数字で書いてください：12a',
+            '3 行目：このメールアドレスは 2 行目と同じです：new@example.com',
+        ], $result->errors);
+    }
+
     /**
      * @return array{EmployeeImport, EmployeeRepository}
      */

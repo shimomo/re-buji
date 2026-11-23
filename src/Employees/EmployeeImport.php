@@ -82,9 +82,10 @@ final class EmployeeImport
 
                 if ($owner === null) {
                     $owners[$key] = ['line' => $row['line'], 'name' => $row['input']->name];
-                } elseif ($row['badId']) {
-                    // Whose row this is cannot be told: an overlap here would blame the wrong person. Its addresses
-                    // still count against the rows below, as they would once the ID is fixed.
+                } elseif ($owner['line'] === null && $row['badId']) {
+                    // Whose row this is cannot be told: the address may be that person's own, so it is not compared
+                    // with someone outside the file. Two rows of the file cannot share an address, whoever they are,
+                    // so that overlap is still told. Its addresses still count against the rows below.
                     continue;
                 } elseif ($owner['line'] !== null) {
                     $errors[] = $prefix . 'このメールアドレスは ' . $owner['line'] . ' 行目と同じです：' . $address;
