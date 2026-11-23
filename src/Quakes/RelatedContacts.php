@@ -78,8 +78,9 @@ final class RelatedContacts
      * stronger than the newer reading of its own quake: a later telegram of its own must not hide a main shock folded
      * into it. A contact folded into another passes its shaking on to that one, the contact that goes out, where it is
      * stronger. Both use the folded quakes' current readings, as the stored municipalities do not say which quake each
-     * reading came from: once a folded quake is read weaker, a shared municipality comes down to the stronger of the
-     * two current readings when the contact's own quake judges it again, and not before.
+     * reading came from: once a folded quake is read weaker, a shared municipality comes down to the strongest of the
+     * current readings when the contact's own quake judges it again, and not before. A municipality only folded quakes
+     * name is never judged by the contact's own quake, so it keeps the strongest reading it has had.
      *
      * @param list<MatchedCity> $cities
      */
