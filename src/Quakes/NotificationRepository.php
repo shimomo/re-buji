@@ -74,6 +74,16 @@ final class NotificationRepository
     }
 
     /**
+     * The contacts of other quakes folded into this one (design 4).
+     *
+     * @return list<Notification>
+     */
+    public function foldedInto(int $targetId): array
+    {
+        return array_map(self::hydrate(...), $this->db->fetchAll('SELECT ' . self::COLUMNS . ' FROM notifications WHERE merged_into_id = ? AND state = ? ORDER BY id', [$targetId, Notification::MERGED]));
+    }
+
+    /**
      * Shows the latest judgement. The priority never drops: it ordered a contact that may already be on its way.
      *
      * @param list<MatchedCity> $cities

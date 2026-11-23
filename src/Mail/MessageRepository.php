@@ -109,6 +109,16 @@ final class MessageRepository
     }
 
     /**
+     * When the latest test mail of any kind was sent, or null when none was.
+     */
+    public function latestTestSentAt(): ?DateTimeImmutable
+    {
+        $at = $this->db->fetchValue("SELECT MAX(attempted_at) FROM messages WHERE kind = 'test'");
+
+        return $at === null ? null : Time::parse((string) $at);
+    }
+
+    /**
      * The latest mail that went out to the address, for a bounce that does not say which mail it returns.
      *
      * @return array{id: int, notificationId: ?int, address: string}|null

@@ -123,7 +123,8 @@ final class ReplyJob implements CronJob
 
     /**
      * When the test mail this reply answers was sent. Only in Docker, where bin/console check sends and waits for one;
-     * the rental copy lists such replies as before.
+     * the rental copy lists such replies as before. A reply without In-Reply-To or References (some mail programs send
+     * none) is known by the number of the test mail bin/console check sent last, as the check's own finder knows it.
      */
     private function testSentAt(IncomingMail $mail): ?DateTimeImmutable
     {
@@ -131,6 +132,14 @@ final class ReplyJob implements CronJob
             return null;
         }
 
-        return $this->messages->testSentAt($mail->references);
+        $at = $this->messages->testSentAt($mail->references);
+
+        if ($at !== null) {
+            return $at;
+        }
+
+        $number = (string) $this->state->get('check.test_number');
+
+        return $number !== '' && str_contains($mail->subject, '#' . $number) ? $this->messages->latestTestSentAt() : null;
     }
 }

@@ -21,6 +21,11 @@ use ReBuji\Tests\Support\SteppingClock;
  */
 final class ReplyJobTest extends TestCase
 {
+    /**
+     * A reply to bin/console check's test mail numbered c0ffee00 (NotificationMail::setupMail()).
+     */
+    private const string CHECK_REPLY_SUBJECT = 'Re: [Re:無事 の確認 #c0ffee00] このメールに返信してください';
+
     #[Test]
     public function recordsAnEmptyReplyAsSafe(): void
     {
@@ -432,6 +437,63 @@ final class ReplyJobTest extends TestCase
 
         $this->assertSame([$uid], $world->mailbox->seen);
         $this->assertSame(0, $world->replies->countUnmatched());
+    }
+
+    #[Test]
+    public function leavesAReplyKnownOnlyByItsNumberForTheCheckCommand(): void
+    {
+        // Some mail programs (carrier mail among them) send no In-Reply-To: only the number in the subject tells.
+        [$world] = self::sent();
+        $world->messages->record(null, 'test', 'admin@example.co.jp', 'check-1@rebuji.example', true, '', $world->clock->now()->modify('-59 minutes'));
+        $world->state->set('check.test_number', 'c0ffee00');
+        $world->mailbox->add(MailFixtures::reply('admin@example.co.jp', '', null, self::CHECK_REPLY_SUBJECT));
+
+        $world->replyJob(null, self::docker())->run($world->clock->now());
+
+        $this->assertSame([], $world->mailbox->seen);
+        $this->assertSame(0, $world->replies->countUnmatched());
+    }
+
+    #[Test]
+    public function dropsAReplyKnownOnlyByItsNumberToAnOldTestMail(): void
+    {
+        [$world] = self::sent();
+        $world->messages->record(null, 'test', 'admin@example.co.jp', 'check-1@rebuji.example', true, '', $world->clock->now()->modify('-61 minutes'));
+        $world->state->set('check.test_number', 'c0ffee00');
+        $uid = $world->mailbox->add(MailFixtures::reply('admin@example.co.jp', '', null, self::CHECK_REPLY_SUBJECT));
+
+        $world->replyJob(null, self::docker())->run($world->clock->now());
+
+        $this->assertSame([$uid], $world->mailbox->seen);
+        $this->assertSame(0, $world->replies->countUnmatched());
+    }
+
+    #[Test]
+    public function keepsListingRepliesKnownOnlyByTheirNumberOutsideDocker(): void
+    {
+        [$world] = self::sent();
+        $world->messages->record(null, 'test', 'admin@example.co.jp', 'check-1@rebuji.example', true, '', $world->clock->now()->modify('-1 minute'));
+        $world->state->set('check.test_number', 'c0ffee00');
+        $uid = $world->mailbox->add(MailFixtures::reply('admin@example.co.jp', '', null, self::CHECK_REPLY_SUBJECT));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertSame([$uid], $world->mailbox->seen);
+        $this->assertSame(1, $world->replies->countUnmatched());
+    }
+
+    #[Test]
+    public function readsANumberedReplyAsBeforeWithoutACheck(): void
+    {
+        // No number kept: a '#' in the subject alone must not pass for the check's test mail.
+        [$world] = self::sent();
+        $world->messages->record(null, 'test', 'admin@example.co.jp', 'check-1@rebuji.example', true, '', $world->clock->now()->modify('-1 minute'));
+        $uid = $world->mailbox->add(MailFixtures::reply('admin@example.co.jp', '', null, 'Re: [安否確認 #c0ffee00] 地震がありました'));
+
+        $world->replyJob(null, self::docker())->run($world->clock->now());
+
+        $this->assertSame([$uid], $world->mailbox->seen);
+        $this->assertSame(1, $world->replies->countUnmatched());
     }
 
     #[Test]

@@ -166,6 +166,10 @@ final class CheckCommand implements Command
             $sender->send($mail);
             $messageId = $mail->messageId;
             (new MessageRepository($db))->record(null, 'test', $to, $mail->messageId, true, '', $this->clock()->now());
+            // In Docker, cron's reply job leaves a reply that only carries this number in its subject for the wait.
+            $state = $this->container->get(SystemState::class);
+            assert($state instanceof SystemState);
+            $state->set('check.test_number', $number);
         });
         $failed = $this->report($io, 'テストメールを ' . $to . ' に送った', $problem);
 

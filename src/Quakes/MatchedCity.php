@@ -111,6 +111,34 @@ final readonly class MatchedCity
     }
 
     /**
+     * The municipalities with each one raised to another judgement's reading where that is stronger. As strong, the
+     * municipality keeps its own reading: it is the contact's own quake. The others' new ones come last.
+     *
+     * @param list<self> $cities
+     * @param list<self> $others
+     *
+     * @return list<self>
+     */
+    public static function raise(array $cities, array $others): array
+    {
+        $byCode = [];
+
+        foreach ($cities as $city) {
+            $byCode[$city->code] = $city;
+        }
+
+        foreach ($others as $other) {
+            $known = $byCode[$other->code] ?? null;
+
+            if ($known === null || $other->rank() > $known->rank()) {
+                $byCode[$other->code] = $other;
+            }
+        }
+
+        return array_values($byCode);
+    }
+
+    /**
      * The strength used to order sending: a municipality not received yet counts as 5弱, the least it may have been.
      */
     public function rank(): int
