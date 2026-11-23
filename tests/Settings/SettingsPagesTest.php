@@ -99,6 +99,26 @@ final class SettingsPagesTest extends TestCase
     }
 
     #[Test]
+    public function checksTheAccountAfterAPasswordOfDigitsChanges(): void
+    {
+        [$app, $container, $root] = self::loggedIn(new RecordingMailSender());
+
+        try {
+            $app->handle(TestApp::request('POST', '/settings', ['smtp_password' => '0123'] + self::form() + TestApp::csrf($container)));
+            $account = self::account($container);
+            $account->worked();
+
+            $this->assertFalse($account->isDue(self::now($container)));
+
+            $app->handle(TestApp::request('POST', '/settings', ['smtp_password' => '123'] + self::form() + TestApp::csrf($container)));
+
+            $this->assertTrue($account->isDue(self::now($container)));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function keepsTheCheckScheduleWhenOnlyTheLimitChanges(): void
     {
         [$app, $container, $root] = self::loggedIn(new RecordingMailSender());
