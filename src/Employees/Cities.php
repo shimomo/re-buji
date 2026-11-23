@@ -58,14 +58,16 @@ final class Cities
     }
 
     /**
-     * Trims the code and puts back the leading zero that spreadsheets drop: "110100" (Hokkaido to Fukushima) becomes
-     * "0110100". Anything else is returned as it is, to be refused by find().
+     * Reads full-width digits and spaces as half-width, trims the code, and puts back the leading zero that spreadsheets
+     * drop: "110100" (Hokkaido to Fukushima) becomes "0110100". The zero goes back only when it makes a code find()
+     * knows; a six-digit typo such as "131010" stays as written, so the error shows what was written. Anything else is
+     * returned as it is, to be refused by find().
      */
     public static function normalizeCode(string $value): string
     {
-        $code = trim($value);
+        $code = trim(mb_convert_kana($value, 'ns', 'UTF-8'));
 
-        return preg_match('/^[0-9]{6}$/', $code) === 1 ? '0' . $code : $code;
+        return preg_match('/^[0-9]{6}$/', $code) === 1 && self::find('0' . $code) !== null ? '0' . $code : $code;
     }
 
     /**

@@ -56,6 +56,20 @@ final class EmployeeImportTest extends TestCase
     }
 
     #[Test]
+    public function showsTheCodeAsWrittenInTheError(): void
+    {
+        [$import] = $this->import();
+
+        $result = $import->run($this->file([
+            ['', '安否 花子', 'hanako@example.com'],
+            ['', '安否 次郎', 'jiro@example.com', '131010'],
+        ]));
+
+        $this->assertCount(1, $result->errors);
+        $this->assertStringStartsWith('3 行目：市町村コード 131010 は地震の情報で使えません。', $result->errors[0]);
+    }
+
+    #[Test]
     public function refusesTheSameAddressOnTwoRows(): void
     {
         [$import] = $this->import();
