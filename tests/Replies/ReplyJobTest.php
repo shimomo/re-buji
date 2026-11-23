@@ -262,6 +262,21 @@ final class ReplyJobTest extends TestCase
     }
 
     #[Test]
+    public function leavesAMailFromASenderContactedEightDaysAgoUnmatched(): void
+    {
+        // No thread headers and no number in the subject: only the sender could match it, and only within a week.
+        [$world, $contact] = self::sent();
+        $world->clock->advance('+8 days');
+        $world->mailbox->add(MailFixtures::reply('person1@example.com', "無事です。\n", null, 'こんにちは'));
+
+        $world->replyJob()->run($world->clock->now());
+
+        $this->assertNull($world->contactNow($contact)->answer);
+        $this->assertSame(1, $world->replies->countUnmatched());
+        $this->assertSame('person1@example.com', $world->replies->unmatched()[0]['fromAddress']);
+    }
+
+    #[Test]
     public function readsTheSameMailOnce(): void
     {
         [$world, $contact] = self::sent();
