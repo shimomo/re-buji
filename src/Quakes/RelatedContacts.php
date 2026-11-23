@@ -73,6 +73,34 @@ final class RelatedContacts
     }
 
     /**
+     * A later judgement of the contact's quake. A contact other quakes are folded into keeps their stronger shaking: a
+     * newer reading of its own quake must not hide a main shock folded into it. A contact folded into another passes
+     * its stronger shaking on to that one, which is the contact that goes out. Neither lowers the other: a folded
+     * quake read weaker later leaves the stronger reading on the contact, since missing the shaking is the worse
+     * failure.
+     *
+     * @param list<MatchedCity> $cities
+     */
+    public function revise(Notification $contact, array $cities, int $priority): void
+    {
+        $revised = MatchedCity::revise($contact->cities, $cities);
+
+        foreach ($this->notifications->foldedInto($contact->id) as $folded) {
+            $revised = MatchedCity::raise($revised, $folded->cities);
+        }
+
+        $this->notifications->updateCities($contact->id, $revised, $priority);
+
+        if ($contact->state === Notification::MERGED && $contact->mergedIntoId !== null) {
+            $target = $this->notifications->find($contact->mergedIntoId);
+
+            if ($target !== null) {
+                $this->notifications->updateCities($target->id, MatchedCity::raise($target->cities, $revised), $priority);
+            }
+        }
+    }
+
+    /**
      * Before a late quake is released: folds each unanswered held contact into the person's contact for a related
      * quake, so releasing two related late quakes sends one mail.
      */

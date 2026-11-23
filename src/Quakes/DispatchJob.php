@@ -128,7 +128,7 @@ final class DispatchJob implements CronJob
             // One contact per person and quake (design 4). Someone no longer matching keeps theirs: a 震度速報 judges by
             // area, which can overstate a city, but they were in the shaken area and missing them is the worse failure.
             if ($existing !== null) {
-                $this->notifications->updateCities($existing->id, MatchedCity::revise($existing->cities, $cities), $priority);
+                $this->related->revise($existing, $cities, $priority);
 
                 continue;
             }

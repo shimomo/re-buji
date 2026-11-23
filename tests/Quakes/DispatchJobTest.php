@@ -47,6 +47,11 @@ final class DispatchJobTest extends TestCase
 
     private const string QUAKE_B = '32-35_08_02_100915_VXSE51.xml';
 
+    /**
+     * QUAKE_B read 6- in 陸前高田's area instead of 4.
+     */
+    private const array STRONGER_B = ['<Area><Name>岩手県沿岸南部</Name><Code>211</Code><MaxInt>4</MaxInt></Area>' => '<Area><Name>岩手県沿岸南部</Name><Code>211</Code><MaxInt>6-</MaxInt></Area>'];
+
     #[Test]
     public function contactsPeopleWhoseMunicipalityReachedTheThreshold(): void
     {
@@ -434,6 +439,63 @@ final class DispatchJobTest extends TestCase
         $world->dispatch->run($world->clock->now());
 
         $this->assertSame(Notification::MERGED, $world->notifications->findFor($world->quake(self::EVENT_B)->id, $person)?->state);
+        $folded = $world->notifications->find($first->id);
+        $this->assertNotNull($folded);
+        $this->assertSame(7, $folded->priority);
+        $this->assertSame(['6-'], array_map(static fn(MatchedCity $city): ?string => $city->intensity, $folded->cities));
+    }
+
+    #[Test]
+    public function keepsTheFoldedQuakesStrongerShakingWhenTheContactIsJudgedAgain(): void
+    {
+        // The contact's own quake reads 4 again later: the main shock folded into it still shook the city 6-.
+        $world = self::relatedWorld();
+        $world->settings->save(['delay_minutes' => '10']);
+        $person = $world->person('陸前 高田', '0321000', '自宅');
+        $world->receive(self::QUAKE_A[0], self::QUAKE_A[1]);
+        $first = $world->notifications->findFor($world->quake(self::EVENT_A)->id, $person);
+        $this->assertNotNull($first);
+        $this->assertSame(4, $first->priority);
+        $world->telegrams->store(JmaSamples::url(self::QUAKE_B), JmaSamples::edited(self::QUAKE_B, self::STRONGER_B), $world->clock->now());
+        $world->dispatch->run($world->clock->now());
+        $this->assertSame(['6-'], array_map(static fn(MatchedCity $city): ?string => $city->intensity, $world->notifications->find($first->id)->cities ?? []));
+
+        $world->receive(self::QUAKE_A[2]);
+
+        $folded = $world->notifications->find($first->id);
+        $this->assertNotNull($folded);
+        $this->assertSame(7, $folded->priority);
+        $this->assertSame(['6-'], array_map(static fn(MatchedCity $city): ?string => $city->intensity, $folded->cities));
+    }
+
+    #[Test]
+    public function passesAFoldedQuakesLaterStrongerShakingToTheContact(): void
+    {
+        // The folded quake's later telegram reads the city 6-: the contact that goes out says so too.
+        $world = self::relatedWorld();
+        $world->settings->save(['delay_minutes' => '10']);
+        $person = $world->person('陸前 高田', '0321000', '自宅');
+        $world->receive(...self::QUAKE_A);
+        $world->receive(self::QUAKE_B);
+        $first = $world->notifications->findFor($world->quake(self::EVENT_A)->id, $person);
+        $this->assertNotNull($first);
+        $this->assertSame(['4'], array_map(static fn(MatchedCity $city): ?string => $city->intensity, $first->cities));
+
+        $world->telegrams->store(
+            JmaSamples::url('later-' . self::QUAKE_B),
+            JmaSamples::edited(self::QUAKE_B, [
+                '<DateTime>2010-07-04T21:57:40Z</DateTime>' => '<DateTime>2010-07-04T21:59:40Z</DateTime>',
+                '<ReportDateTime>2010-07-05T06:57:00+09:00</ReportDateTime>' => '<ReportDateTime>2010-07-05T06:59:00+09:00</ReportDateTime>',
+                ...self::STRONGER_B,
+            ]),
+            $world->clock->now(),
+        );
+        $world->dispatch->run($world->clock->now());
+
+        $second = $world->notifications->findFor($world->quake(self::EVENT_B)->id, $person);
+        $this->assertNotNull($second);
+        $this->assertSame(Notification::MERGED, $second->state);
+        $this->assertSame(['6-'], array_map(static fn(MatchedCity $city): ?string => $city->intensity, $second->cities));
         $folded = $world->notifications->find($first->id);
         $this->assertNotNull($folded);
         $this->assertSame(7, $folded->priority);
