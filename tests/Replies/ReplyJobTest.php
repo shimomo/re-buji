@@ -497,6 +497,21 @@ final class ReplyJobTest extends TestCase
     }
 
     #[Test]
+    public function readsAContactReplyEvenWhenItsSubjectHasTheChecksNumber(): void
+    {
+        // The reply names the contact mail it answers: that settles it, whatever number the subject carries.
+        [$world, $contact] = self::sent();
+        $world->messages->record(null, 'test', 'admin@example.co.jp', 'check-1@rebuji.example', true, '', $world->clock->now()->modify('-1 minute'));
+        $world->state->set('check.test_number', $world->contactNow($contact)->token);
+        $uid = $world->mailbox->add(MailFixtures::reply('person1@example.com', '', $world->messageIdSentTo('person1@example.com'), 'Re: ' . $world->mailer->sent[0]->subject));
+
+        $world->replyJob(null, self::docker())->run($world->clock->now());
+
+        $this->assertSame(Notification::SAFE, $world->contactNow($contact)->answer);
+        $this->assertSame([$uid], $world->mailbox->seen);
+    }
+
+    #[Test]
     public function readsOrdinaryRepliesAsBeforeInDocker(): void
     {
         [$world, $contact] = self::sent();
