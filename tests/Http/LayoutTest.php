@@ -61,6 +61,28 @@ final class LayoutTest extends TestCase
     }
 
     #[Test]
+    public function shipsTheIcons(): void
+    {
+        $assets = dirname(__DIR__, 2) . '/public/assets/';
+        $svg = (string) @file_get_contents($assets . 'favicon.svg');
+        $xml = simplexml_load_string($svg);
+
+        $this->assertNotFalse($xml, 'favicon.svg should be well-formed');
+        $this->assertSame('0 0 32 32', (string) $xml['viewBox']);
+        $this->assertStringContainsString('#2b6cb0', $svg);
+        $this->assertStringContainsString('<path', $svg);
+        // Drawn as lines, so it looks the same on every device.
+        $this->assertStringNotContainsString('<text', $svg);
+
+        foreach (['favicon-32.png' => 32, 'apple-touch-icon.png' => 180] as $file => $size) {
+            $image = @getimagesize($assets . $file);
+
+            $this->assertIsArray($image, $file . ' should be an image');
+            $this->assertSame([$size, $size, IMAGETYPE_PNG], [$image[0], $image[1], $image[2]], $file);
+        }
+    }
+
+    #[Test]
     public function marksTheBodyOnlyWhenThePageHasANav(): void
     {
         [$app, $container, $root] = TestApp::installed();
