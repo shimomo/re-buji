@@ -36,6 +36,44 @@ final class StreamWarningsTest extends TestCase
         }
     }
 
+    /**
+     * A server may pin html_errors on (php_admin_flag): ini_set() fails, and the warning still comes escaped.
+     */
+    #[Test]
+    public function decodesTheWarningWhenHtmlErrorsCannotBeTurnedOff(): void
+    {
+        $path = sys_get_temp_dir() . '/rebuji-missing "a" \'c\' & <b>.txt';
+        $previous = ini_set('html_errors', '1');
+
+        try {
+            [, $reason] = StreamWarnings::catch(static function () use ($path): string|false {
+                // As on such a server: still on during the call.
+                ini_set('html_errors', '1');
+
+                return file_get_contents($path);
+            });
+
+            $this->assertSame('file_get_contents(' . $path . '): Failed to open stream: No such file or directory', $reason);
+        } finally {
+            ini_set('html_errors', (string) $previous);
+        }
+    }
+
+    #[Test]
+    public function keepsAnEntityWrittenInTheWarning(): void
+    {
+        $path = sys_get_temp_dir() . '/rebuji-missing &amp; b.txt';
+        $previous = ini_set('html_errors', '1');
+
+        try {
+            [, $reason] = StreamWarnings::catch(static fn(): string|false => file_get_contents($path));
+
+            $this->assertSame('file_get_contents(' . $path . '): Failed to open stream: No such file or directory', $reason);
+        } finally {
+            ini_set('html_errors', (string) $previous);
+        }
+    }
+
     #[Test]
     public function putsThingsBackWhenTheCallThrows(): void
     {

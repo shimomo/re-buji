@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
+use ReBuji\Employees\EmployeeRepository;
 use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\Notification;
 use ReBuji\Quakes\QuakeSnapshot;
@@ -113,6 +114,92 @@ final class QuakeBoardPageTest extends TestCase
             }
 
             $this->assertStringNotContainsString('ほか', (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    /**
+     * Someone who wrote from an address of their own, in a new mail, is in the unmatched mails: the admin looking for
+     * those who have not replied hears of them here.
+     */
+    #[Test]
+    public function pointsToTheUnmatchedMailsAfterTheContacts(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+            $records->contact($quake, Notification::SENT);
+            $replies = $container->get(ReplyRepository::class);
+            $this->assertInstanceOf(ReplyRepository::class, $replies);
+            $replies->record(null, 'reply', null, 'private@example.net', '無事です', '無事です', null, new DateTimeImmutable('2026-11-05T03:30:00Z'));
+
+            $page = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody();
+
+            $notice = 'この地震の連絡を送った後に、照合できなかったメールが 1 通届いています。返信なしの人からのメールかもしれません。';
+            $this->assertStringContainsString($notice, $page);
+            $this->assertStringContainsString('href="/mail/unmatched">一覧</a>', $page);
+            $this->assertGreaterThan((int) strpos($page, '<h2>返信なし'), (int) strpos($page, $notice));
+            $this->assertLessThan((int) strpos($page, '<h2>要確認'), (int) strpos($page, $notice));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    /**
+     * A main shock right after a foreshock: its contacts are folded into the foreshock's and never go out themselves,
+     * but its page lists those people under no reply all the same.
+     */
+    #[Test]
+    public function pointsToTheUnmatchedMailsOnAQuakeFoldedIntoAnother(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $foreshock = self::miyagi($records);
+            $mainShock = $records->quake('20261105121500', '宮城県沖・最大震度6強', '2026-11-05T03:15:00Z');
+            $first = $records->contact($foreshock, Notification::SENT);
+            $contact = $records->notifications->find($first);
+            $this->assertNotNull($contact);
+            $this->assertNotNull($contact->employeeId);
+            $employees = $container->get(EmployeeRepository::class);
+            $this->assertInstanceOf(EmployeeRepository::class, $employees);
+            $employee = $employees->find($contact->employeeId);
+            $this->assertNotNull($employee);
+            $records->notifications->create($mainShock, $employee, [], 5, Notification::MERGED, null, $first);
+            $replies = $container->get(ReplyRepository::class);
+            $this->assertInstanceOf(ReplyRepository::class, $replies);
+            $replies->record(null, 'reply', null, 'private@example.net', '無事です', '無事です', null, new DateTimeImmutable('2026-11-05T03:30:00Z'));
+
+            $page = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $mainShock))->getBody();
+
+            $this->assertStringContainsString('返信なし（1 人）', $page);
+            $this->assertStringContainsString('この地震の連絡を送った後に、照合できなかったメールが 1 通届いています。', $page);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function saysNothingOfUnmatchedMailsWhenEveryoneAnswered(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $quake = self::miyagi($records);
+            $contact = $records->contact($quake, Notification::SENT);
+            $records->notifications->recordAnswer($contact, Notification::SAFE, 'mail', null, null, new DateTimeImmutable('2026-11-05T03:20:00Z'));
+            $replies = $container->get(ReplyRepository::class);
+            $this->assertInstanceOf(ReplyRepository::class, $replies);
+            $replies->record(null, 'reply', null, 'private@example.net', '無事です', '無事です', null, new DateTimeImmutable('2026-11-05T03:30:00Z'));
+
+            $page = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody();
+
+            $this->assertStringNotContainsString('この地震の連絡を送った後に', $page);
         } finally {
             TemporaryDirectory::remove($root);
         }

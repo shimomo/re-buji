@@ -220,6 +220,48 @@ final class QuakeDeletionTest extends TestCase
         }
     }
 
+    /**
+     * Two quakes' contacts folded into one: both keep that only an auto-reply came back, so the absence shows on each.
+     */
+    #[Test]
+    public function handsTheAutoRepliesToEveryContactFoldedIntoIt(): void
+    {
+        [$app, $container, $root] = self::loggedIn();
+
+        try {
+            $records = new QuakeRecords($container);
+            $replies = self::get($container, ReplyRepository::class);
+            $a = $records->quake('20100705065511', '岩手県沿岸南部・最大震度4', '2026-11-05T02:55:00Z');
+            $b = $records->quake('20100705065610', '岩手県沖・最大震度4', '2026-11-05T02:56:00Z');
+            $c = $records->quake('20100705065720', '岩手県沖・最大震度3', '2026-11-05T02:57:00Z');
+            $first = $records->contact($a, Notification::SENT);
+            $records->notifications->recordAutoReply($first, new DateTimeImmutable('2026-11-05T03:15:00Z'));
+            $replies->record($first, 'auto_reply', 'thread', 'person1@example.com', '自動応答：不在', '11月25日まで出張中です。', 'a1@example.com', new DateTimeImmutable('2026-11-05T03:15:00Z'));
+            $folded = self::foldInto($container, $records, $first, $b, $c);
+
+            $app->handle(TestApp::request('POST', '/earthquakes/' . $a . '/delete', TestApp::csrf($container)));
+
+            $this->assertCount(2, $folded);
+
+            foreach ($folded as $id) {
+                $contact = $records->notifications->find($id);
+                $this->assertNotNull($contact);
+                $this->assertNull($contact->answer);
+                $this->assertSame(Notification::MERGED, $contact->state);
+                $this->assertEquals(new DateTimeImmutable('2026-11-05T03:15:00Z'), $contact->autoRepliedAt);
+                $this->assertSame(['auto_reply'], array_column($replies->forNotification($id), 'kind'));
+            }
+
+            foreach ([$b, $c] as $quake) {
+                $page = (string) $app->handle(TestApp::request('GET', '/earthquakes/' . $quake))->getBody();
+                $this->assertStringContainsString('不在の自動応答だけ', $page);
+                $this->assertStringContainsString('自動応答：「11月25日まで出張中です。」', $page);
+            }
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
     #[Test]
     public function leavesAFoldedContactAloneWhenThereWasNoAnswer(): void
     {

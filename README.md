@@ -155,7 +155,7 @@ sh ~/re-buji/bin/upgrade.sh
 ```
 
 - 上げる版と DB の更新の有無を示し、「上げますか？」と聞いてから進みます。`--yes` を付けると聞きません
-- 上書きの前に、今の中身（`storage/` を除く）と `database.sqlite` を `storage/upgrade-backups/` に写します。戻し方は、終わったときに出ます。問題なく動いていれば、写しは消して構いません。MySQL の DB は写さないので、先に `mysqldump` で取ってください
+- 上書きの前に、今の中身（`storage/` を除く）と `database.sqlite` を `storage/upgrade-backups/` に写します。戻し方は、終わったときに出ます。上げ終わると、前に上げたときの写しは消し、今回の写しだけを残します。問題なく動いていれば、今回の写しも消して構いません。MySQL の DB は写さないので、先に `mysqldump` で取ってください
 - 上げているあいだ cron は止まります（動いている途中なら、終わるのを待ってから始めます）
 - 「上げますか？」に答えたあとは、SSH が切れても Ctrl-C を押しても、最後まで進みます（途中で止まって、古いファイルと新しいファイルが混ざらないように）。やめるときは、問いに `n` と答えてください
 - `public/` の中身だけを公開ディレクトリに置いている場合は、初回だけ `--public` で公開ディレクトリを渡します。`index.php` と `assets/` を置き換えます（`.htaccess` と `rebuji-root.php` はそのまま）。2 回目からは覚えています
@@ -191,9 +191,9 @@ composer install
 composer test       # PHPUnit
 composer analyse    # Psalm
 composer lint       # Pint
-bin/build-release.sh 0.3.1   # build/re-buji-0.3.1.zip を作る（版は src/Version.php と同じにし、コミットしてから）
-bin/release.sh check 0.3.1   # main で、リリースできるかを確かめて zip を作る
-bin/release.sh publish 0.3.1 notes.md   # 署名つきのタグと GitHub のリリースを作る
+bin/build-release.sh 0.3.2   # build/re-buji-0.3.2.zip を作る（版は src/Version.php と同じにし、コミットしてから）
+bin/release.sh check 0.3.2   # main で、リリースできるかを確かめて zip を作る
+bin/release.sh publish 0.3.2 notes.md   # 署名つきのタグと GitHub のリリースを作る
 ```
 
 ## 出典と注意

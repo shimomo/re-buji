@@ -173,6 +173,96 @@ final class UpgradeInstallCommandTest extends TestCase
         }
     }
 
+    /**
+     * Each copy holds the employees' addresses: only the one from this upgrade is kept. What the upgrade did not make is
+     * left alone, and a link is never followed.
+     */
+    #[Test]
+    public function removesTheOlderBackupsAfterAnUpgrade(): void
+    {
+        $dir = TemporaryDirectory::create();
+
+        try {
+            [$source, $target] = $this->copies($dir, appliedMigrations: 3);
+            $backups = $target . '/storage/' . Upgrade::BACKUPS;
+            mkdir($backups . '/0.0.9-20261101-090000/files/src', 0700, true);
+            file_put_contents($backups . '/0.0.9-20261101-090000/files/src/marker.txt', 'older');
+            file_put_contents($backups . '/notes.txt', 'mine');
+            mkdir($backups . '/mine');
+            mkdir($dir . '/elsewhere');
+            file_put_contents($dir . '/elsewhere/keep.txt', 'keep');
+            symlink($dir . '/elsewhere', $backups . '/0.0.8-20261101-080000');
+
+            [$code, $io] = $this->install($source, ['--target=' . $target, '--yes']);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertDirectoryDoesNotExist($backups . '/0.0.9-20261101-090000');
+            $this->assertDirectoryExists($backups . '/0.1.0-20261105-121200');
+            $this->assertFileExists($backups . '/notes.txt');
+            $this->assertDirectoryExists($backups . '/mine');
+            $this->assertTrue(is_link($backups . '/0.0.8-20261101-080000'));
+            $this->assertSame('keep', file_get_contents($dir . '/elsewhere/keep.txt'));
+            $this->assertStringContainsString('前に上げたときの写しを消しました：' . $backups . '/0.0.9-20261101-090000', $io->output());
+            $this->assertStringContainsString('問題なく動いていれば、' . $backups . '/0.1.0-20261105-121200 は消して構いません。', $io->output());
+        } finally {
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    /**
+     * A folder the owner cannot open (made by root, say): the upgrade has still finished, so it says so and how to go
+     * back, and names what is left to remove by hand.
+     */
+    #[Test]
+    public function reportsAnOlderBackupItCannotRemove(): void
+    {
+        $dir = TemporaryDirectory::create();
+        $locked = $dir . '/re-buji/storage/' . Upgrade::BACKUPS . '/0.0.9-20261101-090000/files/src';
+
+        try {
+            [$source, $target] = $this->copies($dir, appliedMigrations: 3);
+            $backups = $target . '/storage/' . Upgrade::BACKUPS;
+            mkdir($locked, 0700, true);
+            file_put_contents($locked . '/marker.txt', 'older');
+            chmod($locked, 0000);
+
+            [$code, $io] = $this->install($source, ['--target=' . $target, '--yes']);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertDirectoryExists($backups . '/0.0.9-20261101-090000');
+            $this->assertStringContainsString('前に上げたときの写しを消せませんでした。手で消してください：' . $backups . '/0.0.9-20261101-090000', $io->output());
+            $this->assertStringContainsString('問題なく動いていれば、' . $backups . '/0.1.0-20261105-121200 は消して構いません。', $io->output());
+        } finally {
+            @chmod($locked, 0700);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function keepsTheOlderBackupsWhenTheUpgradeFails(): void
+    {
+        $dir = TemporaryDirectory::create();
+
+        try {
+            [$source, $target] = $this->copies($dir);
+            $older = $target . '/storage/' . Upgrade::BACKUPS . '/0.0.9-20261101-090000';
+            mkdir($older . '/files/src', 0700, true);
+            file_put_contents($older . '/files/src/marker.txt', 'older');
+            mkdir($source . '/vendor');
+            file_put_contents($source . '/vendor/unreadable.php', 'x');
+            chmod($source . '/vendor/unreadable.php', 0000);
+
+            [$code, $io] = $this->install($source, ['--target=' . $target, '--yes']);
+
+            $this->assertSame(1, $code);
+            $this->assertSame('older', file_get_contents($older . '/files/src/marker.txt'));
+            $this->assertStringNotContainsString('前に上げたときの写しを消しました', $io->output());
+        } finally {
+            @chmod($dir . '/new/vendor/unreadable.php', 0644);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
     #[Test]
     public function updatesThePublicDirectoryAndRemembersIt(): void
     {

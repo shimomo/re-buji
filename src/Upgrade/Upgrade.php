@@ -127,6 +127,44 @@ final class Upgrade
     }
 
     /**
+     * Removes the copies kept by earlier upgrades, once this one has finished: each holds the employees' addresses
+     * (design 6.5). Only directories named like a copy ({version}-{Ymd-His}) go; anything else in storage/upgrade-backups/
+     * is left alone, and a link is never followed.
+     *
+     * @param string $keep the full path of the copy this upgrade made
+     *
+     * @return array{removed: list<string>, left: list<string>} full paths in name order; left: still there after removing
+     */
+    public function removeBackupsBut(string $keep): array
+    {
+        $result = ['removed' => [], 'left' => []];
+        $names = @scandir($this->target . '/storage/' . self::BACKUPS);
+
+        if ($names === false) {
+            return $result;
+        }
+
+        foreach ($names as $name) {
+            $path = $this->target . '/storage/' . self::BACKUPS . '/' . $name;
+
+            if (preg_match('/-\d{8}-\d{6}$/', $name) !== 1 || $path === $keep || is_link($path) || !is_dir($path)) {
+                continue;
+            }
+
+            try {
+                self::remove($path);
+            } catch (Throwable) {
+                // A folder that cannot be opened (made by root, say): the upgrade has finished all the same, and what
+                // is still there is reported below.
+            }
+
+            $result[file_exists($path) ? 'left' : 'removed'][] = $path;
+        }
+
+        return $result;
+    }
+
+    /**
      * Puts each entry of the new copy (but storage/) in place. The entry is first copied next to the copy (inside
      * storage/, so on the same disk) and then renamed in, with the old entry renamed out of the way just before: a request
      * never finds a half-copied directory. The new copy itself is left as it is, because this runs from it and still

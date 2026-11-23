@@ -85,6 +85,7 @@ final class EarthquakesController
             'heading' => QuakeHeading::heading($quake),
             'basis' => QuakeHeading::basis($quake),
             'board' => $this->board->build($quake),
+            'unmatchedMails' => $this->replies->countUnmatchedForQuake($quake->id),
         ]));
 
         return $page;
