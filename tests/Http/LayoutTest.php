@@ -48,6 +48,43 @@ final class LayoutTest extends TestCase
     }
 
     #[Test]
+    public function linksTheIconsWithTheVersion(): void
+    {
+        [$app, , $root] = TestApp::create();
+
+        try {
+            $body = (string) $app->handle(TestApp::request('GET', '/install/environment'))->getBody();
+            $png = '<link rel="icon" href="/assets/favicon-32.png?v=' . Version::CURRENT . '" sizes="32x32" type="image/png">';
+            $svg = '<link rel="icon" href="/assets/favicon.svg?v=' . Version::CURRENT . '" type="image/svg+xml">';
+
+            $this->assertStringContainsString($png, $body);
+            $this->assertStringContainsString($svg, $body);
+            $this->assertStringContainsString('<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png?v=' . Version::CURRENT . '">', $body);
+            // A browser that reads SVG icons takes the later one; any other keeps the PNG.
+            $this->assertLessThan(strpos($body, $svg), strpos($body, $png));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function linksTheIconsUnderASubdirectory(): void
+    {
+        $root = TestApp::root();
+
+        try {
+            [$app] = TestApp::build($root, [Url::class => new Url('/re-buji')]);
+            $body = (string) $app->handle(TestApp::request('GET', '/install/environment'))->getBody();
+
+            $this->assertStringContainsString('href="/re-buji/assets/favicon-32.png?v=', $body);
+            $this->assertStringContainsString('href="/re-buji/assets/favicon.svg?v=', $body);
+            $this->assertStringContainsString('href="/re-buji/assets/apple-touch-icon.png?v=', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function shipsTheStylesheet(): void
     {
         $file = dirname(__DIR__, 2) . '/public/assets/app.css';
