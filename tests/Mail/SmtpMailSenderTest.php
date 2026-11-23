@@ -316,6 +316,69 @@ final class SmtpMailSenderTest extends TestCase
     }
 
     #[Test]
+    public function recordsAFailedLogInCheckOnTheAccount(): void
+    {
+        $server = FakeSmtpServer::start(['rejectAuth' => true]);
+        [$account, $state] = SendingAccountTest::account();
+
+        try {
+            try {
+                (new SmtpMailSender(self::settings($server->port()), 15, $account))->logIn();
+                $this->fail('A failed log-in should be reported');
+            } catch (AccountUnavailable) {
+                // expected
+            }
+
+            $this->assertTrue($account->isFailing());
+            $this->assertStringContainsString('535', (string) $state->get('mail.last_error'));
+        } finally {
+            $server->stop();
+        }
+    }
+
+    #[Test]
+    public function countsARefusedRecipientAsAWorkingAccount(): void
+    {
+        $server = FakeSmtpServer::start(['rejectRecipients' => ['gone@example.com']]);
+        [$account] = SendingAccountTest::account();
+        $account->failed('x');
+
+        try {
+            try {
+                (new SmtpMailSender(self::settings($server->port()), 15, $account))->send(self::mail('gone@example.com'));
+                $this->fail('A refused recipient should be reported');
+            } catch (RecipientRefused) {
+                // expected
+            }
+
+            $this->assertFalse($account->isFailing());
+        } finally {
+            $server->stop();
+        }
+    }
+
+    #[Test]
+    public function countsADeferredRecipientAsAWorkingAccount(): void
+    {
+        $server = FakeSmtpServer::start(['deferRecipients' => ['taro@docomo.ne.jpp']]);
+        [$account] = SendingAccountTest::account();
+        $account->failed('x');
+
+        try {
+            try {
+                (new SmtpMailSender(self::settings($server->port()), 15, $account))->send(self::mail('taro@docomo.ne.jpp'));
+                $this->fail('A deferred recipient should be reported');
+            } catch (RecipientDeferred) {
+                // expected
+            }
+
+            $this->assertFalse($account->isFailing());
+        } finally {
+            $server->stop();
+        }
+    }
+
+    #[Test]
     public function recordsALogInCheck(): void
     {
         $server = FakeSmtpServer::start();
