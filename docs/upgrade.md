@@ -17,7 +17,7 @@ sh ~/re-buji/bin/upgrade.sh
 - `public/` の中身だけを公開ディレクトリに置いている場合は、初回だけ `--public` で公開ディレクトリを渡します。`index.php` と `assets/` を置き換えます（`.htaccess` と `rebuji-root.php` はそのまま）。2 回目からは覚えています
 
   ```bash
-  sh ~/re-buji/bin/upgrade.sh --public ~/www/re-buji
+  sh ~/re-buji/bin/upgrade.sh --public ~/public_html/anpi
   ```
 - `php` が 8.3 より古いサーバーでは、cron と同じように版を指定した php を渡します：`env PHP=/usr/local/php/8.3/bin/php sh ~/re-buji/bin/upgrade.sh`
 - 特定の版を入れるときは `--version 0.3.1`、サーバーに置いた zip から入れるときは `--zip re-buji-0.3.1.zip` を付けます
@@ -26,7 +26,7 @@ sh ~/re-buji/bin/upgrade.sh
 
 ```bash
 curl -fsSL -o ~/rebuji-upgrade.sh https://raw.githubusercontent.com/shimomo/re-buji/v0.3.1/bin/upgrade.sh
-sh ~/rebuji-upgrade.sh --root ~/re-buji --public ~/www/re-buji   # 全体を公開ディレクトリに置いているなら --public は付けない
+sh ~/rebuji-upgrade.sh --root ~/re-buji --public ~/public_html/anpi   # 全体を公開ディレクトリに置いているなら --public は付けない
 rm ~/rebuji-upgrade.sh
 ```
 
@@ -34,7 +34,7 @@ rm ~/rebuji-upgrade.sh
 
 新しい zip の中身を FTP で上書きします（`storage/` は上書きしません）。そのあと、管理画面の「DB の更新」を開いて、ボタンを押します。
 
-`public/` の中身だけを公開ディレクトリに置いている場合は、本体を上書きした後で、公開ディレクトリも新しい `public/` の中身で上書きしてください。`assets/` のフォルダ（画面の見た目の `app.css`）を先に、`index.php` を最後に上げます（`rebuji-root.php` はそのまま残します）。`assets/` を上げないと、画面の見た目がそろいません。`index.php` を本体より先に上げると、本体を上げ終わるまで画面がエラーになります。
+`public/` の中身だけを公開ディレクトリに置いている場合は、本体を上書きした後で、公開ディレクトリも新しい `public/` の中身で上書きしてください。`assets/` のフォルダを丸ごと先に、`index.php` を最後に上げます（`rebuji-root.php` はそのまま残します）。`assets/` には、画面の見た目の `app.css` と、ブラウザのタブやブックマークに出るアイコンが入っています。`assets/` を上げないと、画面の見た目がそろわず、アイコンも出ません。`index.php` を本体より先に上げると、本体を上げ終わるまで画面がエラーになります。
 
 上書きしてから「DB の更新」を押すまでは、管理画面は「DB の更新」の画面しか開けず、cron も地震の情報を取りに行きません（15 分たつと、見張りの URL が 503 を返します）。上書きしたら、すぐに押してください。DB の変更が無い版では、押す必要はありません。
 
