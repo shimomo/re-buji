@@ -9,6 +9,7 @@ use Override;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
+use Psr\Container\ContainerInterface;
 use ReBuji\Auth\AdminRepository;
 use ReBuji\Config\Config;
 use ReBuji\Config\ConfigFile;
@@ -23,6 +24,7 @@ use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\Imap\RawMail;
 use ReBuji\Mail\MailSender;
 use ReBuji\Paths;
+use ReBuji\SystemState;
 use ReBuji\Tests\Support\FakeMailbox;
 use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\MailFixtures;
@@ -68,6 +70,26 @@ final class CheckCommandTest extends TestCase
 
             $this->assertSame(0, $code);
             $this->assertSame(['someone@example.jp'], $sender->recipients());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function keepsTheNumberForTheReplyJob(): void
+    {
+        // The reply job leaves a reply known only by this number for the wait (Docker).
+        $root = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            [$code, , $container] = $this->check($root, ['--to=someone@example.jp'], $sender, new FakeMailbox(), false);
+
+            $this->assertSame(0, $code);
+            $this->assertSame(1, preg_match('/#([0-9a-f]{8})\]/', $sender->sent[0]->subject, $match));
+            $state = $container->get(SystemState::class);
+            $this->assertInstanceOf(SystemState::class, $state);
+            $this->assertSame($match[1], $state->get('check.test_number'));
         } finally {
             TemporaryDirectory::remove($root);
         }
@@ -260,7 +282,7 @@ final class CheckCommandTest extends TestCase
      * @param list<string> $args
      * @param list<int> $slept
      *
-     * @return array{int, ConsoleIo}
+     * @return array{int, ConsoleIo, ContainerInterface}
      */
     private function check(string $root, array $args, RecordingMailSender $sender, Mailbox $mailbox, bool $withAdmin, array &$slept = []): array
     {
@@ -293,6 +315,6 @@ final class CheckCommandTest extends TestCase
             $slept[] = $seconds;
         });
 
-        return [$command->run($args, $io), $io];
+        return [$command->run($args, $io), $io, $container];
     }
 }
