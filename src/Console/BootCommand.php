@@ -13,6 +13,7 @@ use ReBuji\Config\ConfigFile;
 use ReBuji\Config\Environment;
 use ReBuji\Database\Database;
 use ReBuji\Database\Migrator;
+use ReBuji\Mail\SendingAccount;
 use ReBuji\Monitor\StatusToken;
 use ReBuji\Paths;
 use ReBuji\Settings\Settings;
@@ -22,7 +23,7 @@ use Throwable;
 
 /**
  * What a Docker container does at every start: checks the environment, makes the directories, applies the database
- * changes and records the first start. Safe to run again.
+ * changes, records the first start, and has the next cron run log in to the sending account. Safe to run again.
  *
  * @author shimomo
  */
@@ -136,6 +137,10 @@ final class BootCommand implements Command
 
             $state->set('imap.account', $account);
         }
+
+        // Mail settings fixed in .env come in with a restart: the next cron run logs in, rather than up to an hour later.
+        // Every start, changed or not: telling a change apart would mean keeping something made from the password.
+        $this->service(SendingAccount::class)->checkSoon();
 
         if ($settings->smtp() === null || $imap === null) {
             $io->line('メールの設定がありません。ホーム画面にも出ます。');

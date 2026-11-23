@@ -17,6 +17,7 @@ use ReBuji\Container;
 use ReBuji\Database\Migration;
 use ReBuji\Database\Migrations;
 use ReBuji\Database\Migrator;
+use ReBuji\Mail\SendingAccount;
 use ReBuji\Paths;
 use ReBuji\SystemState;
 use ReBuji\Tests\Support\EnvExample;
@@ -115,6 +116,29 @@ final class BootCommandTest extends TestCase
             $state = $this->state($second);
             $this->assertSame('2026-11-05T04:12:00Z', $state->get('imap.since'));
             $this->assertSame("imap.example.jp\nother@example.jp", $state->get('imap.account'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function checksTheSendingAccountOnTheNextRunAfterEveryStart(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            $clock = new FrozenClock();
+            [, , $first] = $this->boot($root, self::MAIL, $clock);
+            $account = $this->account($first);
+            $account->worked();
+
+            $this->assertFalse($account->isDue($clock->now()));
+
+            // A password fixed in .env comes in with the restart.
+            [$code, , $second] = $this->boot($root, ['REBUJI_SMTP_PASSWORD' => 'fixed'] + self::MAIL, $clock);
+
+            $this->assertSame(0, $code);
+            $this->assertTrue($this->account($second)->isDue($clock->now()));
         } finally {
             TemporaryDirectory::remove($root);
         }
@@ -318,6 +342,14 @@ final class BootCommandTest extends TestCase
     private function token(string $root): string
     {
         return (string) (new ConfigFile((new Paths($root))->storage('config.php')))->load()->get('status.token');
+    }
+
+    private function account(\Psr\Container\ContainerInterface $container): SendingAccount
+    {
+        $account = $container->get(SendingAccount::class);
+        $this->assertInstanceOf(SendingAccount::class, $account);
+
+        return $account;
     }
 
     private function state(\Psr\Container\ContainerInterface $container): SystemState
