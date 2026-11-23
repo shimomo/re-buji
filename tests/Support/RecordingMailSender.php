@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace ReBuji\Tests\Support;
 
 use Override;
+use ReBuji\Mail\AccountUnavailable;
+use ReBuji\Mail\MailLogin;
 use ReBuji\Mail\MailSender;
 use ReBuji\Mail\MailUnavailable;
 use ReBuji\Mail\OutgoingMail;
@@ -12,11 +14,12 @@ use ReBuji\Mail\RecipientDeferred;
 use ReBuji\Mail\RecipientRefused;
 
 /**
- * Keeps what would have been sent. Recipients can be set to be refused, or the whole server to be unavailable.
+ * Keeps what would have been sent. Recipients can be set to be refused, or the whole server to be unavailable. Counts
+ * the log-in checks too.
  *
  * @author shimomo
  */
-final class RecordingMailSender implements MailSender
+final class RecordingMailSender implements MailSender, MailLogin
 {
     /**
      * @var list<OutgoingMail>
@@ -31,6 +34,8 @@ final class RecordingMailSender implements MailSender
     public array $attempts = [];
 
     public bool $unavailable = false;
+
+    public int $logins = 0;
 
     /**
      * @param array<string, 'refuse'|'defer'|'unavailable'> $failures by recipient address
@@ -59,6 +64,16 @@ final class RecordingMailSender implements MailSender
         }
 
         $this->sent[] = $mail;
+    }
+
+    #[Override]
+    public function logIn(): void
+    {
+        $this->logins++;
+
+        if ($this->unavailable) {
+            throw new AccountUnavailable('Connection to "smtp.example.co.jp:587" timed out.');
+        }
     }
 
     public function clear(): void
