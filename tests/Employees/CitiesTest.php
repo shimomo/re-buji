@@ -56,4 +56,20 @@ final class CitiesTest extends TestCase
         $this->assertSame('1310100', Cities::normalizeCode(' 1310100 '));
         $this->assertSame('abc', Cities::normalizeCode('abc'));
     }
+
+    #[Test]
+    public function keepsASixDigitCodeAsWrittenWhenAZeroDoesNotHelp(): void
+    {
+        // A typo, not a dropped zero: the error shows what was written, not a code nobody wrote.
+        $this->assertSame('131010', Cities::normalizeCode('131010'));
+        $this->assertSame('0110100', Cities::normalizeCode('110100'));
+    }
+
+    #[Test]
+    public function readsFullWidthDigits(): void
+    {
+        $this->assertSame('1310100', Cities::normalizeCode('１３１０１００'));
+        $this->assertSame('0110100', Cities::normalizeCode('１１０１００'));
+        $this->assertSame('1310100', Cities::normalizeCode('　1310100　'));
+    }
 }
