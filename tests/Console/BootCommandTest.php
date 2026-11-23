@@ -134,8 +134,8 @@ final class BootCommandTest extends TestCase
 
             $this->assertFalse($account->isDue($clock->now()));
 
-            // A password fixed in .env comes in with the restart.
-            [$code, , $second] = $this->boot($root, ['REBUJI_SMTP_PASSWORD' => 'fixed'] + self::MAIL, $clock);
+            // The same settings as the first start: a start cannot tell a fixed .env from an unchanged one, so it checks either way.
+            [$code, , $second] = $this->boot($root, self::MAIL, $clock);
 
             $this->assertSame(0, $code);
             $this->assertTrue($this->account($second)->isDue($clock->now()));
