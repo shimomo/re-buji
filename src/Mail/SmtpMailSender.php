@@ -25,12 +25,14 @@ use Symfony\Component\Mime\Exception\RfcComplianceException;
  *   that is really down only delays the run.
  * A server that stops in the middle of a mail can take about twice the limit: the QUIT after the failure waits too.
  *
- * Symfony reads PHP's default_socket_timeout when it connects, so send() sets it for the time it sends and puts the
- * server's value back; the socket class's own setter is internal to Symfony.
+ * Symfony reads PHP's default_socket_timeout when it connects, so send() and logIn() set it for the time they talk to
+ * the server and put the server's value back; the socket class's own setter is internal to Symfony.
+ *
+ * A failure before the log-in was through is an AccountUnavailable; logIn() goes only that far.
  *
  * @author shimomo
  */
-final class SmtpMailSender implements MailSender
+final class SmtpMailSender implements MailSender, MailLogin
 {
     public const int TIMEOUT_SECONDS = 15;
 
@@ -38,8 +40,15 @@ final class SmtpMailSender implements MailSender
 
     private ?RecipientAwareSmtpTransport $transport = null;
 
-    public function __construct(private readonly ?SmtpSettings $settings, public readonly int $timeoutSeconds = self::TIMEOUT_SECONDS)
-    {
+    /**
+     * @param SendingAccount|null $account told whether each use of the account worked (none in tests that look only at
+     *                                     the wire)
+     */
+    public function __construct(
+        private readonly ?SmtpSettings $settings,
+        public readonly int $timeoutSeconds = self::TIMEOUT_SECONDS,
+        private readonly ?SendingAccount $account = null,
+    ) {
         //
     }
 
@@ -65,17 +74,65 @@ final class SmtpMailSender implements MailSender
             $email->getHeaders()->addTextHeader('Auto-Submitted', 'auto-generated');
 
             $this->transport()->send($email, new Envelope(new Address($mail->fromAddress), [$recipient]));
+        } catch (AccountUnavailableResponse $exception) {
+            $this->account?->failed($exception->getMessage());
+
+            throw new AccountUnavailable($exception->getMessage(), 0, $exception);
         } catch (RecipientRefusedResponse $exception) {
+            $this->account?->worked();
+
             throw new RecipientRefused($exception->getMessage(), 0, $exception);
         } catch (RecipientDeferredResponse $exception) {
+            $this->account?->worked();
+
             throw new RecipientDeferred($exception->getMessage(), 0, $exception);
-        } catch (TransportExceptionInterface|RfcComplianceException $exception) {
+        } catch (TransportExceptionInterface $exception) {
+            // Past the log-in (start() would have said otherwise): the sender or the body was refused, or the answer
+            // after the body never came. The account itself works.
+            $this->account?->worked();
+
+            throw new MailUnavailable($exception->getMessage(), 0, $exception);
+        } catch (RfcComplianceException $exception) {
+            // The mail could not be put together: nothing reached the server.
             throw new MailUnavailable($exception->getMessage(), 0, $exception);
         } finally {
             if ($timeout !== false) {
                 ini_set('default_socket_timeout', $timeout);
             }
         }
+
+        $this->account?->worked();
+    }
+
+    /**
+     * Connects, starts TLS and logs in as the settings say, then quits without sending. A connection kept from an earlier
+     * mail is closed first: it logged in long ago, and proves nothing now.
+     */
+    #[Override]
+    public function logIn(): void
+    {
+        if ($this->settings === null) {
+            throw new MailUnavailable('メールの送信の設定がありません。「設定」で SMTP を登録してください。');
+        }
+
+        $timeout = ini_set('default_socket_timeout', (string) $this->timeoutSeconds);
+
+        try {
+            $transport = $this->transport();
+            $transport->stop();
+            $transport->start();
+            $transport->stop();
+        } catch (AccountUnavailableResponse $exception) {
+            $this->account?->failed($exception->getMessage());
+
+            throw new AccountUnavailable($exception->getMessage(), 0, $exception);
+        } finally {
+            if ($timeout !== false) {
+                ini_set('default_socket_timeout', $timeout);
+            }
+        }
+
+        $this->account?->worked();
     }
 
     private function transport(): RecipientAwareSmtpTransport

@@ -107,7 +107,7 @@ $this->layout('layout', ['title' => $title]);
 <p>最後に気象庁の情報を確かめたのは <?= $this->e($lastCheck) ?> です。</p>
 <?php endif ?>
 <h2>見張り（状態の URL）</h2>
-<p>外部の監視サービスに、次の URL を登録してください。cron が止まると 503 を返します。</p>
+<p>外部の監視サービスに、次の URL を登録してください。cron が止まったときと、送信のメールのアカウントにログインできない状態が 30 分続いたときに、503 を返します。</p>
 <p><code><?= $this->e($statusUrl) ?></code></p>
 <form method="post" action="<?= $this->e($this->url('/settings/status-token')) ?>">
     <?= $this->csrf() ?>

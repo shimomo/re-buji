@@ -94,7 +94,7 @@ docker compose exec app php bin/console check --wait-reply
 2. `docker compose up -d` で、Let's Encrypt の証明書を自動で取り、更新します。
 3. `admin:create` で最初の管理者を作ります。パスワードは対話で入れます（`.env` や引数には書きません）。
 4. `check --wait-reply` は、テストメールを送り、その返信を待ちます。メールが受け取れたら、**返信してください**。「✓ 返信を読めた」と出れば、送信も受信も通っています。
-5. `docker compose exec app php bin/console status-url https://<ドメイン>`（`<ドメイン>` は `REBUJI_DOMAIN` に書いたもの）が出す URL を、外部の監視サービスに登録します。cron が止まると 503 を返します。
+5. `docker compose exec app php bin/console status-url https://<ドメイン>`（`<ドメイン>` は `REBUJI_DOMAIN` に書いたもの）が出す URL を、外部の監視サービスに登録します。cron が止まったときと、送信のメールのアカウントにログインできない状態が 30 分続いたときに、503 を返します。
 
 #### IPv6 で来る接続について
 

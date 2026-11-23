@@ -31,7 +31,9 @@ use ReBuji\Http\Url;
 use ReBuji\Log\FileLogger;
 use ReBuji\Mail\Imap\ImapMailbox;
 use ReBuji\Mail\Imap\Mailbox;
+use ReBuji\Mail\MailLogin;
 use ReBuji\Mail\MailSender;
+use ReBuji\Mail\SendingAccount;
 use ReBuji\Mail\SmtpMailSender;
 use ReBuji\Quakes\EarthquakeRepository;
 use ReBuji\Replies\ReplyRepository;
@@ -131,9 +133,17 @@ final class Container
             MailSender::class => static function (ContainerInterface $c): MailSender {
                 $settings = $c->get(Settings::class);
                 $timeout = $c->get('smtp.timeout');
-                assert($settings instanceof Settings && is_int($timeout));
+                $account = $c->get(SendingAccount::class);
+                assert($settings instanceof Settings && is_int($timeout) && $account instanceof SendingAccount);
 
-                return new SmtpMailSender($settings->smtp(), $timeout);
+                return new SmtpMailSender($settings->smtp(), $timeout, $account);
+            },
+            // The same sender: a check closes the connection the sends of the run kept.
+            MailLogin::class => static function (ContainerInterface $c): MailLogin {
+                $sender = $c->get(MailSender::class);
+                assert($sender instanceof MailLogin);
+
+                return $sender;
             },
             SystemState::class => static function (ContainerInterface $c): SystemState {
                 $db = $c->get(Database::class);

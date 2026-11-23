@@ -12,6 +12,7 @@ use ReBuji\Auth\AdminRepository;
 use ReBuji\Mail\MessageRepository;
 use ReBuji\Mail\NotificationMail;
 use ReBuji\Mail\RateLimit;
+use ReBuji\Mail\SendingAccount;
 use ReBuji\Monitor\WatchJob;
 use ReBuji\Replies\ReplyReading;
 use ReBuji\Tests\Support\QuakeWorld;
@@ -346,6 +347,25 @@ final class WatchJobTest extends TestCase
     }
 
     #[Test]
+    public function waitsWhileTheAccountCannotBeUsed(): void
+    {
+        $world = self::world();
+        $world->state->set('feed.gap_since', '2009-08-10T19:00:00Z');
+        $account = new SendingAccount($world->state, $world->clock);
+        $account->failed('535 5.7.8 Authentication failed');
+        self::job($world)->run($world->clock->now());
+
+        $this->assertSame([], $world->mailer->attempts);
+
+        $account->worked();
+        self::job($world)->run($world->clock->now());
+
+        $this->assertSame(['admin@example.com', 'hanako@example.com'], $world->mailer->recipients());
+        $this->assertStringContainsString('気象庁の情報に抜けがあります', $world->mailer->sent[0]->body);
+        $this->assertStringNotContainsString('535', $world->mailer->sent[0]->body);
+    }
+
+    #[Test]
     public function waitsWhenTheLimitIsUsedUp(): void
     {
         $world = self::world();
@@ -387,6 +407,7 @@ final class WatchJobTest extends TestCase
             $world->clock,
             new NullLogger(),
             new ReplyReading($world->settings, $world->state),
+            new SendingAccount($world->state, $world->clock),
         );
     }
 }

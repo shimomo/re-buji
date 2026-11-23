@@ -20,7 +20,7 @@ $this->layout('layout', ['title' => $title, 'bare' => true]);
 <p><code><?= $this->e($cronPath) ?></code></p>
 <p class="muted">SSH が使えるサーバーなら <code>*/5 * * * * php <?= $this->e($cronPath) ?></code> のように登録します。</p>
 <h2>2. 止まっていないかの見張り</h2>
-<p>次の URL を、UptimeRobot などの無料の監視サービスに登録してください。cron が 15 分以上動いていないと、この URL はエラー（503）を返すので、監視サービスからメールが届きます。</p>
+<p>次の URL を、UptimeRobot などの無料の監視サービスに登録してください。cron が 15 分以上動いていないときと、送信のメールのアカウントにログインできない状態が 30 分続いたときは、この URL はエラー（503）を返すので、監視サービスからメールが届きます。</p>
 <p><code><?= $this->e($statusUrl) ?></code></p>
 <p class="muted">この URL は、ログインした後のホーム画面でも確かめられ、作り直すこともできます。</p>
 <form method="post" action="<?= $this->e($this->url('/install/finish')) ?>">
