@@ -48,9 +48,6 @@ final class ReplyRepository
     }
 
     /**
-     * Whether this incoming mail was recorded already (read again after a run stopped before marking it seen).
-     */
-    /**
      * Copies the replies the quake page shows (replies and auto-replies) from one contact to another, before the first
      * is deleted with its quake. The copies have no Message-ID: it is unique, and one reply may go to two contacts.
      */
@@ -78,6 +75,9 @@ final class ReplyRepository
         }
     }
 
+    /**
+     * Whether this incoming mail was recorded already (read again after a run stopped before marking it seen).
+     */
     public function knows(string $messageId): bool
     {
         return $this->db->fetchValue('SELECT 1 FROM replies WHERE message_id = ?', [self::key($messageId)]) !== null;
@@ -159,9 +159,6 @@ final class ReplyRepository
     }
 
     /**
-     * Deletes mail that matched nobody. A person's reply is part of their record and goes only with the quake.
-     */
-    /**
      * Deletes the unmatched mails among these ids; a matched one among them stays.
      *
      * @param list<int> $ids
@@ -180,6 +177,9 @@ final class ReplyRepository
         );
     }
 
+    /**
+     * Deletes mail that matched nobody. A person's reply is part of their record and goes only with the quake.
+     */
     public function deleteUnmatched(int $id): bool
     {
         return $this->db->execute('DELETE FROM replies WHERE id = ? AND notification_id IS NULL', [$id]) > 0;

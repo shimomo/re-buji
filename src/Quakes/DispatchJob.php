@@ -193,7 +193,7 @@ final class DispatchJob implements CronJob
             }
 
             if ($cities !== []) {
-                $matched[] = [$employee, $cities, max(array_map(static fn(MatchedCity $city): int => $city->rank(), $cities))];
+                $matched[] = [$employee, $cities, max(array_map(static fn(MatchedCity $city): int => $city->priority(), $cities))];
             }
         }
 

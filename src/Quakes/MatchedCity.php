@@ -120,11 +120,22 @@ final readonly class MatchedCity
     }
 
     /**
-     * The strength used to order sending: a municipality not received yet counts as 5弱, the least it may have been.
+     * The strength of the reading, as two quakes' readings are compared (raise()): a municipality with no intensity yet
+     * counts as 5弱, the least it may have been. Sending is ordered by priority() instead.
      */
     public function rank(): int
     {
         return SeismicIntensity::tryFrom($this->intensity ?? '')?->rank() ?? SeismicIntensity::FiveLower->rank();
+    }
+
+    /**
+     * The strength used to order sending. A reading not in yet counts as at least 5弱: JMA marks a municipality so only
+     * while its confirmed intensity is below 5弱, estimating that the points not in yet reached it, and those may be
+     * the places hit hardest.
+     */
+    public function priority(): int
+    {
+        return $this->notYetReceived ? max($this->rank(), SeismicIntensity::FiveLower->rank()) : $this->rank();
     }
 
     /**

@@ -72,6 +72,16 @@ final class AdminRepository
     }
 
     /**
+     * Every admin's password hash, for the login to time an unknown email like the strongest of them.
+     *
+     * @return list<string>
+     */
+    public function passwordHashes(): array
+    {
+        return array_map(static fn(array $row): string => (string) $row['password_hash'], $this->db->fetchAll('SELECT password_hash FROM admins'));
+    }
+
+    /**
      * A deleted admin is logged out on their next request: AuthMiddleware looks the id up every time.
      */
     public function delete(int $id): void

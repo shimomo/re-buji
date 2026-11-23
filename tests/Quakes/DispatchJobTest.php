@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ReBuji\Tests\Quakes;
 
 use DateTimeImmutable;
+use JmaXml\Earthquake\SeismicIntensity;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReBuji\Employees\EmployeeCity;
@@ -151,6 +152,27 @@ final class DispatchJobTest extends TestCase
         $this->assertNotNull($after);
         $this->assertSame(Notification::PENDING, $after->state);
         $this->assertEquals($before->cities, $after->cities);
+    }
+
+    #[Test]
+    public function sendsAPersonWithStationsNotInYetAmongThoseConfirmedAtFiveLower(): void
+    {
+        // 藤枝市 reads 4 with points not in yet (震度５弱以上未入電); 吉田町 reads 5弱 for sure.
+        $world = self::world();
+        $fujieda = $world->person('藤枝 一郎', '2221400', '自宅');
+        $yoshida = $world->person('吉田 二郎', '2242400', '自宅');
+
+        $world->receive(self::CITIES);
+
+        $quake = $world->quake(self::EVENT)->id;
+        $notYet = $world->notifications->findFor($quake, $fujieda);
+        $confirmed = $world->notifications->findFor($quake, $yoshida);
+        $this->assertNotNull($notYet);
+        $this->assertNotNull($confirmed);
+        $this->assertSame(SeismicIntensity::FiveLower->rank(), $confirmed->priority);
+        $this->assertSame($confirmed->priority, $notYet->priority);
+        // What the mail and the screens say does not change.
+        $this->assertSame([['4', true]], array_map(static fn(MatchedCity $city): array => [$city->intensity, $city->notYetReceived], $notYet->cities));
     }
 
     #[Test]

@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use ReBuji\Auth\AdminRepository;
+use ReBuji\Auth\LoginController;
 use ReBuji\Config\Config;
 use ReBuji\Config\Environment;
 use ReBuji\Database\Database;
@@ -123,7 +124,7 @@ final class LoginTest extends TestCase
         [$app, $container, $root] = TestApp::installed();
 
         try {
-            $weak = self::weakenTheHash($container);
+            $weak = self::setTheHashCost($container, 4);
 
             $this->assertSame(302, TestApp::logIn($app, $container)->getStatusCode());
 
@@ -137,12 +138,43 @@ final class LoginTest extends TestCase
     }
 
     #[Test]
+    public function keepsAStrongerHashAtLogIn(): void
+    {
+        // A server moved back from PHP 8.4 (cost 12) to 8.3 (cost 10) must not weaken the hash.
+        [$app, $container, $root] = TestApp::installed();
+
+        try {
+            $strong = self::setTheHashCost($container, PASSWORD_BCRYPT_DEFAULT_COST + 1);
+
+            $this->assertSame(302, TestApp::logIn($app, $container)->getStatusCode());
+
+            $this->assertSame($strong, self::hash($container));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function timesAnUnknownEmailLikeTheStrongestAdminsHash(): void
+    {
+        // PHP moved back from 8.4 (cost 12) to 8.3 (cost 10): the admins' hashes stay at 12, so the dummy must too.
+        $twelve = '$2y$12$s8XiSL49q5/EMaaHe0/Yr.QcBRQLuedRMC.O8AwMkcGe26/4g3H86';
+        $ten = '$2y$10$4Le9C6dZJZp/nbc/adhNL.C8Vc9dgAvFli32QqVHGFY4bEnlsQfzm';
+
+        $this->assertSame(12, LoginController::dummyCost([$ten, $twelve], 10));
+        $this->assertSame(10, LoginController::dummyCost([], 10));
+        $this->assertSame(12, LoginController::dummyCost([$ten], 12));
+        // No dummy for cost 13, nor for a hash that is not bcrypt: today's default stands.
+        $this->assertSame(12, LoginController::dummyCost([password_hash('x', PASSWORD_BCRYPT, ['cost' => 13]), 'not a hash'], 12));
+    }
+
+    #[Test]
     public function leavesTheHashAloneWhenTheLogInFails(): void
     {
         [$app, $container, $root] = TestApp::installed();
 
         try {
-            $weak = self::weakenTheHash($container);
+            $weak = self::setTheHashCost($container, 4);
 
             $this->assertSame(200, TestApp::logIn($app, $container, 'wrong-password-123')->getStatusCode());
 
@@ -203,14 +235,17 @@ final class LoginTest extends TestCase
     /**
      * Stores the admin's password with a cost below any default, as an older PHP or an older setting would have.
      */
-    private static function weakenTheHash(ContainerInterface $container): string
+    /**
+     * Gives the admin a bcrypt hash of this cost. Returns the hash.
+     */
+    private static function setTheHashCost(ContainerInterface $container, int $cost): string
     {
-        $weak = password_hash(TestApp::ADMIN_PASSWORD, PASSWORD_BCRYPT, ['cost' => 4]);
+        $hash = password_hash(TestApp::ADMIN_PASSWORD, PASSWORD_BCRYPT, ['cost' => $cost]);
         $db = $container->get(Database::class);
         assert($db instanceof Database);
-        $db->execute('UPDATE admins SET password_hash = ? WHERE email = ?', [$weak, TestApp::ADMIN_EMAIL]);
+        $db->execute('UPDATE admins SET password_hash = ? WHERE email = ?', [$hash, TestApp::ADMIN_EMAIL]);
 
-        return $weak;
+        return $hash;
     }
 
     private static function hash(ContainerInterface $container): string

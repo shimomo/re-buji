@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ReBuji\Tests\Quakes;
 
+use JmaXml\Earthquake\SeismicIntensity;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReBuji\Quakes\MatchedCity;
@@ -55,6 +56,26 @@ final class MatchedCityTest extends TestCase
 
         $this->assertTrue($raised[0]->notYetReceived);
         $this->assertSame(MatchedCity::BASIS_AREA, $raised[0]->basis);
+    }
+
+    #[Test]
+    public function ordersAReadingNotInYetAtLeastAsFiveLower(): void
+    {
+        $this->assertSame(SeismicIntensity::FiveLower->rank(), self::city('2221400', null, MatchedCity::BASIS_CITY, true)->priority());
+        // 4 confirmed, the other points not in yet: JMA estimates those at 5弱 or more.
+        $this->assertSame(SeismicIntensity::FiveLower->rank(), self::city('2221400', '4', MatchedCity::BASIS_CITY, true)->priority());
+        $this->assertSame(SeismicIntensity::FiveUpper->rank(), self::city('2221400', '5+', MatchedCity::BASIS_CITY, true)->priority());
+        $this->assertSame(SeismicIntensity::Four->rank(), self::city('2221400', '4', MatchedCity::BASIS_CITY)->priority());
+    }
+
+    #[Test]
+    public function keepsAConfirmedFiveLowerAgainstAFourNotInYet(): void
+    {
+        // Ties between quakes still go by the reading: "4 or more" must not replace a confirmed 5弱 in the mail.
+        $raised = MatchedCity::raise([self::city('2221400', '5-', MatchedCity::BASIS_CITY)], [self::city('2221400', '4', MatchedCity::BASIS_CITY, true)]);
+
+        $this->assertSame('5-', $raised[0]->intensity);
+        $this->assertFalse($raised[0]->notYetReceived);
     }
 
     private static function city(string $code, ?string $intensity, string $basis, bool $notYetReceived = false): MatchedCity
