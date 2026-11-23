@@ -14,7 +14,7 @@
 
 `re-buji-{版}.zip` を展開し、中身を上書きします（`storage/` は上書きしません）。DB の形は変わらないので、「DB の更新」を押す必要はありません。ログインしている人がログアウトされることもありません。
 
-- SSH で入れるサーバーでは、`sh ~/re-buji/bin/upgrade.sh` で、zip を取るところから上書きまでを済ませられます（README の「バージョンアップ」）
+- SSH で入れるサーバーでは、`sh ~/re-buji/bin/upgrade.sh` で、zip を取るところから上書きまでを済ませられます（[docs/upgrade.md](https://github.com/shimomo/re-buji/blob/main/docs/upgrade.md)）
 - 新しいファイルが加わります：{足したファイル}。`vendor/composer/` の中も変わるので、`src/`・`templates/`・`vendor/` は、まとめて上書きしてください
 - `public/` の中身（`index.php`、`assets/`）は変わっていません
 - Docker で動かしている場合は、`REBUJI_VERSION` を `{版}` に上げて、`docker compose pull && docker compose up -d` を実行します

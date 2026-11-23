@@ -65,7 +65,7 @@ final class KeyStep implements InstallStep
 
             return StepResult::failed([
                 'storage/install-key.txt がウェブから読めるため、この鍵は使えません（' . $result->exposed[0] . '）。鍵は作り直しました。',
-                '.htaccess が効くようにするか、本体を公開ディレクトリの外に置いて public/ の中身だけを公開する方法（README）に切り替えてから、新しい鍵を貼ってください。',
+                '.htaccess が効くようにするか、本体を公開ディレクトリの外に置いて public/ の中身だけを公開する方法（docs/install.md）に切り替えてから、新しい鍵を貼ってください。',
             ]);
         }
 

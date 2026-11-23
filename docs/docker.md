@@ -1,6 +1,8 @@
 # Re:無事 を Docker で動かす
 
-手元で試す方法と、VPS で本番として動かす方法です。設計は [docs/superpowers/specs/2026-11-22-re-buji-docker-design.md](superpowers/specs/2026-11-22-re-buji-docker-design.md) にあります。
+[README に戻る](../README.md)
+
+手元で試す方法と、VPS で本番として動かす方法です。設計は [docs/superpowers/specs/2026-11-22-re-buji-docker-design.md](https://github.com/shimomo/re-buji/blob/main/docs/superpowers/specs/2026-11-22-re-buji-docker-design.md) にあります。
 
 **手元で試す構成（`compose.dev.yaml`）では、メールは外へ出ません。** 送ったメールはすべて、同梱のテスト用メールサーバー（GreenMail）の中のメールボックスに入るだけです。宛先が `@gmail.com` でも同じです。本物の人へ訓練の連絡が届くことはありません。
 
