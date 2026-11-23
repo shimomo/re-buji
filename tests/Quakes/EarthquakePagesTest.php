@@ -195,6 +195,12 @@ final class EarthquakePagesTest extends TestCase
             $this->assertSame(Notification::PENDING, $second->state);
             $this->assertNull($second->mergedIntoId);
             $this->assertEquals(new DateTimeImmutable('2026-11-05T03:12:00Z'), $second->notBefore);
+            $due = static fn(string $at): array => array_map(
+                static fn(Notification $contact): int => $contact->id,
+                $records->notifications->dueFirstContacts(new DateTimeImmutable($at)),
+            );
+            $this->assertNotContains($second->id, $due('2026-11-05T03:11:59Z'));
+            $this->assertContains($second->id, $due('2026-11-05T03:12:00Z'));
         } finally {
             TemporaryDirectory::remove($root);
         }
