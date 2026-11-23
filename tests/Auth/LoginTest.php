@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use ReBuji\Auth\AdminRepository;
+use ReBuji\Auth\LoginController;
 use ReBuji\Config\Config;
 use ReBuji\Config\Environment;
 use ReBuji\Database\Database;
@@ -151,6 +152,20 @@ final class LoginTest extends TestCase
         } finally {
             TemporaryDirectory::remove($root);
         }
+    }
+
+    #[Test]
+    public function timesAnUnknownEmailLikeTheStrongestAdminsHash(): void
+    {
+        // PHP moved back from 8.4 (cost 12) to 8.3 (cost 10): the admins' hashes stay at 12, so the dummy must too.
+        $twelve = '$2y$12$s8XiSL49q5/EMaaHe0/Yr.QcBRQLuedRMC.O8AwMkcGe26/4g3H86';
+        $ten = '$2y$10$4Le9C6dZJZp/nbc/adhNL.C8Vc9dgAvFli32QqVHGFY4bEnlsQfzm';
+
+        $this->assertSame(12, LoginController::dummyCost([$ten, $twelve], 10));
+        $this->assertSame(10, LoginController::dummyCost([], 10));
+        $this->assertSame(12, LoginController::dummyCost([$ten], 12));
+        // No dummy for cost 13, nor for a hash that is not bcrypt: today's default stands.
+        $this->assertSame(12, LoginController::dummyCost([password_hash('x', PASSWORD_BCRYPT, ['cost' => 13]), 'not a hash'], 12));
     }
 
     #[Test]
