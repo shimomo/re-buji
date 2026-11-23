@@ -52,6 +52,21 @@ final class DocumentLinksTest extends TestCase
         $this->assertSame([], $plans);
     }
 
+    #[Test]
+    public function leadsEveryDocBackToTheReadme(): void
+    {
+        // Someone who lands on a doc from a search or a link sees where the rest is.
+        $lost = [];
+
+        foreach (self::documents() as $file) {
+            if (basename($file) !== 'README.md' && !in_array('[README に戻る](../README.md)', array_slice(self::prose($file), 0, 5), true)) {
+                $lost[] = self::relative($file);
+            }
+        }
+
+        $this->assertSame([], $lost);
+    }
+
     private static function root(): string
     {
         return dirname(__DIR__);

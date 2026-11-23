@@ -15,7 +15,7 @@
 - 責任者の画面で、返信なし・要確認・無事の人を一覧できます。電話などで確かめた人は、代理で記録できます（[返信と責任者の画面](docs/usage.md#返信と責任者の画面)）
 - 従業員は、Excel で作った CSV でまとめて登録できます（[CSV](docs/usage.md#csv)）
 - 訓練の連絡を送れます。送り方や再送は本番と同じです（[訓練](docs/usage.md#訓練)）
-- cron が止まったことは、無料の監視サービスで気づけます。メールを送れないなどの問題は、管理者全員にメールで知らせます（[見張り](docs/install.md#見張り)、[ホーム画面](docs/usage.md#ホーム画面)）
+- cron が止まったことは、無料の監視サービスで気づけます。返信を読めない、気象庁の情報に抜けがあるなどの問題は、管理者全員にメールで知らせます（[見張り](docs/install.md#見張り)、[ホーム画面](docs/usage.md#ホーム画面)）
 
 ## 必要なもの
 
@@ -49,7 +49,7 @@ VPS で HTTPS 付きの本番として動かす手順、更新、バックアッ
 |---|---|
 | [docs/install.md](docs/install.md) | レンタルサーバーに置くとき（置き方、初期設定、cron、見張り） |
 | [docs/usage.md](docs/usage.md) | 使っているとき（ホーム画面、従業員、メール、地震の連絡、返信と責任者の画面、訓練、記録の削除） |
-| [docs/upgrade.md](docs/upgrade.md) | 新しい版に上げるとき |
+| [docs/upgrade.md](docs/upgrade.md) | 新しい版に上げるとき（バージョンアップ。SSH、FTP） |
 | [docs/docker.md](docs/docker.md) | Docker で動かすとき（手元、VPS） |
 
 ## 開発
