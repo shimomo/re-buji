@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
+use ReBuji\Mail\SendingAccount;
 use ReBuji\SystemState;
 use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\TemporaryDirectory;
@@ -61,6 +62,69 @@ final class StatusUrlTest extends TestCase
     }
 
     #[Test]
+    public function reportsALastingMailFailureAsServiceUnavailable(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            $account = $this->account($container);
+            $account->failed('535 5.7.8 Authentication failed');
+            $clock->advance('+30 minutes');
+            $account->failed('535 5.7.8 Authentication failed');
+            $this->lastChecked($container, $clock, '-2 minutes');
+            $response = $app->handle(TestApp::request('GET', '/status/' . self::TOKEN));
+            $body = (string) $response->getBody();
+
+            $this->assertSame(503, $response->getStatusCode());
+            $this->assertSame(['status' => 'mail', 'last_checked' => '2026-11-05T03:40:00Z'], json_decode($body, true));
+            $this->assertStringNotContainsString('535', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function waitsForASecondFailureBeforeReportingMail(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            $this->account($container)->failed('535 5.7.8 Authentication failed');
+            $clock->advance('+40 minutes');
+            $this->lastChecked($container, $clock, '-2 minutes');
+            $response = $app->handle(TestApp::request('GET', '/status/' . self::TOKEN));
+
+            $this->assertSame(200, $response->getStatusCode());
+            $this->assertSame('ok', (json_decode((string) $response->getBody(), true) ?: [])['status'] ?? null);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function reportsStaleBeforeMail(): void
+    {
+        $clock = new FrozenClock();
+        [$app, $container, $root] = TestApp::installed([ClockInterface::class => $clock]);
+
+        try {
+            $account = $this->account($container);
+            $account->failed('535 5.7.8 Authentication failed');
+            $clock->advance('+30 minutes');
+            $account->failed('535 5.7.8 Authentication failed');
+            $this->lastChecked($container, $clock, '-20 minutes');
+            $response = $app->handle(TestApp::request('GET', '/status/' . self::TOKEN));
+
+            $this->assertSame(503, $response->getStatusCode());
+            $this->assertSame('stale', (json_decode((string) $response->getBody(), true) ?: [])['status'] ?? null);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function wrongTokenLooksLikeAMissingPage(): void
     {
         [$app, , $root] = TestApp::installed();
@@ -91,6 +155,14 @@ final class StatusUrlTest extends TestCase
         } finally {
             TemporaryDirectory::remove($root);
         }
+    }
+
+    private function account(ContainerInterface $container): SendingAccount
+    {
+        $account = $container->get(SendingAccount::class);
+        $this->assertInstanceOf(SendingAccount::class, $account);
+
+        return $account;
     }
 
     private function lastChecked(ContainerInterface $container, FrozenClock $clock, string $ago): void

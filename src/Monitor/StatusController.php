@@ -8,12 +8,15 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ReBuji\Config\ConfigFile;
+use ReBuji\Mail\SendingAccount;
 use ReBuji\Time;
 use Slim\Exception\HttpNotFoundException;
 
 /**
- * GET /status/{token}, for external uptime monitors: 200 while cron runs, 503 when it is stale. A wrong token gets the
- * same 404 as a page that does not exist. The body never holds personal data.
+ * GET /status/{token}, for external uptime monitors: 200 while contacts can go out, 503 when cron is stale or the
+ * sending account has stayed unusable (SendingAccount::isLasting()). Mail cannot tell anyone that mail is broken; the
+ * monitor's own mail can. A wrong token gets the same 404 as a page that does not exist. The body never holds personal
+ * data, nor the mail server's words.
  *
  * @author shimomo
  */
@@ -23,6 +26,7 @@ final class StatusController
         private readonly ConfigFile $configFile,
         private readonly Health $health,
         private readonly ResponseFactoryInterface $responses,
+        private readonly SendingAccount $account,
     ) {
         //
     }
@@ -39,12 +43,16 @@ final class StatusController
         }
 
         $lastCheck = $this->health->lastCheckedAt();
-        $stale = $this->health->isStale();
-        $response = $this->responses->createResponse($stale ? 503 : 200)
+        $status = match (true) {
+            $this->health->isStale() => 'stale',
+            $this->account->isLasting() => 'mail',
+            default => 'ok',
+        };
+        $response = $this->responses->createResponse($status === 'ok' ? 200 : 503)
             ->withHeader('Content-Type', 'application/json; charset=utf-8')
             ->withHeader('Cache-Control', 'no-store');
         $response->getBody()->write((string) json_encode([
-            'status' => $stale ? 'stale' : 'ok',
+            'status' => $status,
             'last_checked' => $lastCheck === null ? null : Time::format($lastCheck),
         ]));
 
