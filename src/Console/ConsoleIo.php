@@ -13,6 +13,8 @@ use RuntimeException;
  */
 final class ConsoleIo
 {
+    private bool $ended = false;
+
     /**
      * @param resource $in
      * @param resource $out
@@ -87,6 +89,14 @@ final class ConsoleIo
         return stream_isatty($this->in);
     }
 
+    /**
+     * Whether a read found no more input. Unlike an empty line, which is an answer, it means nobody is left to answer.
+     */
+    public function ended(): bool
+    {
+        return $this->ended;
+    }
+
     public function output(): string
     {
         return $this->contents($this->out);
@@ -101,7 +111,13 @@ final class ConsoleIo
     {
         $line = fgets($this->in);
 
-        return $line === false ? '' : rtrim($line, "\r\n");
+        if ($line === false) {
+            $this->ended = true;
+
+            return '';
+        }
+
+        return rtrim($line, "\r\n");
     }
 
     /**

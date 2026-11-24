@@ -529,23 +529,29 @@ final class InstallCommand implements Command
         $io->line('テストメールに返信してください。返信を待っています（5 分まで）…');
         $since = (new SystemState($this->database($context), $this->clock()))->get('imap.since');
         $since = $since === null || $since === '' ? $this->clock()->now() : Time::parse($since);
-        $mailbox = $context->container->get(Mailbox::class);
-        assert($mailbox instanceof Mailbox);
-        $finder = new SetupReplyFinder($mailbox);
         $messageId = self::draft($context, 'mail.test_message_id');
         $number = self::draft($context, 'mail.test_number');
 
-        while (!$this->replyArrives($finder, $since, $messageId, $number, $io)) {
-            if (in_array(strtolower(trim($io->ask('もう少し待ちますか？ [Y/n] '))), ['n', 'no'], true)) {
+        while (true) {
+            // A mailbox built anew for each round (RebuildingContainer): once its connection drops, one never reconnects.
+            $mailbox = $context->container->get(Mailbox::class);
+            assert($mailbox instanceof Mailbox);
+
+            if ($this->replyArrives(new SetupReplyFinder($mailbox), $since, $messageId, $number, $io)) {
+                $io->line('✓ 返信を読めました');
+
+                return true;
+            }
+
+            $answer = strtolower(trim($io->ask('もう少し待ちますか？ [Y/n] ')));
+
+            // With the input ended, nobody is left to answer, and waiting again would never stop.
+            if ($io->ended() || in_array($answer, ['n', 'no'], true)) {
                 $io->error('返信を読めていないので、設置を終えていません。同じコマンドで、続きから流せます。');
 
                 return false;
             }
         }
-
-        $io->line('✓ 返信を読めました');
-
-        return true;
     }
 
     /**

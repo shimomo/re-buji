@@ -212,6 +212,63 @@ final class InstallCommandTest extends TestCase
     }
 
     #[Test]
+    public function looksWithANewMailboxAfterTheConnectionDrops(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $answering = new AnsweringMailbox($sender);
+            $made = 0;
+            // Made for the mail step, for the first round of the wait (whose connection drops), and for the second.
+            $mailbox = static function () use (&$made, $answering): Mailbox {
+                if (++$made !== 2) {
+                    return $answering;
+                }
+
+                $dropped = new FakeMailbox();
+                $dropped->unavailable = true;
+
+                return $dropped;
+            };
+            // Enter at "もう少し待ちますか？" waits again.
+            [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS . "\n", $sender, $mailbox);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertSame(1, substr_count($io->output(), '✕ 返信を読めませんでした'));
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function stopsWaitingWhenTheInputHasEnded(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            // Nothing is left to answer "もう少し待ちますか？", so waiting again would never stop.
+            $endless = function (int $slept): void {
+                if ($slept > 300) {
+                    $this->fail('Kept waiting after the input had ended.');
+                }
+            };
+            [$code, $io, , $slept] = $this->install($root, $this->args($dir), self::ANSWERS, new RecordingMailSender(), new FakeMailbox(), onSleep: $endless);
+
+            $this->assertSame(1, $code);
+            $this->assertStringContainsString('返信を読めていないので、設置を終えていません。同じコマンドで、続きから流せます。', $io->errors());
+            $this->assertSame(300, $slept);
+            $this->assertNull($this->config($root)->get('installed_at'));
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
     public function reportsAMailboxThatFailsDuringTheWait(): void
     {
         $root = $this->root();
