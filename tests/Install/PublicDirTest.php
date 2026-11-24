@@ -166,6 +166,28 @@ final class PublicDirTest extends TestCase
     }
 
     #[Test]
+    public function placesAgainAfterTheCopyWasDeletedToStartOver(): void
+    {
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $root = $this->copy($dir);
+            $public = $dir . '/www';
+            $publicDir = new PublicDir(new Paths($root));
+            $publicDir->place($public, new ConfigFile($root . '/storage/config.php'));
+
+            TemporaryDirectory::remove($root);
+            $this->assertNull($publicDir->problem($public));
+
+            // install.sh unpacks the new copy at the same place before bin/console install runs.
+            $this->copy($dir);
+            $this->assertNull($publicDir->problem($public));
+        } finally {
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
     public function refusesAnotherCopysPublicDirectory(): void
     {
         $dir = TemporaryDirectory::create();

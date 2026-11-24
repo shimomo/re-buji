@@ -215,6 +215,38 @@ final class InstallScriptTest extends TestCase
     }
 
     #[Test]
+    public function startsOverInThePublicDirectoryAfterTheCopyWasDeleted(): void
+    {
+        $this->inHome(function (string $tmp, string $home): void {
+            $public = $home . '/www/anpi';
+            mkdir($public . '/assets', 0777, true);
+            file_put_contents($public . '/.htaccess', 'RewriteEngine On');
+            file_put_contents($public . '/assets/app.css', 'body {}');
+            file_put_contents($public . '/index.php', '<?php');
+            self::zipOfRelease($tmp . '/re-buji-9.9.9.zip', true);
+
+            // A copy that is not there either, but is not this one, is still another copy's.
+            file_put_contents($public . '/rebuji-root.php', "<?php\n\nreturn " . var_export($home . '/other', true) . ";\n");
+            [$status, $output] = $this->install($home, ['--zip', $tmp . '/re-buji-9.9.9.zip', '--public', $public]);
+
+            $this->assertSame(1, $status, $output);
+            $this->assertStringContainsString($public . ' にほかのファイルがあります', $output);
+            $this->assertDirectoryDoesNotExist($home . '/re-buji');
+
+            file_put_contents($public . '/rebuji-root.php', "<?php\n\nreturn " . var_export($home . '/re-buji', true) . ";\n");
+            [$status, $output] = $this->install($home, ['--zip', $tmp . '/re-buji-9.9.9.zip', '--public', $public]);
+
+            $this->assertSame(0, $status, $output);
+            $this->assertStringContainsString(json_encode(
+                ['install', '--public=' . $public, '--php=' . PHP_BINARY],
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            ), $output);
+            $this->assertFileExists($home . '/re-buji/src/Version.php');
+            $this->assertSame([], self::leftovers($home));
+        });
+    }
+
+    #[Test]
     public function stopsAtAVersionWithoutTheInstallCommand(): void
     {
         $this->inHome(function (string $tmp, string $home): void {

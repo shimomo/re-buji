@@ -237,8 +237,9 @@ if [ -n "$public" ] && [ -e "$public" ]; then
     [ -d "$public" ] || fail "$public はディレクトリではありません。"
 
     if [ -n "$(ls -A "$public")" ]; then
-        # Left by an earlier run of this same install: its rebuji-root.php points at this --root.
-        if [ -f "$public/rebuji-root.php" ] && "$php" -r 'exit(is_string($r = require $argv[1]) && realpath($argv[2]) !== false && realpath($r) === realpath($argv[2]) ? 0 : 1);' "$public/rebuji-root.php" "$root" > /dev/null 2>&1; then
+        # Left by an earlier run of this same install: its rebuji-root.php points at this --root, which may be gone (deleted
+        # to start over). A pointer elsewhere, there or not, is another copy's.
+        if [ -f "$public/rebuji-root.php" ] && "$php" -r 'exit(is_string($r = require $argv[1]) && ($r === $argv[2] || (realpath($argv[2]) !== false && realpath($r) === realpath($argv[2]))) ? 0 : 1);' "$public/rebuji-root.php" "$root" > /dev/null 2>&1; then
             :
         else
             fail "$public にほかのファイルがあります（$(names "$public")）。まだ無いか、空のディレクトリを渡してください。"
