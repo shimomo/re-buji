@@ -604,6 +604,7 @@ final class InstallCommandTest extends TestCase
             $overrides = [ClientInterface::class => $this->copyAt('https://example.jp/anpi')];
             [$code, $io] = $this->install($root, $args, "https://example.jp/wrong\nhttps://example.jp/anpi\n" . self::ANSWERS, $sender, new AnsweringMailbox($sender), $overrides);
 
+            $this->assertSame(0, $code, $io->errors());
             $this->assertStringContainsString('サーバーから https://example.jp/wrong を開きましたが', $io->errors());
             $this->assertSame(2, substr_count($io->output(), 'を開く URL（例：https://anpi.example.jp）：'));
             $this->assertStringContainsString('最初の管理者', $io->output());

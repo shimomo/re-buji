@@ -101,10 +101,9 @@ final class ConsoleExposure
                 return false;
             case ProbeOutcome::Redirected:
                 $location = $this->absolute($answer->detail, $publicUrl);
-                $position = strpos($location, '/install/probe/');
+                $next = $followed ? null : $this->probeBase($location);
 
-                if (!$followed && $position !== false && preg_match('#\Ahttps?://#i', $location) === 1) {
-                    $next = rtrim(substr($location, 0, $position), '/');
+                if ($next !== null && $next !== rtrim($publicUrl, '/')) {
                     $io->line('→ ' . $next . ' に転送されたので、こちらを使います');
 
                     return $this->reachFollowing($next, $directory, $io, true);
@@ -114,6 +113,28 @@ final class ConsoleExposure
 
                 return false;
         }
+    }
+
+    /**
+     * The URL a Location leads to when its path still ends in the probe's: scheme, host, port and the path before
+     * /install/probe/. Null for any other Location, one that only has the probe in its query included.
+     */
+    private function probeBase(string $location): ?string
+    {
+        $parts = parse_url($location);
+
+        if (!is_array($parts) || !isset($parts['scheme'], $parts['host']) || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+            return null;
+        }
+
+        $path = $parts['path'] ?? '';
+        $position = strpos($path, '/install/probe/');
+
+        if ($position === false) {
+            return null;
+        }
+
+        return $parts['scheme'] . '://' . $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : '') . rtrim(substr($path, 0, $position), '/');
     }
 
     /**
@@ -138,15 +159,11 @@ final class ConsoleExposure
      */
     private static function withoutProbeQuery(string $location): string
     {
-        $mark = strpos($location, '?');
+        $cleaned = (string) preg_replace('/([?&])from=console(?=&|\z)/', '$1', $location);
+        $cleaned = str_replace('?&', '?', $cleaned);
+        $cleaned = (string) preg_replace('/&&+/', '&', $cleaned);
 
-        if ($mark === false) {
-            return $location;
-        }
-
-        $kept = array_filter(explode('&', substr($location, $mark + 1)), static fn(string $pair): bool => $pair !== 'from=console' && $pair !== '');
-
-        return substr($location, 0, $mark) . ($kept === [] ? '' : '?' . implode('&', $kept));
+        return rtrim($cleaned, '?&');
     }
 
     private function waitForBrowser(string $publicUrl, string $detail, ConsoleIo $io): ?WebSide

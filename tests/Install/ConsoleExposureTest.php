@@ -146,6 +146,24 @@ final class ConsoleExposureTest extends TestCase
     }
 
     #[Test]
+    public function doesNotFollowALoginRedirectThatOnlyCarriesTheProbeInItsQuery(): void
+    {
+        $root = $this->root();
+
+        try {
+            $client = $this->routed(static fn(string $url, string $nonce): Response => new Response(302, ['Location' => 'https://example.jp/login?next=/anpi/install/probe/' . $nonce . '?from=console']));
+            $io = ConsoleIo::memory();
+
+            $this->assertFalse($this->exposure($root, $client)->reach('http://example.jp/anpi', self::DIR, $io));
+            $this->assertStringContainsString('http://example.jp/anpi は https://example.jp/login?next=/anpi/install/probe/', $io->errors());
+            $this->assertStringNotContainsString('from=console', $io->errors());
+            $this->assertStringNotContainsString('に転送されたので', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function treatsASecondRedirectAsNotReached(): void
     {
         $root = $this->root();
