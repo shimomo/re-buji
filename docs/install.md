@@ -4,6 +4,118 @@
 
 必要なもの（PHP の版など）は、[README](../README.md#必要なもの) にあります。
 
+## SSH で入れる（SSH が使えるサーバー）
+
+SSH でログインできるサーバーでは、次の 2 行で、ファイルを置くところから初期設定までを済ませられます。`install.sh` は、リリースごとに GitHub に上がっています。
+
+```bash
+curl -fsSLO https://github.com/shimomo/re-buji/releases/latest/download/install.sh
+sh install.sh --public ~/www/anpi
+```
+
+`~/www/anpi` は、公開ディレクトリ（ウェブから見える場所）です。あなたのサーバーの場所に読み替えてください。`install.sh` は次のことをします。
+
+1. 使える php（8.3 以上のコマンドライン用）を探し、置く場所が使えるかを、zip を取る前に確かめます。
+2. GitHub から zip を取り、GitHub が示す sha256 と合うことを確かめます。
+3. 展開して、本体を `~/re-buji` に、`public/` の中身を公開ディレクトリに、一度に置きます。
+4. 続けて、置いた `bin/console install` が、公開する URL、データベース、公開されていないことの確認、最初の管理者、メールの設定、cron の問いを順に進めます。
+5. 問いはここまでに全部終わります。そのあと、テストメールへの返信を待ちます（5 分まで）。返信を読めたら、何も聞かずに仕上げます。
+6. 最後に、見張りの URL とログインの URL を出します。
+
+パスワードは、画面に出さずに聞きます。管理者もメールも、画面の初期設定と同じ決まりで確かめます。
+
+### 引数
+
+| 引数 | 意味 |
+|---|---|
+| `--public DIR` | 公開ディレクトリ。`public/` の中身だけをここに置き、本体は `--root` に置きます（おすすめ） |
+| `--root DIR` | 本体を置く場所（既定は `~/re-buji`）。`--public` を付けないときは、全体をここに置きます |
+| `--url URL` | 公開する URL。付けなければ聞きます |
+| `--config FILE` | 設定ファイル（次の節）。付けると、聞かれることが減ります |
+| `--version X.Y.Z` | 最新ではなく、その版を入れます（0.4.0 以降） |
+| `--zip FILE` | 取らずに、サーバーに置いた zip から入れます。sha256 は示すだけで、確かめません |
+| 環境変数 `PHP` | 使う php。付けなければ探します |
+
+置き方は 2 つです。`--public` と `--root` のどちらも付けないと、何も取らずに止まります。
+
+- **本体を外に、`public/` の中身だけを公開ディレクトリに置く**：`--public` を付けます。SSH で入れられるなら、こちらが安全です。公開ディレクトリは、空か、まだ無い場所にしてください。ほかのサイトのファイルは上書きしません。
+- **全体を公開ディレクトリに置く**：`--root` に公開ディレクトリの中の場所を付け、`--url` にその URL を付けます。ホームが公開ディレクトリになっているサーバーなどで使います。同梱の `.htaccess` が守り、公開の確かめが、守れていることを確かめます。
+
+```bash
+sh install.sh --root ~/public_html/re-buji --url https://あなたのドメイン/re-buji/
+```
+
+### php の探し方
+
+環境変数 `PHP`、`PATH` の `php`、サーバーが版ごとに置く場所（`/usr/local/php/<版>/bin/php`、`/usr/bin/php8.3`、`/opt/alt/php83/usr/bin/php` など）の順に探し、8.3 以上でいちばん新しいものを使います。使う php は 1 行で示し、cron の行にも同じ php を使います。見つからないときは、場所を指定します。
+
+```bash
+env PHP=/usr/local/php/8.3/bin/php sh install.sh --public ~/www/anpi
+```
+
+画面で動く PHP は、サーバーの管理画面で決まり、コマンドラインと違うことがあります。違って古いときは、公開の確かめで理由が出て止まります。管理画面で、ウェブの PHP を 8.3 以上にしてください。
+
+### 設定ファイル
+
+データベースとメールの設定を、あらかじめファイルに書いておくこともできます。書いた分は聞かれません。Docker の `.env`（[.env.example](../.env.example)）と同じ書き方で、1 行に `名前=値`、`#` で始まる行と空の行は読みません。値が空の行は、書いていないのと同じです。`${VAR}` は展開せず、書いたとおりに読みます。
+
+| 読む名前 | 内容 |
+|---|---|
+| `REBUJI_DB_DRIVER`、`REBUJI_DB_HOST`、`REBUJI_DB_PORT`、`REBUJI_DB_NAME`、`REBUJI_DB_USERNAME`、`REBUJI_DB_PASSWORD` | データベース。`REBUJI_DB_DRIVER=mysql` のときだけ MySQL、それ以外は SQLite です |
+| `REBUJI_SMTP_HOST`、`REBUJI_SMTP_PORT`、`REBUJI_SMTP_ENCRYPTION`、`REBUJI_SMTP_USERNAME`、`REBUJI_SMTP_PASSWORD`、`REBUJI_MAIL_FROM_ADDRESS`、`REBUJI_MAIL_FROM_NAME` | 送信のメール |
+| `REBUJI_IMAP_HOST`、`REBUJI_IMAP_PORT`、`REBUJI_IMAP_ENCRYPTION`、`REBUJI_IMAP_USERNAME`、`REBUJI_IMAP_PASSWORD` | 受信のメール |
+
+どの名前も、末尾に `_FILE` を付けると、値をそのファイルから読みます（Docker と同じです）。`REBUJI_VERSION`、`REBUJI_DOMAIN`、`REBUJI_MAIL_CA_FILE`、`REBUJI_HTTPS`、`REBUJI_TRUSTED_PROXIES` は Docker だけで使うので、あれば「使いません」と出して続けます。知らない `REBUJI_` の名前も同じです（打ち間違いに気づけます）。管理者の名前、メールアドレス、パスワードは、ファイルからは読まず、聞きます。
+
+**パスワードはファイルに書かないでください。** 書かなければ、パスワードだけを聞かれます。
+
+```
+REBUJI_SMTP_HOST=example.sakura.ne.jp
+REBUJI_SMTP_PORT=587
+REBUJI_SMTP_ENCRYPTION=starttls
+REBUJI_SMTP_USERNAME=anpi@example.jp
+REBUJI_MAIL_FROM_ADDRESS=anpi@example.jp
+REBUJI_IMAP_HOST=example.sakura.ne.jp
+```
+
+```bash
+chmod 600 rebuji.env
+sh install.sh --public ~/www/anpi --config rebuji.env
+```
+
+ほかの利用者に読める権限のファイルなら、注意が出ます。パスワードを書いたなら、終わったあとでファイルを消してください。
+
+**ファイルを読むのは、設置のときの一度だけです。** 値は、画面の初期設定と同じく、`storage/config.php`（データベース）と設定の画面の保存先（メール）に入ります。あとから変えるのは設定の画面で、Docker のように画面で変えられなくなることはありません。
+
+### 途中で止まったとき
+
+同じコマンドをもう一度流すと、続きから進みます。置いたファイルと作った DB は、そのまま使います。管理者がもういれば飛ばします。メールの確かめ、返信、公開の確かめは、毎回やり直します。
+
+設置を終える前なら、置いた URL を開いて、画面の初期設定で終えることもできます（設置の鍵が要ります）。どちらで終えてもかまいません。値を確かめる問いは 3 回まで聞き直し、通らなければ止まります。
+
+### cron
+
+`crontab` が使えるときは、何分ごとに動かすか（1〜10 分、既定は 5）を聞き、足す行を見せて、「設置を終えたら、この行を cron に足しますか？ [y/N]」と聞きます。`y` なら、今ある行を残したまま、設置を終えたあとに 1 行足します。`bin/cron.php` の行がもうあれば、足しません。`crontab` が使えない、書けない、`N` と答えたときは、管理画面に登録する行を出します。設置はそれでも終わっています。1 分ごとにできるサーバーでは、1 を答えてください。
+
+SSH で `crontab` を書いてよいか、管理画面で cron を編集すると SSH で書いた行が消えるかは、サーバーで違います。4 社の公式のマニュアルを調べた結果です。
+
+| サーバー | SSH で `crontab` を書いてよいか | 管理画面の編集で、書いた行が消えるか | 調べたページ |
+|---|---|---|---|
+| ロリポップ | 公式のマニュアルに記載なし。管理画面で登録してください | 記載なし | [cronの設定方法](https://lolipop.jp/manual/user/cron/) |
+| さくらのレンタルサーバ | 公式のマニュアルに記載なし。管理画面で登録してください | 記載なし | [CRONを設定したい](https://help.sakura.ad.jp/rs/2242/) |
+| エックスサーバー | 公式のマニュアルに記載なし。管理画面で登録してください | 記載なし | [Cron設定](https://www.xserver.ne.jp/manual/man_program_cron.php)、[Cronは使用できますか？](https://www.xserver.ne.jp/support/faq/service_server_cron.php) |
+| ConoHa WING | 公式のマニュアルに記載なし。管理画面（ジョブスケジューラー）で登録してください | 記載なし | [ジョブスケジューラーを使う](https://support.conoha.jp/w/jobscheduler/) |
+
+書いていない会社では、`N` と答えて管理画面に登録するのが確実です。`y` と答えて足した行が、管理画面の編集で消えることもありえます。消えても、見張りの URL が 15 分たつと 503 を返すので気づけます（終わったときにも、この案内が出ます）。
+
+### 終わったら
+
+終わりに出る「見張りの URL」を、監視サービスに登録してください。登録のしかたは、[見張り](#見張り)にあります。
+
+## FTP で置く
+
+SSH が使えないサーバーでは、FTP で置いて、ブラウザで初期設定を進めます。
+
 1. [リリース](https://github.com/shimomo/re-buji/releases)から `re-buji-<版>.zip` を取り、展開します。
 2. 中の `re-buji/` を FTP でアップロードします。置き方は 2 通りです。
    - **全体を公開ディレクトリに置く**（たとえば `public_html/re-buji/`）。ロリポップのように、公開ディレクトリの外にファイルを置けないサーバー向けです。同梱の `.htaccess` が `public/` の外へのアクセスを拒否します。
