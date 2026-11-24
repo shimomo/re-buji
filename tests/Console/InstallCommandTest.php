@@ -551,7 +551,8 @@ final class InstallCommandTest extends TestCase
             $this->assertStringNotContainsString('cron を何分ごとに', $io->output());
             $this->assertStringContainsString('cron に次の行を登録してください（サーバーの管理画面か crontab -e で）：', $io->output());
             $this->assertStringContainsString('  */5 * * * * ' . self::PHP . ' ' . $root . '/bin/cron.php', $io->output());
-            $this->assertStringContainsString('  1 分ごとにできるサーバーなら、1 分ごとにしてください。', $io->output());
+            $this->assertStringContainsString('  間隔は、管理画面で選べるいちばん短いものにしてください。', $io->output());
+            $this->assertStringNotContainsString('1 分ごとにできるサーバーなら、1 分ごとにしてください。', $io->output());
         } finally {
             TemporaryDirectory::remove($root);
             TemporaryDirectory::remove($dir);

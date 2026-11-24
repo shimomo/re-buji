@@ -655,7 +655,7 @@ final class InstallCommand implements Command
         $io->line('  ' . $cron['line']);
 
         if (!$cron['asked']) {
-            $io->line('  1 分ごとにできるサーバーなら、1 分ごとにしてください。');
+            $io->line('  間隔は、管理画面で選べるいちばん短いものにしてください。');
         }
     }
 
