@@ -95,7 +95,8 @@ final class InstallCommandTest extends TestCase
             $this->assertStringContainsString('✓ 返信を読めました', $io->output());
             $this->assertStringContainsString('✓ 設置を終えました（しきい値は震度5弱、1 時間に送る上限は 100 通。設定の画面で変えられます）', $io->output());
             $this->assertStringContainsString('✓ cron に足しました', $io->output());
-            $this->assertStringContainsString('見張りの URL：https://example.jp/status/' . $token, $io->output());
+            $this->assertStringContainsString('状態の URL：https://example.jp/status/' . $token, $io->output());
+            $this->assertStringNotContainsString('見張りの URL', $io->output());
             $this->assertStringContainsString('ログイン：https://example.jp/', $io->output());
         } finally {
             TemporaryDirectory::remove($root);

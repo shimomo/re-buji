@@ -202,7 +202,7 @@ final class InstallCommand implements Command
         $settings = $this->settings($context);
         $io->line('✓ 設置を終えました（しきい値は' . $settings->threshold()->label() . '、1 時間に送る上限は ' . $settings->get('hourly_limit') . ' 通。設定の画面で変えられます）');
         $this->writeCron($cron, $io);
-        $io->line('見張りの URL：' . $statusUrl);
+        $io->line('状態の URL：' . $statusUrl);
         $io->line('  UptimeRobot などの監視サービスに登録してください。cron が止まると、この URL が 503 を返します。');
         $io->line('ログイン：' . $context->baseUrl() . '/');
 
@@ -640,7 +640,7 @@ final class InstallCommand implements Command
             try {
                 if ($this->crontab->add($cron['line'], $this->cronPath())) {
                     $io->line('✓ cron に足しました：' . $cron['line']);
-                    $io->line('  サーバーの管理画面で cron を編集すると、この行が消えることがあります。消えても、見張りの URL が 15 分で 503 を返すので気づけます。');
+                    $io->line('  サーバーの管理画面で cron を編集すると、この行が消えることがあります。消えても、状態の URL が 15 分で 503 を返すので気づけます。');
                 } else {
                     $io->line('✓ cron には、もう ' . $this->cronPath() . ' の行があります。足していません。');
                 }
