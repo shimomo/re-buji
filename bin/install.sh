@@ -87,12 +87,13 @@ if [ -n "${PHP:-}" ]; then
 else
     best=0
     # The php on PATH first, then the versioned ones some hosts keep out of PATH; the newest that qualifies wins.
-    # Where each host keeps its php, only as far as the host's own manual states it:
+    # Where each host keeps its php, as far as an official source states it:
     #   ロリポップ！: /usr/local/php/<x.x>/bin/php, "SSHでPHPを利用する場合" (https://lolipop.jp/manual/user/php-setting/)
+    #   さくらのレンタルサーバ: /usr/local/php/<x.x>/bin/php (the same glob; source: this repository's docs/install.md and the
+    #     author's own server)
     #   エックスサーバー: /usr/bin/php8.3, php8.4, php8.5, "コマンドパス一覧" (https://www.xserver.ne.jp/manual/man_program_soft.php)
     #   ConoHa WING: /opt/alt/php83/usr/bin/php (also php84, php85), "プログラム言語のパスを教えてください。"
     #     (https://support.conoha.jp/wing/faq/website-q/website-setting-q/)
-    # Not found in the official manual, so nothing is added for them: さくらのレンタルサーバ (PATH's php or env PHP=).
     for candidate in "$(command -v php 2> /dev/null || true)" /usr/local/php/*/bin/php /usr/bin/php8.3 /usr/bin/php8.4 /usr/bin/php8.5 \
         /opt/alt/php83/usr/bin/php /opt/alt/php84/usr/bin/php /opt/alt/php85/usr/bin/php; do
         [ -n "$candidate" ] && [ -x "$candidate" ] || continue

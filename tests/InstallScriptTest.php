@@ -259,6 +259,27 @@ final class InstallScriptTest extends TestCase
         });
     }
 
+    #[Test]
+    public function keepsTheZipCheckIdenticalToUpgradeShs(): void
+    {
+        $install = file_get_contents(dirname(__DIR__) . '/bin/install.sh');
+        $upgrade = file_get_contents(dirname(__DIR__) . '/bin/upgrade.sh');
+        $this->assertIsString($install);
+        $this->assertIsString($upgrade);
+
+        $pieces = [
+            'the sha256 function' => '/^sha256\(\) \{\n.*?\n\}\n/ms',
+            'the release lookup, the JSON parser and the version and URL checks' => '/^\s*curl -fsSL -H .*?releases\/download\/v\$latest\/re-buji-\$latest\.zip"\).*?\n\s*esac\n/ms',
+            'the sha256 given by GitHub' => '/^\s*case "\$expected" in.*?\$\{#expected\}[^\n]*\n/ms',
+            'the download and the comparison' => '/^\s*curl -fsSL --proto.*?\n\s*fi\n/ms',
+        ];
+
+        foreach ($pieces as $name => $pattern) {
+            $this->assertSame(self::normalised($upgrade, $pattern), self::normalised($install, $pattern), $name . ' differs between bin/install.sh and bin/upgrade.sh');
+            $this->assertNotSame('', self::normalised($install, $pattern), $name . ' was not found');
+        }
+    }
+
     /**
      * @param callable(string, string): void $test given the temporary directory (resolved) and a HOME that holds a space
      */
@@ -364,5 +385,30 @@ final class InstallScriptTest extends TestCase
         $names = scandir($directory);
 
         return $names === false ? [] : $names;
+    }
+
+    /**
+     * The text matching $pattern without comments, blank lines or indentation, and with the names install.sh gives
+     * differently (zipurl, $archive) put back.
+     *
+     * @param non-empty-string $pattern
+     */
+    private static function normalised(string $script, string $pattern): string
+    {
+        if (preg_match($pattern, $script, $matches) !== 1) {
+            return '';
+        }
+
+        $lines = [];
+
+        foreach (explode("\n", $matches[0]) as $line) {
+            $line = trim($line);
+
+            if ($line !== '' && !str_starts_with($line, '#')) {
+                $lines[] = str_replace('$archive', '$work/release.zip', str_replace('zipurl', 'url', $line));
+            }
+        }
+
+        return implode("\n", $lines);
     }
 }
