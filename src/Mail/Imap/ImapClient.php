@@ -88,9 +88,53 @@ final class ImapClient
      */
     public function unseenSince(DateTimeImmutable $since): array
     {
+        return $this->search('UNSEEN SINCE ' . $since->format('j-M-Y'));
+    }
+
+    /**
+     * Mail answering the given one, read or not: its Message-ID in In-Reply-To or References, or the token in the
+     * subject. Asks for new mail first (NOOP), as the connection may have been open for long. An empty value is not a
+     * condition, and with neither the server is not asked at all.
+     *
+     * @return list<int> UIDs of such mail received since that day, oldest first
+     */
+    public function answersSince(DateTimeImmutable $since, string $messageId, string $token): array
+    {
+        $conditions = [];
+
+        if ($messageId !== '') {
+            $conditions[] = 'HEADER IN-REPLY-TO ' . self::quote($messageId);
+            $conditions[] = 'HEADER REFERENCES ' . self::quote($messageId);
+        }
+
+        if ($token !== '') {
+            $conditions[] = 'HEADER SUBJECT ' . self::quote($token);
+        }
+
+        if ($conditions === []) {
+            return [];
+        }
+
+        $this->command('NOOP');
+
+        // IMAP's OR takes two keys, so n conditions are nested: OR a OR b c
+        $criteria = array_pop($conditions);
+
+        while ($conditions !== []) {
+            $criteria = 'OR ' . array_pop($conditions) . ' ' . $criteria;
+        }
+
+        return $this->search('SINCE ' . $since->format('j-M-Y') . ' ' . $criteria);
+    }
+
+    /**
+     * @return list<int> UIDs found, oldest first
+     */
+    private function search(string $criteria): array
+    {
         $uids = [];
 
-        foreach ($this->command('UID SEARCH UNSEEN SINCE ' . $since->format('j-M-Y'))['lines'] as $line) {
+        foreach ($this->command('UID SEARCH ' . $criteria)['lines'] as $line) {
             if (preg_match('/^\* SEARCH\b(.*)$/i', $line, $match) === 1) {
                 $found = preg_split('/\s+/', trim($match[1]), -1, PREG_SPLIT_NO_EMPTY);
 

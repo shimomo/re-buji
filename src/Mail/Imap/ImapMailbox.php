@@ -39,6 +39,14 @@ final class ImapMailbox implements Mailbox
     }
 
     #[Override]
+    public function answersTo(DateTimeImmutable $since, string $messageId, string $token, int $limit): iterable
+    {
+        $client = $this->client();
+
+        return $this->fetching($client, array_slice($client->answersSince($since, $messageId, $token), 0, $limit));
+    }
+
+    #[Override]
     public function markSeen(RawMail $mail): void
     {
         $this->client()->markSeen($mail->uid);

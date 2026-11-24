@@ -290,6 +290,16 @@ final class InstallCommandTest extends TestCase
                 }
 
                 #[Override]
+                public function answersTo(DateTimeImmutable $since, string $messageId, string $token, int $limit): iterable
+                {
+                    if ($this->asked++ > 0) {
+                        throw new MailboxUnavailable('Connection reset');
+                    }
+
+                    return [];
+                }
+
+                #[Override]
                 public function markSeen(RawMail $mail): void
                 {
                     //

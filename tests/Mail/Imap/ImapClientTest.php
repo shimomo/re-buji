@@ -66,6 +66,45 @@ final class ImapClientTest extends TestCase
     }
 
     #[Test]
+    public function findsAnswersReadOrNotAfterAskingForNewMail(): void
+    {
+        [$dir, $server] = self::answerMailbox();
+
+        try {
+            $client = new ImapClient(self::settings($server->port()));
+            $client->open();
+
+            $this->assertSame([1, 3], $client->answersSince(new DateTimeImmutable(self::SINCE), 't1@example.jp', '#ab12cd34'));
+            $transcript = $server->transcript();
+            $this->assertStringContainsString('UID SEARCH SINCE 8-Nov-2026 OR HEADER IN-REPLY-TO "t1@example.jp" OR HEADER REFERENCES "t1@example.jp" HEADER SUBJECT "#ab12cd34"', $transcript);
+            $this->assertLessThan(strpos($transcript, 'UID SEARCH SINCE'), strpos($transcript, ' NOOP'));
+        } finally {
+            $server->stop();
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function searchesOnlyWhatItIsGiven(): void
+    {
+        [$dir, $server] = self::answerMailbox();
+
+        try {
+            $client = new ImapClient(self::settings($server->port()));
+            $client->open();
+
+            $this->assertSame([3], $client->answersSince(new DateTimeImmutable(self::SINCE), '', '#ab12cd34'));
+            $this->assertStringContainsString('UID SEARCH SINCE 8-Nov-2026 HEADER SUBJECT "#ab12cd34"', $server->transcript());
+            $this->assertSame([], $client->answersSince(new DateTimeImmutable(self::SINCE), '', ''));
+            // With nothing to look for, the server is not asked at all
+            $this->assertSame(1, substr_count($server->transcript(), 'UID SEARCH'));
+        } finally {
+            $server->stop();
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
     public function quotesTheLogIn(): void
     {
         [$dir, $server] = self::mailbox(0);
@@ -247,6 +286,21 @@ final class ImapClientTest extends TestCase
     private static function settings(int $port): ImapSettings
     {
         return new ImapSettings('127.0.0.1', $port, 'none', 'anpi', 'secret');
+    }
+
+    /**
+     * 1: a read reply (In-Reply-To), 2: unrelated, 3: answered only by the number in its subject.
+     *
+     * @return array{string, FakeImapServer}
+     */
+    private static function answerMailbox(): array
+    {
+        [$dir, $server] = self::mailbox(3);
+        file_put_contents($dir . '/1.eml', "Subject: Re: hello\r\nIn-Reply-To: <t1@example.jp>\r\n\r\nbody 1\r\n");
+        file_put_contents($dir . '/3.eml', "Subject: Re: [Re:無事 の確認 #ab12cd34]\r\n\r\nbody 3\r\n");
+        touch($dir . '/1.seen');
+
+        return [$dir, $server];
     }
 
     /**

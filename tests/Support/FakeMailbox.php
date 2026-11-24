@@ -65,6 +65,32 @@ final class FakeMailbox implements Mailbox
         return $unseen;
     }
 
+    /**
+     * @return list<RawMail>
+     */
+    #[Override]
+    public function answersTo(DateTimeImmutable $since, string $messageId, string $token, int $limit): array
+    {
+        $this->asked[] = ['since' => $since, 'limit' => $limit];
+
+        if ($this->unavailable) {
+            throw new MailboxUnavailable('Connection to imap.example.co.jp:993 timed out');
+        }
+
+        $found = [];
+
+        // str_contains() is true for an empty string, so an empty value must not be asked
+        foreach ($this->mails as $uid => $raw) {
+            $matches = ($messageId !== '' && str_contains($raw, $messageId)) || ($token !== '' && str_contains($raw, $token));
+
+            if ($matches && count($found) < $limit) {
+                $found[] = new RawMail($uid, $raw);
+            }
+        }
+
+        return $found;
+    }
+
     #[Override]
     public function markSeen(RawMail $mail): void
     {
