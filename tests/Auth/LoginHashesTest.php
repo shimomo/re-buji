@@ -39,6 +39,18 @@ final class LoginHashesTest extends TestCase
         $this->assertStringStartsWith('$2y$12$', (new LoginHashes(self::admins([password_hash('x', PASSWORD_BCRYPT, ['cost' => 13])]), 12))->dummy());
         // An admin not rehashed since the upgrade: today's default is the stronger.
         $this->assertStringStartsWith('$2y$12$', (new LoginHashes(self::admins([self::COST_10]), 12))->dummy());
+        // Hashes that are not bcrypt as password_hash() makes it are not counted ($2a$ read as cost 12 would give 12).
+        $this->assertStringStartsWith('$2y$10$', (new LoginHashes(self::admins(['not a hash', '$2a$12$' . substr(self::COST_12, 7)]), 10))->dummy());
+    }
+
+    #[Test]
+    public function usesPhpsDefaultCostWhenNoneIsGiven(): void
+    {
+        // As the app builds it. On a PHP whose default cost has no dummy, this fails.
+        $hashes = new LoginHashes(self::admins([]));
+
+        $this->assertStringStartsWith('$2y$' . sprintf('%02d', PASSWORD_BCRYPT_DEFAULT_COST) . '$', $hashes->dummy());
+        $this->assertTrue($hashes->weakerThanDefault(password_hash('x', PASSWORD_BCRYPT, ['cost' => PASSWORD_BCRYPT_DEFAULT_COST - 1])));
     }
 
     #[Test]
@@ -56,7 +68,7 @@ final class LoginHashesTest extends TestCase
     #[Test]
     public function assumesBcryptIsThePhpDefault(): void
     {
-        $this->assertSame(PASSWORD_BCRYPT, PASSWORD_DEFAULT, 'LoginHashes::weakerThanDefault() compares bcrypt costs: revisit it if PHP\'s default algorithm changes');
+        $this->assertSame(PASSWORD_BCRYPT, PASSWORD_DEFAULT, 'LoginHashes compares bcrypt costs and keeps bcrypt dummies: revisit weakerThanDefault() and dummy() if PHP\'s default algorithm changes');
     }
 
     /**
