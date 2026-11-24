@@ -27,6 +27,7 @@ final class Console
         CheckCommand::class,
         BackupCommand::class,
         UpgradeInstallCommand::class,
+        InstallCommand::class,
     ];
 
     public function __construct(

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace ReBuji\Install;
 
+use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ReBuji\Config\Config;
 use ReBuji\Config\ConfigFile;
+use ReBuji\Http\ArraySession;
 use ReBuji\Http\Session;
 use ReBuji\Http\Url;
 use ReBuji\Paths;
@@ -33,6 +35,19 @@ final class InstallContext
         private readonly Session $session,
     ) {
         //
+    }
+
+    /**
+     * The context bin/console install runs the steps in: a GET of the public URL stands for the request, and the
+     * session lives in memory for the one run.
+     */
+    public static function forConsole(Paths $paths, ConfigFile $configFile, ContainerInterface $container, string $publicUrl): self
+    {
+        $factory = new Psr17Factory();
+        $uri = $factory->createUri($publicUrl);
+        $request = $factory->createServerRequest('GET', $uri, ['HTTPS' => $uri->getScheme() === 'https' ? 'on' : '']);
+
+        return new self($paths, $configFile, $container, $request, new Url(rtrim($uri->getPath(), '/')), new ArraySession());
     }
 
     /**

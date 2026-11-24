@@ -7,7 +7,7 @@ namespace ReBuji\Http;
 use Override;
 
 /**
- * A session kept in memory, for tests.
+ * A session kept in memory, for tests and for bin/console install, which runs the installer's steps without a browser.
  *
  * @author shimomo
  */
