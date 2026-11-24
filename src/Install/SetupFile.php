@@ -229,6 +229,15 @@ final readonly class SetupFile
     {
         $value = trim($raw);
 
+        // A quoted value is what is inside, as written, when only spaces or a comment follow the closing quote.
+        if ($value !== '' && ($value[0] === '"' || $value[0] === "'")) {
+            $end = strpos($value, $value[0], 1);
+
+            if ($end !== false && preg_match('/\A(?:\s*|\s+#.*)\z/s', substr($value, $end + 1)) === 1) {
+                return substr($value, 1, $end - 1);
+            }
+        }
+
         if (strlen($value) >= 2 && ($value[0] === '"' || $value[0] === "'") && str_ends_with($value, $value[0])) {
             return substr($value, 1, -1);
         }

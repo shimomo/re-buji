@@ -51,6 +51,23 @@ final class SetupFileTest extends TestCase
     }
 
     #[Test]
+    public function readsAQuotedValueBeforeAComment(): void
+    {
+        $file = SetupFile::parse(
+            "REBUJI_SMTP_HOST=\"smtp.example.jp\" # 送信\n"
+            . "REBUJI_MAIL_FROM_NAME='安否 確認' # 名前\n"
+            . "REBUJI_IMAP_HOST=\"imap # example\"\n"
+            . "REBUJI_SMTP_PASSWORD=\"p w\"\t# 送信の\n"
+            . "REBUJI_SMTP_USERNAME=\"anpi # 閉じていない\n",
+        );
+
+        $this->assertEqualsCanonicalizing(
+            ['smtp_host' => 'smtp.example.jp', 'mail_from_name' => '安否 確認', 'imap_host' => 'imap # example', 'smtp_password' => 'p w', 'smtp_username' => '"anpi'],
+            $file->mail(),
+        );
+    }
+
+    #[Test]
     public function mapsTheDatabaseNames(): void
     {
         $file = SetupFile::parse(
