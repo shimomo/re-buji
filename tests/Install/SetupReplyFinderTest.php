@@ -11,6 +11,7 @@ use ReBuji\Mail\Imap\MailboxUnavailable;
 use ReBuji\Tests\Support\FakeMailbox;
 use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\MailFixtures;
+use ReBuji\Tests\Support\MissingSearchMailbox;
 
 /**
  * @author shimomo
@@ -53,6 +54,24 @@ final class SetupReplyFinderTest extends TestCase
         $mailbox->add(MailFixtures::reply('admin@example.com', '', null, 'Re: [Re:無事 の確認 #1234abcd] このメールに返信してください'));
 
         $this->assertTrue((new SetupReplyFinder($mailbox))->find((new FrozenClock())->now(), 'other@example.jp', '1234abcd'));
+    }
+
+    #[Test]
+    public function findsAnUnreadReplyByItsNumberWhenTheServerSearchMissesIt(): void
+    {
+        $mailbox = new MissingSearchMailbox(MailFixtures::reply('admin@example.jp', '', null, 'Re: [Re:無事 の確認 #1234abcd] このメールに返信してください'));
+
+        $this->assertTrue((new SetupReplyFinder($mailbox))->find((new FrozenClock())->now(), 'abc@example.jp', '1234abcd'));
+        $this->assertSame([7], $mailbox->seen);
+    }
+
+    #[Test]
+    public function doesNotCountAnUnrelatedUnreadMailInTheFallback(): void
+    {
+        $mailbox = new MissingSearchMailbox(MailFixtures::reply('admin@example.jp', '', null, 'Re: 別の件'));
+
+        $this->assertFalse((new SetupReplyFinder($mailbox))->find((new FrozenClock())->now(), 'abc@example.jp', '1234abcd'));
+        $this->assertSame([], $mailbox->seen);
     }
 
     #[Test]
