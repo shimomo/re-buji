@@ -292,6 +292,20 @@ final class InstallScriptTest extends TestCase
     }
 
     #[Test]
+    public function passesOnTheConsolesExitStatus(): void
+    {
+        $this->inHome(function (string $tmp, string $home): void {
+            self::copyOfRelease($home . '/re-buji');
+            file_put_contents($home . '/re-buji/bin/console', '<?php echo json_encode(array_slice($argv, 1), JSON_UNESCAPED_SLASHES), "\n"; exit(3);');
+
+            [$status, $output] = $this->install($home, ['--root', $home . '/re-buji']);
+
+            $this->assertSame(3, $status, $output);
+            $this->assertStringContainsString('["install","--php=' . PHP_BINARY . '"]', $output);
+        });
+    }
+
+    #[Test]
     public function picksAPhpThatPrintsStartupWarnings(): void
     {
         $this->inHome(function (string $tmp, string $home): void {

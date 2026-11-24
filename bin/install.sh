@@ -371,4 +371,14 @@ set -- install
 [ -z "$config" ] || set -- "$@" --config="$config"
 set -- "$@" --php="$php"
 
-exec "$php" "$root/bin/console" "$@"
+# Not exec: php stopped by Ctrl-C at a password prompt cannot turn the terminal's echo back on, so this shell stays to do
+# it. INT gets a handler, not an ignore, so php still stops on Ctrl-C (an ignored signal would be inherited).
+trap ':' INT
+status=0
+"$php" "$root/bin/console" "$@" || status=$?
+
+if [ -t 0 ]; then
+    stty echo 2> /dev/null || :
+fi
+
+exit "$status"
