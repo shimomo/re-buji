@@ -45,6 +45,21 @@ final class PackagePath
         return str_starts_with($package, $documentRoot . '/') ? self::encode(substr($package, strlen($documentRoot))) : null;
     }
 
+    /**
+     * Where the package root is served, on the scheme, host and port of $publicUrl. $publicUrl itself when $path is
+     * null (the package is outside the document root) or $publicUrl has no host.
+     */
+    public static function url(?string $path, string $publicUrl): string
+    {
+        $parts = parse_url($publicUrl);
+
+        if ($path === null || !is_array($parts) || !isset($parts['scheme'], $parts['host'])) {
+            return $publicUrl;
+        }
+
+        return $parts['scheme'] . '://' . $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : '') . $path;
+    }
+
     private static function real(string $path): ?string
     {
         // realpath('') and realpath('.') are the working directory, which says nothing about the server.

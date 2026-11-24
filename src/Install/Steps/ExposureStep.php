@@ -69,13 +69,7 @@ final class ExposureStep implements InstallStep
         $byHand = ($input['checked_by_hand'] ?? '') === '1';
 
         if ($result->exposed !== []) {
-            $errors = array_map(
-                static fn(string $url): string => 'ウェブから見えています：' . $url . '（状態 ' . ($result->statuses[$url] ?? 0) . '）',
-                $result->exposed,
-            );
-            $errors[] = 'このサーバーでは .htaccess が効いていない可能性があります。サーバーの設定を確かめるか、公開ディレクトリの外に本体を置き、public/ の中身だけを公開する方法（docs/install.md）を使ってください。';
-
-            return StepResult::failed($errors);
+            return StepResult::failed(ExposureCheck::exposedErrors($result));
         }
 
         if ($result->probeFailure !== null && !$byHand) {

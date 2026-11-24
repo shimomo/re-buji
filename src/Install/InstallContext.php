@@ -108,14 +108,7 @@ final class InstallContext
      */
     public function packageUrl(string $publicUrl): string
     {
-        $path = PackagePath::detect($this->request->getServerParams(), $this->paths->root());
-        $parts = parse_url($publicUrl);
-
-        if ($path === null || !is_array($parts) || !isset($parts['scheme'], $parts['host'])) {
-            return $publicUrl;
-        }
-
-        return $parts['scheme'] . '://' . $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : '') . $path;
+        return PackagePath::url(PackagePath::detect($this->request->getServerParams(), $this->paths->root()), $publicUrl);
     }
 
     /**

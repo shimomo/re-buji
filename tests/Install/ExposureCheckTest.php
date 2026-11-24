@@ -5,9 +5,16 @@ declare(strict_types=1);
 namespace ReBuji\Tests\Install;
 
 use Nyholm\Psr7\Factory\Psr17Factory;
+use Nyholm\Psr7\Response;
+use Override;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use ReBuji\Install\ExposureCheck;
+use ReBuji\Install\ProbeOutcome;
+use ReBuji\Install\WebSide;
 use ReBuji\Paths;
 use ReBuji\Tests\Support\FakeHttpClient;
 use ReBuji\Tests\Support\FakeNetworkException;
@@ -188,6 +195,114 @@ final class ExposureCheckTest extends TestCase
         }
     }
 
+    #[Test]
+    public function reachesThisCopyAndReadsItsWebSide(): void
+    {
+        $root = $this->root();
+
+        try {
+            $client = new FakeHttpClient(403, [], true, new WebSide('/re-buji', ['sqlite'], false));
+            $answer = $this->check($root, $client)->reach('https://example.jp/anpi');
+
+            $this->assertSame(ProbeOutcome::Reached, $answer->outcome);
+            $this->assertNotNull($answer->web);
+            $this->assertSame('/re-buji', $answer->web->packagePath);
+            $this->assertFalse($answer->web->storageWritable);
+            $this->assertStringStartsWith('https://example.jp/anpi/install/probe/', $client->requested[0]);
+            $this->assertStringEndsWith('?from=console', $client->requested[0]);
+            $this->assertFileDoesNotExist($root . '/storage/install-probe.txt');
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function refusesAnotherAnswerOfTheUrl(): void
+    {
+        $root = $this->root();
+
+        try {
+            $notFound = $this->check($root, new FakeHttpClient(404, [], false))->reach('https://example.jp/anpi');
+            $this->assertSame(ProbeOutcome::Refused, $notFound->outcome);
+            $this->assertSame('状態 404', $notFound->detail);
+
+            $other = $this->check($root, new FakeHttpClient(200, [], false))->reach('https://example.jp/anpi');
+            $this->assertSame(ProbeOutcome::Refused, $other->outcome);
+            $this->assertSame('別の内容（状態 200）', $other->detail);
+
+            $message = 'Re:無事 には PHP 8.3 以上が必要です（今は 8.2.0）。サーバーの管理画面で PHP の版を変えてください。';
+            $old = $this->check($root, $this->answering(new Response(500, ['Content-Type' => 'text/plain'], $message . "\n")))->reach('https://example.jp/anpi');
+            $this->assertSame(ProbeOutcome::Refused, $old->outcome);
+            $this->assertSame('状態 500：' . $message, $old->detail);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function reportsWhereTheUrlRedirects(): void
+    {
+        $root = $this->root();
+
+        try {
+            $location = 'https://example.jp/anpi/install/probe/x?from=console';
+            $answer = $this->check($root, $this->answering(new Response(301, ['Location' => $location])))->reach('http://example.jp/anpi');
+
+            $this->assertSame(ProbeOutcome::Redirected, $answer->outcome);
+            $this->assertSame($location, $answer->detail);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function saysWhenItCannotConnect(): void
+    {
+        $root = $this->root();
+
+        try {
+            $answer = $this->check($root, new FakeHttpClient(new FakeNetworkException('timed out'), [], false))->reach('https://example.jp/anpi');
+
+            $this->assertSame(ProbeOutcome::Unreachable, $answer->outcome);
+            $this->assertStringContainsString('timed out', $answer->detail);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function judgesFilesUnderTheGivenBase(): void
+    {
+        $root = $this->root();
+
+        try {
+            $client = new FakeHttpClient(404, ['https://example.jp/re-buji/storage/config.php' => 200]);
+            $result = $this->check($root, $client)->files('https://example.jp/re-buji', ['storage/config.php', 'src/Version.php']);
+
+            $this->assertSame(['https://example.jp/re-buji/storage/config.php'], $result->exposed);
+            $this->assertNull($result->probeFailure);
+            $this->assertCount(2, $client->requested);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    private function answering(ResponseInterface $response): ClientInterface
+    {
+        return new readonly class ($response) implements ClientInterface {
+            public function __construct(private ResponseInterface $response)
+            {
+                //
+            }
+
+            #[Override]
+            public function sendRequest(RequestInterface $request): ResponseInterface
+            {
+                return $this->response;
+            }
+        };
+    }
+
     private function root(): string
     {
         $root = TemporaryDirectory::create();
@@ -196,7 +311,7 @@ final class ExposureCheckTest extends TestCase
         return $root;
     }
 
-    private function check(string $root, FakeHttpClient $client): ExposureCheck
+    private function check(string $root, ClientInterface $client): ExposureCheck
     {
         return new ExposureCheck($client, new Psr17Factory(), new Paths($root));
     }
