@@ -25,14 +25,6 @@ final class LoginController
 
     private const string BLOCKED = 'ログインに続けて失敗したため、' . LoginThrottle::WINDOW_MINUTES . ' 分ほど受け付けを止めています。時間をおいてから、もう一度お試しください。';
 
-    // Compared against for unknown emails, so they take as long as a wrong password. PHP 8.3 hashes at bcrypt cost 10
-    // and PHP 8.4 at cost 12, so there is one dummy per cost; the one used matches the strongest admin's hash
-    // (dummyCost()), which stays at 12 when the server's PHP is moved back.
-    private const array DUMMY_HASHES = [
-        10 => '$2y$10$4Le9C6dZJZp/nbc/adhNL.C8Vc9dgAvFli32QqVHGFY4bEnlsQfzm',
-        12 => '$2y$12$s8XiSL49q5/EMaaHe0/Yr.QcBRQLuedRMC.O8AwMkcGe26/4g3H86',
-    ];
-
     public function __construct(
         private readonly AdminRepository $admins,
         private readonly LoginThrottle $throttle,
@@ -42,6 +34,7 @@ final class LoginController
         private readonly ResponseFactoryInterface $responses,
         private readonly Url $url,
         private readonly Environment $environment,
+        private readonly LoginHashes $hashes,
     ) {
         //
     }
@@ -69,7 +62,7 @@ final class LoginController
         }
 
         $admin = $this->admins->findByEmail($email);
-        $valid = password_verify($password, $admin['password_hash'] ?? $this->dummyHash()) && $admin !== null;
+        $valid = password_verify($password, $admin['password_hash'] ?? $this->hashes->dummy()) && $admin !== null;
         $this->throttle->record($email, $ip, $valid, $now);
 
         if (!$valid) {
@@ -79,7 +72,7 @@ final class LoginController
         // The password is at hand only now: a hash weaker than what password_hash() makes today (another algorithm, or a
         // lower cost: 10 on PHP 8.3, 12 from 8.4) is made again, so a server's PHP upgrade strengthens each admin's hash
         // at their next log-in. A stronger one stays, so moving the server back to an older PHP does not weaken it.
-        if (self::weakerThanDefault($admin['password_hash'])) {
+        if ($this->hashes->weakerThanDefault($admin['password_hash'])) {
             $this->admins->setPassword($admin['id'], $password);
         }
 
@@ -96,52 +89,6 @@ final class LoginController
         $this->session->regenerate();
 
         return $this->redirect('/login');
-    }
-
-    /**
-     * The bcrypt cost of the dummy an unknown email is compared against: the strongest admin's hash that has a dummy, or
-     * today's default when that is higher or no admin's hash has one.
-     *
-     * @param list<string> $hashes
-     */
-    public static function dummyCost(array $hashes, int $defaultCost): int
-    {
-        $cost = $defaultCost;
-
-        foreach ($hashes as $hash) {
-            $info = password_get_info($hash);
-            $own = isset($info['options']['cost']) && is_int($info['options']['cost']) ? $info['options']['cost'] : 0;
-
-            if ($info['algo'] === PASSWORD_BCRYPT && isset(self::DUMMY_HASHES[$own])) {
-                $cost = max($cost, $own);
-            }
-        }
-
-        return $cost;
-    }
-
-    private function dummyHash(): string
-    {
-        return self::DUMMY_HASHES[self::dummyCost($this->admins->passwordHashes(), self::defaultCost())] ?? self::DUMMY_HASHES[10];
-    }
-
-    /**
-     * The bcrypt cost password_hash() uses today.
-     */
-    private static function defaultCost(): int
-    {
-        return defined('PASSWORD_BCRYPT_DEFAULT_COST') ? PASSWORD_BCRYPT_DEFAULT_COST : 10;
-    }
-
-    /**
-     * Whether the hash is weaker than what password_hash() makes today: another algorithm, or bcrypt with a lower cost.
-     */
-    private static function weakerThanDefault(string $hash): bool
-    {
-        $info = password_get_info($hash);
-        $cost = isset($info['options']['cost']) && is_int($info['options']['cost']) ? $info['options']['cost'] : 0;
-
-        return $info['algo'] !== PASSWORD_DEFAULT || $cost < self::defaultCost();
     }
 
     private static function text(mixed $value): string
