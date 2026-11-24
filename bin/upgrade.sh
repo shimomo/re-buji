@@ -101,6 +101,7 @@ else
         api="https://api.github.com/repos/$repo/releases/latest"
     fi
 
+    # bin/install.sh carries a copy of this download and sha256 check (it is downloaded alone): change both together.
     curl -fsSL -H 'Accept: application/vnd.github+json' -o "$work/release.json" "$api" \
         || fail "GitHub からリリースの情報を取れませんでした：$api"
 
