@@ -42,6 +42,19 @@ final class AnsweringMailbox implements Mailbox
     }
 
     #[Override]
+    public function answersTo(DateTimeImmutable $since, string $messageId, string $token, int $limit): iterable
+    {
+        if ($this->answering) {
+            foreach (array_slice($this->sender->sent, $this->answered) as $mail) {
+                $this->inner->add(MailFixtures::reply('admin@example.jp', '', $mail->messageId));
+                $this->answered++;
+            }
+        }
+
+        return $this->inner->answersTo($since, $messageId, $token, $limit);
+    }
+
+    #[Override]
     public function markSeen(RawMail $mail): void
     {
         $this->inner->markSeen($mail);

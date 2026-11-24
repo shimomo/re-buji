@@ -6,6 +6,8 @@ declare(strict_types=1);
 //   php fake-imap-server.php MAIL_DIR TRANSCRIPT_FILE OPTIONS_JSON
 // The inbox is MAIL_DIR/{uid}.eml; a message is seen when MAIL_DIR/{uid}.seen exists. Prints the port it listens on,
 // answers connections one after another and appends every line to TRANSCRIPT_FILE (message bodies are not logged).
+// A SEARCH with UNSEEN finds unseen mail; one with HEADER <name> "<text>" pairs finds mail whose header contains any of
+// the texts, read or not. SINCE is ignored: the files carry no date.
 // It exits after 30 seconds without a connection. Options: rejectLogin, and failStartTls, which offers STARTTLS but
 // goes on in plain text after agreeing, so the client's TLS handshake fails (otherwise it offers no STARTTLS).
 
@@ -71,9 +73,31 @@ while (($client = @stream_socket_accept($server, 30)) !== false) {
         } elseif ($command === 'SELECT') {
             $say('* ' . count($uids()) . ' EXISTS');
             $say($tag . ' OK [READ-WRITE] SELECT completed');
+        } elseif ($command === 'NOOP') {
+            $say($tag . ' OK NOOP completed');
         } elseif ($command === 'UID' && str_starts_with(strtoupper($rest), 'SEARCH')) {
-            $unseen = array_values(array_filter($uids(), static fn(int $uid): bool => !is_file($dir . '/' . $uid . '.seen')));
-            $say('* SEARCH' . ($unseen === [] ? '' : ' ' . implode(' ', $unseen)));
+            if (stripos($rest, 'UNSEEN') !== false) {
+                $found = array_values(array_filter($uids(), static fn(int $uid): bool => !is_file($dir . '/' . $uid . '.seen')));
+            } else {
+                preg_match_all('/HEADER (\S+) "((?:[^"\\\\]|\\\\.)*)"/i', $rest, $pairs, PREG_SET_ORDER);
+                $found = [];
+
+                foreach ($uids() as $uid) {
+                    $head = explode("\r\n\r\n", (string) file_get_contents($dir . '/' . $uid . '.eml'), 2)[0];
+
+                    foreach ($pairs as $pair) {
+                        $text = stripslashes($pair[2]);
+
+                        if (preg_match('/^' . preg_quote($pair[1], '/') . ':(.*)$/im', $head, $header) === 1 && stripos($header[1], $text) !== false) {
+                            $found[] = $uid;
+
+                            break;
+                        }
+                    }
+                }
+            }
+
+            $say('* SEARCH' . ($found === [] ? '' : ' ' . implode(' ', $found)));
             $say($tag . ' OK SEARCH completed');
         } elseif ($command === 'UID' && preg_match('/^FETCH (\d+) /i', $rest, $match) === 1) {
             $file = $dir . '/' . $match[1] . '.eml';

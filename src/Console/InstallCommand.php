@@ -23,6 +23,7 @@ use ReBuji\Install\InstallKey;
 use ReBuji\Install\MailQuestions;
 use ReBuji\Install\ProbeVisit;
 use ReBuji\Install\PublicDir;
+use ReBuji\Install\ReachedUrl;
 use ReBuji\Install\RebuildingContainer;
 use ReBuji\Install\SetupFile;
 use ReBuji\Install\SetupReplyFinder;
@@ -144,7 +145,7 @@ final class InstallCommand implements Command
         $config = $configFile->exists() ? $configFile->load() : new Config([]);
 
         if ($config->get('installed_at') !== null) {
-            $io->error('設置を終えています。上げるときは sh ' . $this->paths->root() . '/bin/upgrade.sh を流してください。');
+            $io->error('設置を終えています。上げるときは sh \'' . $this->paths->root() . '/bin/upgrade.sh\' を流してください。');
 
             return 1;
         }
@@ -162,17 +163,18 @@ final class InstallCommand implements Command
             return 1;
         }
 
-        $url = $this->publicUrl($options['url'], $io);
+        $exposure = $this->exposure();
+        $reached = $this->reachedUrl($exposure, $options['url'], $public ?? $this->paths->root(), $io);
 
-        if ($url === null) {
+        if ($reached === null) {
             return 1;
         }
 
-        $context = InstallContext::forConsole($this->paths, $configFile, $this->stepContainer(), $url);
+        $context = InstallContext::forConsole($this->paths, $configFile, $this->stepContainer(), $reached->url);
         $driver = $this->setUpDatabase($context, $setup, $io);
 
         // Before the admin and the mail: a wrong URL or web PHP stops the run before any password is typed.
-        if ($driver === null || !$this->checkExposure($url, $driver, $io)) {
+        if ($driver === null || !$this->checkExposure($exposure, $reached, $driver, $io)) {
             return 1;
         }
 
@@ -254,7 +256,7 @@ final class InstallCommand implements Command
         }
 
         if ($setup->holdsPassword() && $setup->readableByOthers()) {
-            $io->line('注意：設定ファイルにパスワードが書いてあり、ほかの利用者にも読めます。chmod 600 ' . $setup->path() . ' で、自分だけが読めるようにしてください。');
+            $io->line('注意：設定ファイルにパスワードが書いてあり、ほかの利用者にも読めます。chmod 600 \'' . $setup->path() . '\' で、自分だけが読めるようにしてください。');
         }
 
         return $setup;
@@ -276,35 +278,73 @@ final class InstallCommand implements Command
         return true;
     }
 
-    private function publicUrl(?string $given, ConsoleIo $io): ?string
+    /**
+     * The URL that reaches this copy. A URL given with --url is tried once; one asked for is asked again when it does
+     * not reach this copy, up to TRIES times together with the ones typed in the wrong form.
+     */
+    private function reachedUrl(ConsoleExposure $exposure, ?string $given, string $directory, ConsoleIo $io): ?ReachedUrl
     {
-        $url = $given === null ? null : self::normalizedUrl($given);
-
-        if ($given !== null && $url === null) {
-            $io->error(self::URL_FORM);
-
-            return null;
-        }
-
-        for ($try = 0; $url === null && $try < self::TRIES; $try++) {
-            $url = self::normalizedUrl($io->ask('公開する URL：'));
+        if ($given !== null) {
+            $url = self::normalizedUrl($given);
 
             if ($url === null) {
                 $io->error(self::URL_FORM);
+
+                return null;
+            }
+
+            $reached = $this->tryUrl($exposure, $url, $directory, $io);
+
+            return $reached instanceof ReachedUrl ? $this->warnedAboutHttp($reached, $io) : null;
+        }
+
+        for ($try = 0; $try < self::TRIES; $try++) {
+            $url = self::normalizedUrl($io->ask($directory . ' を開く URL（例：https://anpi.example.jp）：'));
+
+            if ($url === null) {
+                $io->error(self::URL_FORM);
+
+                continue;
+            }
+
+            $reached = $this->tryUrl($exposure, $url, $directory, $io);
+
+            if ($reached === null) {
+                return null;
+            }
+
+            if ($reached !== false) {
+                return $this->warnedAboutHttp($reached, $io);
             }
         }
 
-        if ($url === null) {
-            $io->error(self::GAVE_UP);
+        $io->error(self::GAVE_UP);
+
+        return null;
+    }
+
+    /**
+     * @return ReachedUrl|false|null false when the URL goes elsewhere, null when the check stopped (the reason written)
+     */
+    private function tryUrl(ConsoleExposure $exposure, string $url, string $directory, ConsoleIo $io): ReachedUrl|false|null
+    {
+        try {
+            return $exposure->reach($url, $directory, $io);
+        } catch (RuntimeException $exception) {
+            // Waiting for the browser needs a file in storage/.
+            $io->error($exception->getMessage());
 
             return null;
         }
+    }
 
-        if (str_starts_with($url, 'http://')) {
+    private function warnedAboutHttp(ReachedUrl $reached, ConsoleIo $io): ReachedUrl
+    {
+        if (str_starts_with($reached->url, 'http://')) {
             $io->line('注意：http の URL です。ログインのパスワードが暗号化されずに送られます。https が使えるなら、https の URL にしてください。');
         }
 
-        return $url;
+        return $reached;
     }
 
     /**
@@ -401,13 +441,18 @@ final class InstallCommand implements Command
         return $saved;
     }
 
-    private function checkExposure(string $url, string $driver, ConsoleIo $io): bool
+    private function exposure(): ConsoleExposure
     {
         $check = $this->container->get(ExposureCheck::class);
         assert($check instanceof ExposureCheck);
 
+        return new ConsoleExposure($check, new ProbeVisit($this->paths), $this->sleep);
+    }
+
+    private function checkExposure(ConsoleExposure $exposure, ReachedUrl $reached, string $driver, ConsoleIo $io): bool
+    {
         try {
-            return (new ConsoleExposure($check, new ProbeVisit($this->paths), $this->sleep))->run($url, $driver, $io);
+            return $exposure->finish($reached, $driver, $io);
         } catch (RuntimeException $exception) {
             // Waiting for the browser needs a file in storage/.
             $io->error($exception->getMessage());
@@ -526,13 +571,13 @@ final class InstallCommand implements Command
      */
     private function waitForReply(InstallContext $context, ConsoleIo $io): bool
     {
-        $io->line('テストメールに返信してください。返信を待っています（5 分まで）…');
         $since = (new SystemState($this->database($context), $this->clock()))->get('imap.since');
         $since = $since === null || $since === '' ? $this->clock()->now() : Time::parse($since);
         $messageId = self::draft($context, 'mail.test_message_id');
         $number = self::draft($context, 'mail.test_number');
 
         while (true) {
+            $io->line('テストメールに返信してください。返信を待っています（5 分まで）…');
             // A mailbox built anew for each round (RebuildingContainer): once its connection drops, one never reconnects.
             $mailbox = $context->container->get(Mailbox::class);
             assert($mailbox instanceof Mailbox);

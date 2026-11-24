@@ -6,11 +6,14 @@ namespace ReBuji\Tests\Console;
 
 use Closure;
 use DateTimeImmutable;
+use Nyholm\Psr7\Response;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use ReBuji\Auth\AdminRepository;
 use ReBuji\Config\Config;
 use ReBuji\Config\ConfigFile;
@@ -20,6 +23,7 @@ use ReBuji\Console\InstallCommand;
 use ReBuji\Container;
 use ReBuji\Database\Database;
 use ReBuji\Install\Crontab;
+use ReBuji\Install\WebSide;
 use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\Imap\MailboxUnavailable;
 use ReBuji\Mail\Imap\RawMail;
@@ -205,6 +209,7 @@ final class InstallCommandTest extends TestCase
 
             $this->assertSame(0, $code, $io->errors());
             $this->assertSame(1, substr_count($io->output(), 'もう少し待ちますか？'));
+            $this->assertSame(2, substr_count($io->output(), 'テストメールに返信してください。返信を待っています（5 分まで）…'));
         } finally {
             TemporaryDirectory::remove($root);
             TemporaryDirectory::remove($dir);
@@ -281,6 +286,16 @@ final class InstallCommandTest extends TestCase
 
                 #[Override]
                 public function unseen(DateTimeImmutable $since, int $limit): iterable
+                {
+                    if ($this->asked++ > 0) {
+                        throw new MailboxUnavailable('Connection reset');
+                    }
+
+                    return [];
+                }
+
+                #[Override]
+                public function answersTo(DateTimeImmutable $since, string $messageId, string $token, int $limit): iterable
                 {
                     if ($this->asked++ > 0) {
                         throw new MailboxUnavailable('Connection reset');
@@ -407,6 +422,7 @@ final class InstallCommandTest extends TestCase
 
             $this->assertSame(1, $code);
             $this->assertStringContainsString('（状態 404）', $io->errors());
+            $this->assertStringNotContainsString('を開く URL', $io->output());
             $this->assertStringNotContainsString('最初の管理者', $io->output());
             $this->assertNull($this->config($root)->get('installed_at'));
         } finally {
@@ -448,7 +464,7 @@ final class InstallCommandTest extends TestCase
             [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS, new RecordingMailSender(), new FakeMailbox());
 
             $this->assertSame(1, $code);
-            $this->assertStringContainsString('sh ' . $root . '/bin/upgrade.sh', $io->errors());
+            $this->assertStringContainsString("sh '" . $root . "/bin/upgrade.sh'", $io->errors());
 
             $docker = new Environment(['REBUJI_ENV_CONFIG' => '1']);
             [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS, new RecordingMailSender(), new FakeMailbox(), env: $docker);
@@ -536,14 +552,124 @@ final class InstallCommandTest extends TestCase
             $args = ['--public=' . $dir . '/www', '--php=' . self::PHP];
             // No scheme, then a query, then one to use: scheme and host in lower case, the port kept, no / at the end.
             $input = "example.jp\nhttps://example.jp/?from=mail\nHTTP://Example.JP:8080/anpi/\n" . self::ANSWERS;
-            // The check that follows names the URL it used.
+            // The check that follows names the URL it used; it does not reach this copy, and the third try stops.
             $overrides = [ClientInterface::class => new FakeHttpClient(404, [], false)];
             [$code, $io] = $this->install($root, $args, $input, new RecordingMailSender(), new FakeMailbox(), $overrides);
 
             $this->assertSame(1, $code);
             $this->assertSame(2, substr_count($io->errors(), 'URL は https://example.jp/anpi のように、http:// か https:// で始めてください。'));
-            $this->assertStringContainsString('注意：http の URL です。', $io->output());
             $this->assertStringContainsString('サーバーから http://example.jp:8080/anpi を開きましたが', $io->errors());
+            $this->assertStringContainsString('3 回とも通らなかったので、止めます', $io->errors());
+            $this->assertStringNotContainsString('最初の管理者', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function asksForTheUrlNamingTheDirectory(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $args = ['--public=' . $dir . '/www', '--php=' . self::PHP];
+            $overrides = [ClientInterface::class => new FakeHttpClient(404, [], false)];
+            [, $io] = $this->install($root, $args, "https://example.jp\n", new RecordingMailSender(), new FakeMailbox(), $overrides);
+
+            $this->assertStringContainsString($dir . '/www を開く URL（例：https://anpi.example.jp）：', $io->output());
+
+            // Without --public (and none remembered from a run before), the copy's own place is named.
+            $other = $this->root();
+            [, $io] = $this->install($other, ['--php=' . self::PHP], "https://example.jp\n", new RecordingMailSender(), new FakeMailbox(), $overrides);
+            TemporaryDirectory::remove($other);
+
+            $this->assertStringContainsString($other . ' を開く URL（例：https://anpi.example.jp）：', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function asksAgainWhenATypedUrlDoesNotReachThisCopy(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $args = ['--public=' . $dir . '/www', '--php=' . self::PHP];
+            $overrides = [ClientInterface::class => $this->copyAt('https://example.jp/anpi')];
+            [$code, $io] = $this->install($root, $args, "https://example.jp/wrong\nhttps://example.jp/anpi\n" . self::ANSWERS, $sender, new AnsweringMailbox($sender), $overrides);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertStringContainsString('サーバーから https://example.jp/wrong を開きましたが', $io->errors());
+            $this->assertSame(2, substr_count($io->output(), 'を開く URL（例：https://anpi.example.jp）：'));
+            $this->assertStringContainsString('最初の管理者', $io->output());
+            $this->assertStringNotContainsString('3 回とも通らなかった', $io->errors());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function stopsAfterThreeTypedUrlsThatDoNotReachThisCopy(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $args = ['--public=' . $dir . '/www', '--php=' . self::PHP];
+            $overrides = [ClientInterface::class => new FakeHttpClient(404, [], false)];
+            $input = "https://example.jp/a\nhttps://example.jp/b\nhttps://example.jp/c\n" . self::ANSWERS;
+            [$code, $io] = $this->install($root, $args, $input, new RecordingMailSender(), new FakeMailbox(), $overrides);
+
+            $this->assertSame(1, $code);
+            $this->assertStringContainsString('3 回とも通らなかったので、止めます。同じコマンドで、もう一度流せます。', $io->errors());
+            $this->assertStringNotContainsString('最初の管理者', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function warnsAboutHttpOnlyForTheUrlInUse(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $args = ['--public=' . $dir . '/www', '--php=' . self::PHP];
+            $overrides = [ClientInterface::class => $this->copyAt('https://example.jp/anpi', 'http://example.jp/anpi')];
+            [$code, $io] = $this->install($root, $args, "http://example.jp/anpi\n" . self::ANSWERS, $sender, new AnsweringMailbox($sender), $overrides);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertStringNotContainsString('注意：http の URL です。', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function warnsAboutHttpWhenTheUrlStaysHttp(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $args = ['--public=' . $dir . '/www', '--php=' . self::PHP];
+            $overrides = [ClientInterface::class => $this->copyAt('http://example.jp/anpi')];
+            [$code, $io] = $this->install($root, $args, "http://example.jp/anpi\n" . self::ANSWERS, $sender, new AnsweringMailbox($sender), $overrides);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertStringContainsString('注意：http の URL です。', $io->output());
         } finally {
             TemporaryDirectory::remove($root);
             TemporaryDirectory::remove($dir);
@@ -592,6 +718,40 @@ final class InstallCommandTest extends TestCase
             TemporaryDirectory::remove($root);
             TemporaryDirectory::remove($dir);
         }
+    }
+
+    /**
+     * A web that serves this copy at $url only (the probe answers there, every other URL is 404). With $redirectFrom,
+     * that URL answers the probe with a redirect to $url.
+     */
+    private function copyAt(string $url, ?string $redirectFrom = null): ClientInterface
+    {
+        return new class ($url, $redirectFrom) implements ClientInterface {
+            public function __construct(private readonly string $url, private readonly ?string $redirectFrom)
+            {
+                //
+            }
+
+            #[Override]
+            public function sendRequest(RequestInterface $request): ResponseInterface
+            {
+                $requested = (string) $request->getUri();
+
+                if (preg_match('#\A(.*)/install/probe/([0-9a-f]+)\?from=console\z#', $requested, $match) !== 1) {
+                    return new Response(404);
+                }
+
+                if ($match[1] === $this->redirectFrom) {
+                    return new Response(302, ['Location' => $this->url . '/install/probe/' . $match[2] . '?from=console']);
+                }
+
+                if ($match[1] !== $this->url) {
+                    return new Response(404);
+                }
+
+                return new Response(200, ['Content-Type' => 'application/json'], (new WebSide(null, ['sqlite', 'mysql'], true))->answer($match[2]));
+            }
+        };
     }
 
     /**
