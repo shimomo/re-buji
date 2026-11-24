@@ -20,6 +20,7 @@ final readonly class SmtpSettings
         public int $port,
         public string $encryption,
         public string $username,
+        #[\SensitiveParameter]
         public string $password,
         public string $fromAddress,
         public string $fromName,
