@@ -55,11 +55,25 @@ final class ExposureCheck
             return new ExposureResult([], $urls, [], $probeFailure);
         }
 
+        return $this->files($base, $files);
+    }
+
+    /**
+     * Requests the files under $base and judges them, without asking for the probe first.
+     *
+     * @param string $base where the package root is served
+     * @param list<string> $files relative to the package root
+     */
+    public function files(string $base, array $files = self::PATHS): ExposureResult
+    {
+        $base = rtrim($base, '/');
         $exposed = [];
         $unreachable = [];
         $statuses = [];
 
-        foreach ($urls as $url) {
+        foreach ($files as $file) {
+            $url = $base . '/' . $file;
+
             try {
                 $status = $this->http->sendRequest($this->requests->createRequest('GET', $url))->getStatusCode();
             } catch (ClientExceptionInterface) {
@@ -76,6 +90,64 @@ final class ExposureCheck
         }
 
         return new ExposureResult($exposed, $unreachable, $statuses);
+    }
+
+    /**
+     * The messages for the files the web could read.
+     *
+     * @return list<string>
+     */
+    public static function exposedErrors(ExposureResult $result): array
+    {
+        $errors = array_map(
+            static fn(string $url): string => 'ウェブから見えています：' . $url . '（状態 ' . ($result->statuses[$url] ?? 0) . '）',
+            $result->exposed,
+        );
+        $errors[] = 'このサーバーでは .htaccess が効いていない可能性があります。サーバーの設定を確かめるか、公開ディレクトリの外に本体を置き、public/ の中身だけを公開する方法（docs/install.md）を使ってください。';
+
+        return $errors;
+    }
+
+    /**
+     * Asks the public URL for the console's probe: whether it reaches this copy, and what the web side of it sees.
+     */
+    public function reach(string $publicUrl): ProbeAnswer
+    {
+        $nonce = bin2hex(random_bytes(16));
+        $file = $this->paths->storage(self::PROBE_FILE);
+
+        if (@file_put_contents($file, $nonce) === false) {
+            return ProbeAnswer::unreachable('確かめるためのファイルを storage に書けません');
+        }
+
+        try {
+            $response = $this->http->sendRequest($this->requests->createRequest('GET', rtrim($publicUrl, '/') . '/install/probe/' . $nonce . '?from=console'));
+        } catch (ClientExceptionInterface $e) {
+            return ProbeAnswer::unreachable($e->getMessage());
+        } finally {
+            @unlink($file);
+        }
+
+        $status = $response->getStatusCode();
+
+        if (in_array($status, [301, 302, 303, 307, 308], true) && $response->getHeaderLine('Location') !== '') {
+            return ProbeAnswer::redirected($response->getHeaderLine('Location'));
+        }
+
+        if ($status !== 200) {
+            $detail = '状態 ' . $status;
+            $line = trim(explode("\n", trim((string) $response->getBody()))[0]);
+
+            if ($line !== '' && str_starts_with(strtolower($response->getHeaderLine('Content-Type')), 'text/plain')) {
+                $detail .= '：' . mb_substr($line, 0, 200);
+            }
+
+            return ProbeAnswer::refused($detail);
+        }
+
+        $web = WebSide::fromAnswer((string) $response->getBody(), $nonce);
+
+        return $web === null ? ProbeAnswer::refused('別の内容（状態 200）') : ProbeAnswer::reached($web);
     }
 
     /**

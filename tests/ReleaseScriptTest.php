@@ -78,6 +78,14 @@ final class ReleaseScriptTest extends TestCase
     }
 
     #[Test]
+    public function refusesToReleaseWithoutTheInstallScript(): void
+    {
+        $this->inClone(function (string $work): void {
+            $this->assertRefused($work, 'check ' . Version::CURRENT, '/^bin\/install\.sh not found; it is uploaded with the zip$/m');
+        });
+    }
+
+    #[Test]
     public function explainsHowToRunIt(): void
     {
         $this->inClone(function (string $work): void {

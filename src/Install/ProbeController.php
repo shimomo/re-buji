@@ -12,7 +12,8 @@ use Slim\Exception\HttpNotFoundException;
 
 /**
  * GET /install/probe/{nonce}: echoes the value the exposure check has just written, so the check knows its requests
- * reach this copy. Before setup only; the installed gate hides /install afterwards.
+ * reach this copy. With ?from=console it describes the web side as JSON, with ?from=browser it records the visit for
+ * the console. Before setup only; the installed gate hides /install afterwards.
  *
  * @author shimomo
  */
@@ -35,10 +36,29 @@ final class ProbeController
             throw new HttpNotFoundException($request);
         }
 
+        $from = (string) ($request->getQueryParams()['from'] ?? '');
+
+        if ($from === 'console') {
+            return $this->reply('application/json', WebSide::detect($request->getServerParams(), $this->paths)->answer($stored));
+        }
+
+        if ($from === 'browser') {
+            $recorded = (new ProbeVisit($this->paths))->record($stored, WebSide::detect($request->getServerParams(), $this->paths));
+
+            return $this->reply('text/plain; charset=utf-8', $recorded
+                ? "Re:無事 に届きました。SSH の画面に戻ってください。\n"
+                : "Re:無事 に届きましたが、storage/ に書けないため、SSH の画面に伝えられませんでした。storage/ の権限を確かめてください。\n");
+        }
+
+        return $this->reply('text/plain; charset=utf-8', $stored);
+    }
+
+    private function reply(string $contentType, string $body): ResponseInterface
+    {
         $answer = $this->responses->createResponse(200)
-            ->withHeader('Content-Type', 'text/plain; charset=utf-8')
+            ->withHeader('Content-Type', $contentType)
             ->withHeader('Cache-Control', 'no-store');
-        $answer->getBody()->write($stored);
+        $answer->getBody()->write($body);
 
         return $answer;
     }

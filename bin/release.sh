@@ -6,7 +6,7 @@
 #   check    makes sure main is clean, pushed and carries VERSION, and that tag vVERSION is new; then builds
 #            build/re-buji-VERSION.zip. Nothing leaves this machine.
 #   publish  does the same checks and build, then makes the signed tag vVERSION, pushes it, and creates the GitHub
-#            release with the zip and NOTES_FILE. `gh release create --verify-tag` refuses to make a tag of its own,
+#            release with the zip, bin/install.sh and NOTES_FILE. `gh release create --verify-tag` refuses to make a tag of its own,
 #            so every release tag is a signed, annotated one.
 
 set -eu
@@ -19,6 +19,14 @@ usage() {
 fail() {
     echo "$1" >&2
     exit 1
+}
+
+sha256() {
+    if command -v sha256sum > /dev/null; then
+        sha256sum "$1" | cut -d ' ' -f 1
+    else
+        shasum -a 256 "$1" | cut -d ' ' -f 1
+    fi
 }
 
 [ $# -ge 2 ] || usage
@@ -60,16 +68,16 @@ if git -C "$root" rev-parse -q --verify "refs/tags/$tag" > /dev/null \
     fail "tag $tag already exists; bump the version"
 fi
 
+[ -f "$root/bin/install.sh" ] || fail "bin/install.sh not found; it is uploaded with the zip"
+
 "$root/bin/build-release.sh" "$version"
 zip="$root/build/re-buji-$version.zip"
 
-if command -v sha256sum > /dev/null; then
-    sum=$(sha256sum "$zip" | cut -d ' ' -f 1)
-else
-    sum=$(shasum -a 256 "$zip" | cut -d ' ' -f 1)
-fi
+sum=$(sha256 "$zip")
+install_sum=$(sha256 "$root/bin/install.sh")
 
 echo "sha256 $sum"
+echo "install.sh sha256 $install_sum"
 
 if [ "$command" = check ]; then
     echo "ready: run bin/release.sh publish $version NOTES_FILE once the notes are written and the author agrees"
@@ -80,9 +88,12 @@ git -C "$root" tag -s "$tag" -m "Re:無事 $version"
 git -C "$root" tag -v "$tag" > /dev/null 2>&1 || fail "tag $tag is not signed; fix gpg and delete the tag before trying again"
 git -C "$root" push -q origin "$tag"
 
-(cd "$root" && gh release create "$tag" "$zip" --verify-tag --title "$tag" --notes-file "$notes")
+(cd "$root" && gh release create "$tag" "$zip" "$root/bin/install.sh" --verify-tag --title "$tag" --notes-file "$notes")
 
 digest=$(cd "$root" && gh release view "$tag" --json assets -q '.assets[] | select(.name == "re-buji-'"$version"'.zip") | .digest')
 [ "$digest" = "sha256:$sum" ] || fail "the uploaded zip is $digest, not sha256:$sum; check the release by hand"
 
-echo "released $tag (sha256 $sum): $(cd "$root" && gh release view "$tag" --json url -q .url)"
+install_digest=$(cd "$root" && gh release view "$tag" --json assets -q '.assets[] | select(.name == "install.sh") | .digest')
+[ "$install_digest" = "sha256:$install_sum" ] || fail "the uploaded install.sh is $install_digest, not sha256:$install_sum; check the release by hand"
+
+echo "released $tag (sha256 $sum, install.sh sha256 $install_sum): $(cd "$root" && gh release view "$tag" --json url -q .url)"

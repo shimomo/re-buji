@@ -36,6 +36,8 @@ final class ConsoleTest extends TestCase
             $this->assertStringContainsString('admin:create', $io->output());
             $this->assertStringContainsString('check', $io->output());
             $this->assertStringContainsString('backup', $io->output());
+            // Not only inside upgrade:install.
+            $this->assertStringContainsString('  install ', $io->output());
         } finally {
             TemporaryDirectory::remove($root);
         }

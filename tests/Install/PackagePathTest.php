@@ -80,4 +80,12 @@ final class PackagePathTest extends TestCase
             TemporaryDirectory::remove($base);
         }
     }
+
+    #[Test]
+    public function buildsThePackageUrlOnThePublicUrlsHost(): void
+    {
+        $this->assertSame('https://example.jp:8443/re-buji', PackagePath::url('/re-buji', 'https://example.jp:8443/anpi'));
+        $this->assertSame('https://example.jp', PackagePath::url('', 'https://example.jp/anpi'));
+        $this->assertSame('https://example.jp/anpi', PackagePath::url(null, 'https://example.jp/anpi'));
+    }
 }

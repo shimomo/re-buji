@@ -41,13 +41,20 @@ VPS で HTTPS 付きの本番として動かす手順、更新、バックアッ
 
 ### レンタルサーバーに置く
 
-[リリース](https://github.com/shimomo/re-buji/releases)から zip を取り、FTP でアップロードして、ブラウザで初期設定を進めます。置き方は、全体を公開ディレクトリに置く方法と、本体を公開ディレクトリの外に置いて `public/` の中身だけを公開する方法の 2 通りです。手順は [docs/install.md](docs/install.md) にあります。
+SSH が使えるサーバーなら、次の 2 行で、ファイルを置くところから初期設定までを済ませられます（`~/www/anpi` は、公開ディレクトリに読み替えてください）。
+
+```bash
+curl -fsSLO https://github.com/shimomo/re-buji/releases/latest/download/install.sh
+sh install.sh --public ~/www/anpi
+```
+
+SSH が使えなければ、[リリース](https://github.com/shimomo/re-buji/releases)から zip を取り、FTP でアップロードして、ブラウザで初期設定を進めます。置き方は、全体を公開ディレクトリに置く方法と、本体を公開ディレクトリの外に置いて `public/` の中身だけを公開する方法の 2 通りです。手順は [docs/install.md](docs/install.md) にあります。
 
 ## 文書
 
 | 文書 | 読むとき |
 |---|---|
-| [docs/install.md](docs/install.md) | レンタルサーバーに置くとき（置き方、初期設定、cron、見張り） |
+| [docs/install.md](docs/install.md) | レンタルサーバーに置くとき（SSH で入れる、FTP で置く、初期設定、cron、見張り） |
 | [docs/usage.md](docs/usage.md) | 使っているとき（ホーム画面、従業員、メール、地震の連絡、返信と責任者の画面、訓練、記録の削除） |
 | [docs/upgrade.md](docs/upgrade.md) | 新しい版に上げるとき（バージョンアップ。SSH、FTP） |
 | [docs/docker.md](docs/docker.md) | Docker で動かすとき（手元、VPS） |
@@ -59,9 +66,9 @@ composer install
 composer test       # PHPUnit
 composer analyse    # Psalm
 composer lint       # Pint
-bin/build-release.sh 0.3.9   # build/re-buji-0.3.9.zip を作る（版は src/Version.php と同じにし、コミットしてから）
-bin/release.sh check 0.3.9   # main で、リリースできるかを確かめて zip を作る
-bin/release.sh publish 0.3.9 notes.md   # 署名つきのタグと GitHub のリリースを作る
+bin/build-release.sh 0.4.0   # build/re-buji-0.4.0.zip を作る（版は src/Version.php と同じにし、コミットしてから）
+bin/release.sh check 0.4.0   # main で、リリースできるかを確かめて zip を作る
+bin/release.sh publish 0.4.0 notes.md   # 署名つきのタグと GitHub のリリースを作る
 ```
 
 ## 出典と注意
