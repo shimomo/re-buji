@@ -349,7 +349,7 @@ final class InstallScriptTest extends TestCase
 
             $this->assertSame(0, $status, $output);
             $this->assertStringContainsString('Re:無事 9.9.9 を ' . $home . '/re-buji に入れます。', $output);
-            $this->assertStringContainsString('✓ zip の sha256 を確かめました：' . hash_file('sha256', $tmp . '/re-buji-9.9.9.zip'), $output);
+            $this->assertStringContainsString('✓ zip の sha256 を確かめました：' . (string) hash_file('sha256', $tmp . '/re-buji-9.9.9.zip'), $output);
             $this->assertStringContainsString('"--php=' . $tmp . '/bin/php"]', $output);
             $this->assertSame([], self::leftovers($home));
         });
@@ -470,11 +470,11 @@ final class InstallScriptTest extends TestCase
     {
         file_put_contents($path, "#!/bin/sh\n"
             . "for argument in \"\$@\"; do\n"
-            . "    [ \"\$argument\" != display_errors=stderr ] || exec " . escapeshellarg(PHP_BINARY) . " \"\$@\"\n"
+            . '    [ "$argument" != display_errors=stderr ] || exec ' . escapeshellarg(PHP_BINARY) . " \"\$@\"\n"
             . "done\n"
             . "echo\n"
             . "echo \"Warning: PHP Startup: Unable to load dynamic library 'missing.so' in Unknown on line 0\"\n"
-            . "exec " . escapeshellarg(PHP_BINARY) . " \"\$@\"\n");
+            . 'exec ' . escapeshellarg(PHP_BINARY) . " \"\$@\"\n");
         chmod($path, 0755);
     }
 
@@ -489,7 +489,7 @@ final class InstallScriptTest extends TestCase
             'assets' => [[
                 'name' => 're-buji-9.9.9.zip',
                 'browser_download_url' => 'https://github.com/shimomo/re-buji/releases/download/v9.9.9/re-buji-9.9.9.zip',
-                'digest' => 'sha256:' . hash_file('sha256', $zip),
+                'digest' => 'sha256:' . (string) hash_file('sha256', $zip),
             ]],
         ], JSON_THROW_ON_ERROR));
 
@@ -505,8 +505,8 @@ final class InstallScriptTest extends TestCase
             . "    esac\n"
             . "done\n"
             . "case \"\$url\" in\n"
-            . "    https://api.github.com/repos/shimomo/re-buji/releases/latest) cat " . escapeshellarg($release) . " > \"\$out\" ;;\n"
-            . "    https://github.com/shimomo/re-buji/releases/download/v9.9.9/re-buji-9.9.9.zip) cat " . escapeshellarg($zip) . " > \"\$out\" ;;\n"
+            . '    https://api.github.com/repos/shimomo/re-buji/releases/latest) cat ' . escapeshellarg($release) . " > \"\$out\" ;;\n"
+            . '    https://github.com/shimomo/re-buji/releases/download/v9.9.9/re-buji-9.9.9.zip) cat ' . escapeshellarg($zip) . " > \"\$out\" ;;\n"
             . "    *) exit 22 ;;\n"
             . "esac\n");
         chmod($path, 0755);
