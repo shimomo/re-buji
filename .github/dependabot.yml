@@ -10,6 +10,5 @@ updates:
     commit-message:
       prefix: "chore"
       prefix-development: "chore"
-      include: "scope"
     labels: ["dependencies", "github-actions"]
     open-pull-requests-limit: 10
