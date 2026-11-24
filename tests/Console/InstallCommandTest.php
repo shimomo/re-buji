@@ -205,6 +205,7 @@ final class InstallCommandTest extends TestCase
 
             $this->assertSame(0, $code, $io->errors());
             $this->assertSame(1, substr_count($io->output(), 'もう少し待ちますか？'));
+            $this->assertSame(2, substr_count($io->output(), 'テストメールに返信してください。返信を待っています（5 分まで）…'));
         } finally {
             TemporaryDirectory::remove($root);
             TemporaryDirectory::remove($dir);

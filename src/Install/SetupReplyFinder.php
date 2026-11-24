@@ -23,20 +23,21 @@ final class SetupReplyFinder
     }
 
     /**
-     * True when the reply to the test mail is in the mailbox. The reply is marked as read.
+     * True when the reply to the test mail is in the mailbox, read or not. The reply is marked as read.
+     * The server's narrowing is only a guide: the checks below decide whether a mail is the reply.
      *
      * @throws MailboxUnavailable
      */
     public function find(DateTimeImmutable $since, string $messageId, string $number): bool
     {
-        foreach ($this->mailbox->unseen($since, 50) as $raw) {
+        foreach ($this->mailbox->answersTo($since, $messageId, $number === '' ? '' : '#' . $number, 50) as $raw) {
             try {
                 $mail = IncomingMail::parse($raw->raw);
             } catch (InvalidArgumentException) {
                 continue;
             }
 
-            // Bounces, delays, auto-replies and read receipts are left unseen for the reply job.
+            // Bounces, delays, auto-replies and read receipts are left as they are for the reply job.
             if ($mail->kind() !== IncomingMail::REPLY) {
                 continue;
             }

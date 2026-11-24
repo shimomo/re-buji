@@ -526,13 +526,13 @@ final class InstallCommand implements Command
      */
     private function waitForReply(InstallContext $context, ConsoleIo $io): bool
     {
-        $io->line('テストメールに返信してください。返信を待っています（5 分まで）…');
         $since = (new SystemState($this->database($context), $this->clock()))->get('imap.since');
         $since = $since === null || $since === '' ? $this->clock()->now() : Time::parse($since);
         $messageId = self::draft($context, 'mail.test_message_id');
         $number = self::draft($context, 'mail.test_number');
 
         while (true) {
+            $io->line('テストメールに返信してください。返信を待っています（5 分まで）…');
             // A mailbox built anew for each round (RebuildingContainer): once its connection drops, one never reconnects.
             $mailbox = $context->container->get(Mailbox::class);
             assert($mailbox instanceof Mailbox);

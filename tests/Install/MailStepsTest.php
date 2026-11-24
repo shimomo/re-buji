@@ -41,6 +41,8 @@ final class MailStepsTest extends TestCase
             $this->assertSame(['admin@example.com'], $mailer->recipients());
             $this->assertStringStartsWith('[Re:無事 の確認 #', $mailer->sent[0]->subject);
             $this->assertStringContainsString('このメールに、そのまま返信してください', $mailer->sent[0]->body);
+            $this->assertStringContainsString('画面で初期設定をしているときは、返信したあとで「返信を確かめる」を押してください。', $mailer->sent[0]->body);
+            $this->assertStringNotContainsString('返信したら、初期設定の画面で', $mailer->sent[0]->body);
             $settings = self::settings($root);
             $this->assertSame('smtp.example.co.jp', $settings->smtp()?->host);
             $this->assertSame('imap.example.co.jp', $settings->imap()?->host);

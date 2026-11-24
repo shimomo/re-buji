@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace ReBuji\Tests\Support;
 
 use DateTimeImmutable;
+use InvalidArgumentException;
 use Override;
 use ReBuji\Mail\Imap\Mailbox;
 use ReBuji\Mail\Imap\MailboxUnavailable;
 use ReBuji\Mail\Imap\RawMail;
+use ReBuji\Replies\IncomingMail;
 
 /**
  * A reply mailbox in memory. Records what it was asked for and what was marked seen.
@@ -81,7 +83,7 @@ final class FakeMailbox implements Mailbox
 
         // str_contains() is true for an empty string, so an empty value must not be asked
         foreach ($this->mails as $uid => $raw) {
-            $matches = ($messageId !== '' && str_contains($raw, $messageId)) || ($token !== '' && str_contains($raw, $token));
+            $matches = ($messageId !== '' && str_contains($raw, $messageId)) || ($token !== '' && (str_contains($raw, $token) || self::subjectContains($raw, $token)));
 
             if ($matches && count($found) < $limit) {
                 $found[] = new RawMail($uid, $raw);
@@ -95,5 +97,17 @@ final class FakeMailbox implements Mailbox
     public function markSeen(RawMail $mail): void
     {
         $this->seen[] = $mail->uid;
+    }
+
+    /**
+     * A real server searches the decoded subject, so an encoded-word one must match here too.
+     */
+    private static function subjectContains(string $raw, string $token): bool
+    {
+        try {
+            return str_contains(IncomingMail::parse($raw)->subject, $token);
+        } catch (InvalidArgumentException) {
+            return false;
+        }
     }
 }
