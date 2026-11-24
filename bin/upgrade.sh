@@ -106,7 +106,7 @@ else
         || fail "GitHub からリリースの情報を取れませんでした：$api"
 
     # The tag, the zip's URL and its sha256, one per line. php is already needed here, so no jq.
-    "$php" -r '
+    "$php" -d display_errors=stderr -r '
         $release = json_decode((string) file_get_contents($argv[1]), true);
         $tag = is_array($release) && is_string($release["tag_name"] ?? null) ? $release["tag_name"] : "";
         $version = ltrim($tag, "v");

@@ -260,6 +260,56 @@ final class InstallScriptTest extends TestCase
     }
 
     #[Test]
+    public function picksAPhpThatPrintsStartupWarnings(): void
+    {
+        $this->inHome(function (string $tmp, string $home): void {
+            mkdir($tmp . '/bin');
+            self::warningPhp($tmp . '/bin/php');
+            mkdir($home . '/www');
+            self::zipOfRelease($tmp . '/re-buji-9.9.9.zip', true);
+
+            [$status, $output] = $this->install(
+                $home,
+                ['--zip', $tmp . '/re-buji-9.9.9.zip', '--public', $home . '/www/anpi'],
+                [],
+                false,
+                $tmp . '/bin:/usr/bin:/bin',
+            );
+
+            $this->assertSame(0, $status, $output);
+            $this->assertStringNotContainsString('Illegal number', $output);
+            $this->assertStringContainsString('php：' . $tmp . '/bin/php（' . PHP_VERSION . '）を使います', $output);
+            $this->assertStringContainsString('"--php=' . $tmp . '/bin/php"]', $output);
+        });
+    }
+
+    #[Test]
+    public function readsTheReleaseWithAPhpThatPrintsStartupWarnings(): void
+    {
+        $this->inHome(function (string $tmp, string $home): void {
+            mkdir($tmp . '/bin');
+            self::warningPhp($tmp . '/bin/php');
+            mkdir($home . '/www');
+            self::zipOfRelease($tmp . '/re-buji-9.9.9.zip', true);
+            self::fakeGitHub($tmp . '/bin/curl', $tmp . '/re-buji-9.9.9.zip');
+
+            [$status, $output] = $this->install(
+                $home,
+                ['--public', $home . '/www/anpi'],
+                ['PHP' => $tmp . '/bin/php'],
+                false,
+                $tmp . '/bin:/usr/bin:/bin',
+            );
+
+            $this->assertSame(0, $status, $output);
+            $this->assertStringContainsString('Re:無事 9.9.9 を ' . $home . '/re-buji に入れます。', $output);
+            $this->assertStringContainsString('✓ zip の sha256 を確かめました：' . hash_file('sha256', $tmp . '/re-buji-9.9.9.zip'), $output);
+            $this->assertStringContainsString('"--php=' . $tmp . '/bin/php"]', $output);
+            $this->assertSame([], self::leftovers($home));
+        });
+    }
+
+    #[Test]
     public function keepsTheZipCheckIdenticalToUpgradeShs(): void
     {
         $install = file_get_contents(dirname(__DIR__) . '/bin/install.sh');
@@ -364,6 +414,56 @@ final class InstallScriptTest extends TestCase
             is_dir(dirname($file)) || mkdir(dirname($file), 0777, true);
             file_put_contents($file, $content);
         }
+    }
+
+    /**
+     * A php whose php.ini shows startup errors (a library that will not load, a deprecated directive): it prints a
+     * warning on stdout before anything else, unless it is run with -d display_errors=stderr.
+     */
+    private static function warningPhp(string $path): void
+    {
+        file_put_contents($path, "#!/bin/sh\n"
+            . "for argument in \"\$@\"; do\n"
+            . "    [ \"\$argument\" != display_errors=stderr ] || exec " . escapeshellarg(PHP_BINARY) . " \"\$@\"\n"
+            . "done\n"
+            . "echo\n"
+            . "echo \"Warning: PHP Startup: Unable to load dynamic library 'missing.so' in Unknown on line 0\"\n"
+            . "exec " . escapeshellarg(PHP_BINARY) . " \"\$@\"\n");
+        chmod($path, 0755);
+    }
+
+    /**
+     * A curl that stands in for GitHub: the latest release's JSON for the API, and $zip for that release's download URL.
+     */
+    private static function fakeGitHub(string $path, string $zip): void
+    {
+        $release = dirname($path) . '/release.json';
+        file_put_contents($release, json_encode([
+            'tag_name' => 'v9.9.9',
+            'assets' => [[
+                'name' => 're-buji-9.9.9.zip',
+                'browser_download_url' => 'https://github.com/shimomo/re-buji/releases/download/v9.9.9/re-buji-9.9.9.zip',
+                'digest' => 'sha256:' . hash_file('sha256', $zip),
+            ]],
+        ], JSON_THROW_ON_ERROR));
+
+        file_put_contents($path, "#!/bin/sh\n"
+            . "out=\"\"\n"
+            . "url=\"\"\n"
+            . "while [ \$# -gt 0 ]; do\n"
+            . "    case \"\$1\" in\n"
+            . "        -o) out=\$2; shift 2 ;;\n"
+            . "        -H|--proto|--proto-redir) shift 2 ;;\n"
+            . "        -*) shift ;;\n"
+            . "        *) url=\$1; shift ;;\n"
+            . "    esac\n"
+            . "done\n"
+            . "case \"\$url\" in\n"
+            . "    https://api.github.com/repos/shimomo/re-buji/releases/latest) cat " . escapeshellarg($release) . " > \"\$out\" ;;\n"
+            . "    https://github.com/shimomo/re-buji/releases/download/v9.9.9/re-buji-9.9.9.zip) cat " . escapeshellarg($zip) . " > \"\$out\" ;;\n"
+            . "    *) exit 22 ;;\n"
+            . "esac\n");
+        chmod($path, 0755);
     }
 
     /**

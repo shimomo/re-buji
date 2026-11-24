@@ -71,9 +71,11 @@ fi
 
 # --- php ---------------------------------------------------------------------------------------------------------------
 
-# Prints PHP_VERSION_ID and succeeds when $1 is a command-line php 8.3 or newer.
+# Prints PHP_VERSION_ID and succeeds when $1 is a command-line php 8.3 or newer. Here and wherever php's output is read,
+# -d display_errors=stderr keeps a host php.ini's startup warnings (a library that will not load, a deprecated directive)
+# out of it.
 php_id() {
-    "$1" -r 'if (PHP_SAPI === "cli" && PHP_VERSION_ID >= 80300) { echo PHP_VERSION_ID; exit(0); } exit(1);' 2> /dev/null
+    "$1" -d display_errors=stderr -r 'if (PHP_SAPI === "cli" && PHP_VERSION_ID >= 80300) { echo PHP_VERSION_ID; exit(0); } exit(1);' 2> /dev/null
 }
 
 php=""
@@ -99,6 +101,10 @@ else
         [ -n "$candidate" ] && [ -x "$candidate" ] || continue
         id=$(php_id "$candidate") || continue
 
+        case "$id" in
+            ''|*[!0-9]*) continue ;;
+        esac
+
         if [ "$id" -gt "$best" ]; then
             best=$id
             php=$candidate
@@ -114,7 +120,7 @@ case "$php" in
     *) php="$(pwd)/$php" ;;
 esac
 
-echo "php：$php（$("$php" -r 'echo PHP_VERSION;')）を使います"
+echo "php：$php（$("$php" -d display_errors=stderr -r 'echo PHP_VERSION;')）を使います"
 
 # --- where the files go --------------------------------------------------------------------------------------------------
 
@@ -293,7 +299,7 @@ else
             || fail "GitHub からリリースの情報を取れませんでした：$api"
 
         # The tag, the zip's URL and its sha256, one per line. php is already needed here, so no jq.
-        "$php" -r '
+        "$php" -d display_errors=stderr -r '
             $release = json_decode((string) file_get_contents($argv[1]), true);
             $tag = is_array($release) && is_string($release["tag_name"] ?? null) ? $release["tag_name"] : "";
             $version = ltrim($tag, "v");
