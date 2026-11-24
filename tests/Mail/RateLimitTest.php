@@ -33,7 +33,7 @@ final class RateLimitTest extends TestCase
         $messages->record(null, 'test', 'gone@example.com', 'refused@example.co.jp', false, '550 5.1.1 User unknown', $now->modify('-30 minutes'));
 
         $this->assertSame(6, $limit->remaining($now));
-        $this->assertNull($limit->nextSlotAt($now));
+        $this->assertNull($limit->nextSlotFor($now, 1));
     }
 
     #[Test]
@@ -47,7 +47,7 @@ final class RateLimitTest extends TestCase
         self::sent($messages, $now->modify('-10 minutes'), 6);
 
         $this->assertSame(0, $limit->remaining($now));
-        $this->assertEquals(new DateTimeImmutable('2009-08-10T21:12:00Z'), $limit->nextSlotAt($now));
+        $this->assertEquals(new DateTimeImmutable('2009-08-10T21:12:00Z'), $limit->nextSlotFor($now, 1));
     }
 
     #[Test]
@@ -101,7 +101,7 @@ final class RateLimitTest extends TestCase
         self::sent($messages, $now->modify('-5 minutes'), 1);
 
         $this->assertSame(0, $limit->remaining($now));
-        $this->assertEquals(new DateTimeImmutable('2009-08-10T21:50:00Z'), $limit->nextSlotAt($now));
+        $this->assertEquals(new DateTimeImmutable('2009-08-10T21:50:00Z'), $limit->nextSlotFor($now, 1));
     }
 
     #[Test]

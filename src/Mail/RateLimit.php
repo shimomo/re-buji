@@ -12,8 +12,9 @@ use ReBuji\Settings\Settings;
  * How many mails may still go out this hour (design 5.3). Rental servers cap mails per hour; going over can stop the
  * account, so every mail handed to the server counts, refused ones too.
  *
- * One mail per admin is kept back from contacts and test mails: the notice that contacts are held back by the limit
- * (design 6.2) could otherwise never go out, since it is needed exactly when the limit is used up.
+ * Mails are kept back from contacts and test mails for the admins' notices: one per admin, but no more than a tenth of
+ * the limit (reserve()). The notice that contacts are held back by the limit (design 6.2) could otherwise never go
+ * out, since it is needed exactly when the limit is used up.
  *
  * @author shimomo
  */
@@ -41,7 +42,7 @@ final class RateLimit
     /**
      * Mails kept back for the admins' notices: one for each admin, but no more than a tenth of the limit.
      */
-    public function reserve(): int
+    private function reserve(): int
     {
         return min($this->admins->count(), intdiv($this->settings->int('hourly_limit'), self::RESERVE_SHARE));
     }
@@ -52,14 +53,6 @@ final class RateLimit
     public function remainingForNotices(DateTimeImmutable $now): int
     {
         return $this->settings->int('hourly_limit') - $this->messages->countSince($now->modify('-60 minutes'));
-    }
-
-    /**
-     * When one contact mail may go, or null while it may go now.
-     */
-    public function nextSlotAt(DateTimeImmutable $now): ?DateTimeImmutable
-    {
-        return $this->nextSlotFor($now, 1);
     }
 
     /**
