@@ -217,6 +217,60 @@ final class InstallCommandTest extends TestCase
     }
 
     #[Test]
+    public function showsTheTimeLeftWhileWaitingForTheReply(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $mailbox = new AnsweringMailbox($sender);
+            $mailbox->answering = false;
+            $answerLater = static function (int $slept) use ($mailbox): void {
+                if ($slept > 130) {
+                    $mailbox->answering = true;
+                }
+            };
+            [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS, $sender, $mailbox, onSleep: $answerLater);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertStringContainsString('  まだ届いていません（あと 4 分待ちます）', $io->output());
+            $this->assertStringContainsString('  まだ届いていません（あと 3 分待ちます）', $io->output());
+            $this->assertStringNotContainsString('あと 2 分待ちます', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function startsTheTimeLeftAgainOnEveryRound(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $mailbox = new AnsweringMailbox($sender);
+            $mailbox->answering = false;
+            // The first five minutes pass without a reply; it comes 70 seconds into the second round.
+            $answerLater = static function (int $slept) use ($mailbox): void {
+                if ($slept > 370) {
+                    $mailbox->answering = true;
+                }
+            };
+            [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS . "\n", $sender, $mailbox, onSleep: $answerLater);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertSame(2, substr_count($io->output(), '  まだ届いていません（あと 4 分待ちます）'));
+            $this->assertStringNotContainsString('あと 0 分', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
     public function looksWithANewMailboxAfterTheConnectionDrops(): void
     {
         $root = $this->root();

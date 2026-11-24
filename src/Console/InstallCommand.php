@@ -623,6 +623,11 @@ final class InstallCommand implements Command
 
             ($this->sleep)(self::POLL_SECONDS);
             $waited += self::POLL_SECONDS;
+            $left = TimeLeft::line('まだ届いていません', $waited - self::POLL_SECONDS, $waited, self::REPLY_WAIT_SECONDS);
+
+            if ($left !== null) {
+                $io->line($left);
+            }
         }
     }
 

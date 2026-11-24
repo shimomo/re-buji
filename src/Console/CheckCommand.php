@@ -209,6 +209,11 @@ final class CheckCommand implements Command
                 $seconds = min(self::POLL_SECONDS, $timeout - $waited);
                 $this->sleep($seconds);
                 $waited += $seconds;
+                $left = TimeLeft::line('まだ届いていません', $waited - $seconds, $waited, $timeout);
+
+                if ($left !== null) {
+                    $io->line($left);
+                }
             }
         } catch (Throwable $exception) {
             $io->line('✕ 返信を読めませんでした：' . $exception->getMessage());

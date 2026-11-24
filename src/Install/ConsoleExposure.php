@@ -6,6 +6,7 @@ namespace ReBuji\Install;
 
 use Closure;
 use ReBuji\Console\ConsoleIo;
+use ReBuji\Console\TimeLeft;
 
 /**
  * The console's version of the web setup's exposure check: confirms that the public URL reaches this copy and that the
@@ -192,6 +193,11 @@ final class ConsoleExposure
 
                 ($this->sleep)(self::POLL_SECONDS);
                 $waited += self::POLL_SECONDS;
+                $left = TimeLeft::line('まだ開かれていません', $waited - self::POLL_SECONDS, $waited, self::VISIT_WAIT_SECONDS);
+
+                if ($left !== null) {
+                    $io->line($left);
+                }
             }
 
             $io->error('10 分のあいだに、ブラウザで開かれませんでした。URL が正しいか、ウェブから storage/ に書けるかを確かめて、もう一度流してください。');
