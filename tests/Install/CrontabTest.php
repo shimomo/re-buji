@@ -91,6 +91,34 @@ final class CrontabTest extends TestCase
     }
 
     #[Test]
+    public function saysWhyWhenPhpCannotRunCommands(): void
+    {
+        $calls = [];
+        $crontab = new Crontab($this->runner($calls, [0, '', ''], [0, '', '']), false);
+        $reason = 'この PHP では proc_open が止められているため、crontab を動かせません。';
+
+        self::assertSame($reason, $crontab->problem());
+
+        try {
+            $crontab->add(self::LINE, self::CRON);
+            self::fail('add() did not throw');
+        } catch (RuntimeException $exception) {
+            self::assertSame($reason, $exception->getMessage());
+        }
+
+        self::assertSame([], $calls);
+    }
+
+    #[Test]
+    public function quotesASingleQuoteWithoutEscapeshellarg(): void
+    {
+        self::assertSame(
+            "*/5 * * * * /usr/bin/php '/home/o'\\''neil/re-buji/bin/cron.php'",
+            Crontab::line(5, '/usr/bin/php', "/home/o'neil/re-buji/bin/cron.php"),
+        );
+    }
+
+    #[Test]
     public function buildsTheLine(): void
     {
         self::assertSame(

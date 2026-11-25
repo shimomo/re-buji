@@ -71,6 +71,25 @@ final class LoginHashesTest extends TestCase
         $this->assertSame(PASSWORD_BCRYPT, PASSWORD_DEFAULT, 'LoginHashes compares bcrypt costs and keeps bcrypt dummies: revisit weakerThanDefault() and dummy() if PHP\'s default algorithm changes');
     }
 
+    #[Test]
+    public function comparesAnUnknownEmailWithTheDummy(): void
+    {
+        /** @var list<string> $compared */
+        $compared = [];
+        // Always true, so only the missing admin can make an unknown email fail.
+        $verify = static function (string $password, string $hash) use (&$compared): bool {
+            $compared[] = $hash;
+
+            return true;
+        };
+        $hashes = new LoginHashes(self::admins([]), 10, $verify);
+        $own = password_hash('long-enough-pass', PASSWORD_BCRYPT, ['cost' => 4]);
+
+        $this->assertFalse($hashes->verify('long-enough-pass', null));
+        $this->assertTrue($hashes->verify('long-enough-pass', $own));
+        $this->assertSame([$hashes->dummy(), $own], $compared);
+    }
+
     /**
      * Admins with these password hashes.
      *

@@ -13,16 +13,28 @@ use RuntimeException;
  */
 final class ConsoleIo
 {
+    private const string SHOWN = '  この PHP では shell_exec が止められているため、打ったパスワードが画面に見えます。';
+
     private bool $ended = false;
+
+    private readonly bool $terminal;
+
+    private readonly bool $canHide;
+
+    private bool $toldShown = false;
 
     /**
      * @param resource $in
      * @param resource $out
      * @param resource $err
+     * @param bool|null $terminal whether $in is a terminal; null asks the stream
+     * @param bool|null $canHide whether typing can be hidden, which runs stty through shell_exec; null asks PHP, where a
+     *                           function stopped by disable_functions does not exist
      */
-    public function __construct(private $in, private $out, private $err)
+    public function __construct(private $in, private $out, private $err, ?bool $terminal = null, ?bool $canHide = null)
     {
-        //
+        $this->terminal = $terminal ?? stream_isatty($in);
+        $this->canHide = $canHide ?? function_exists('shell_exec');
     }
 
     public static function process(): self
@@ -31,15 +43,16 @@ final class ConsoleIo
     }
 
     /**
-     * Memory streams: feed input with $input, read what was written with output() and errors().
+     * Memory streams: feed input with $input, read what was written with output() and errors(). $terminal and $canHide
+     * stand in for a terminal and for a PHP that can or cannot hide typing.
      */
-    public static function memory(string $input = ''): self
+    public static function memory(string $input = '', bool $terminal = false, bool $canHide = true): self
     {
         $in = self::open('php://memory', 'w+');
         fwrite($in, $input);
         rewind($in);
 
-        return new self($in, self::open('php://memory', 'w+'), self::open('php://memory', 'w+'));
+        return new self($in, self::open('php://memory', 'w+'), self::open('php://memory', 'w+'), $terminal, $canHide);
     }
 
     public function line(string $text): void
@@ -60,11 +73,21 @@ final class ConsoleIo
     }
 
     /**
-     * Like ask(), but a terminal does not show what is typed.
+     * Like ask(), but a terminal does not show what is typed. Where PHP cannot run stty (shell_exec is disabled), it says
+     * once that typing shows and asks as ask() does, rather than stopping: the first admin's password has no other way in.
      */
     public function secret(string $prompt): string
     {
         if (!$this->interactive()) {
+            return $this->ask($prompt);
+        }
+
+        if (!$this->canHide) {
+            if (!$this->toldShown) {
+                $this->line(self::SHOWN);
+                $this->toldShown = true;
+            }
+
             return $this->ask($prompt);
         }
 
@@ -86,7 +109,7 @@ final class ConsoleIo
 
     public function interactive(): bool
     {
-        return stream_isatty($this->in);
+        return $this->terminal;
     }
 
     /**

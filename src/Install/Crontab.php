@@ -10,21 +10,28 @@ use RuntimeException;
 /**
  * Adds the line that runs bin/cron.php to the user's crontab through the crontab command, keeping every other line
  * as it is and never adding a second line for the same cron.php. The command is run through a closure so tests never
- * touch a real crontab.
+ * touch a real crontab. A PHP that stops proc_open or escapeshellarg (disable_functions) still gets the line to register
+ * by hand, not a crash.
  *
  * @author shimomo
  */
 final class Crontab
 {
+    private const string CANNOT_RUN = 'この PHP では proc_open が止められているため、crontab を動かせません。';
+
     /** @var Closure(list<string>, string): array{int, string, string} */
     private readonly Closure $run;
 
+    private readonly bool $canRun;
+
     /**
      * @param (Closure(list<string>, string): array{int, string, string})|null $run Runs a command with an input and returns its status, output and error
+     * @param bool|null $canRun whether PHP may start a command; null asks PHP, where a function stopped by disable_functions does not exist
      */
-    public function __construct(?Closure $run = null)
+    public function __construct(?Closure $run = null, ?bool $canRun = null)
     {
         $this->run = $run ?? self::proc(...);
+        $this->canRun = $canRun ?? function_exists('proc_open');
     }
 
     /**
@@ -83,6 +90,10 @@ final class Crontab
      */
     private function read(): string
     {
+        if (!$this->canRun) {
+            throw new RuntimeException(self::CANNOT_RUN);
+        }
+
         [$status, $output, $error] = ($this->run)(['crontab', '-l'], '');
 
         if ($status === 0) {
@@ -104,7 +115,8 @@ final class Crontab
 
     private static function quote(string $value): string
     {
-        $quoted = preg_match('/\A[A-Za-z0-9_.\/+-]+\z/', $value) === 1 ? $value : escapeshellarg($value);
+        // As escapeshellarg() quotes, without it: disable_functions may stop it along with proc_open.
+        $quoted = preg_match('/\A[A-Za-z0-9_.\/+-]+\z/', $value) === 1 ? $value : "'" . str_replace("'", "'\\''", $value) . "'";
 
         return str_replace('%', '\\%', $quoted);
     }
