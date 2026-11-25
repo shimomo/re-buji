@@ -216,6 +216,39 @@ final class CheckCommandTest extends TestCase
     }
 
     #[Test]
+    public function showsTheTimeLeftWhileWaitingForAReply(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            // 60 seconds in: two minutes left; 120: one; the last sleep is 2 seconds, to 152.
+            [$code, $io] = $this->check($root, ['--wait-reply', '--timeout=152'], new RecordingMailSender(), new FakeMailbox(), true);
+
+            $this->assertSame(1, $code);
+            $this->assertStringContainsString('  まだ届いていません（あと 2 分待ちます）', $io->output());
+            $this->assertStringContainsString('  まだ届いていません（あと 1 分待ちます）', $io->output());
+            $this->assertSame(2, substr_count($io->output(), '待ちます）'));
+            $this->assertStringContainsString('✕ 返信が見つかりませんでした', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function showsNoTimeLeftForAWaitShorterThanAMinute(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            [, $io] = $this->check($root, ['--wait-reply', '--timeout=30'], new RecordingMailSender(), new FakeMailbox(), true);
+
+            $this->assertStringNotContainsString('待ちます）', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function pollsEveryFiveSecondsUntilTheTimeout(): void
     {
         $root = TemporaryDirectory::create();

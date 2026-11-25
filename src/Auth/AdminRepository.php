@@ -20,7 +20,7 @@ final class AdminRepository
         //
     }
 
-    public function create(string $name, string $email, string $password): int
+    public function create(string $name, string $email, #[\SensitiveParameter] string $password): int
     {
         $this->db->execute(
             'INSERT INTO admins (name, email, password_hash, created_at) VALUES (?, ?, ?, ?)',
@@ -33,7 +33,7 @@ final class AdminRepository
     /**
      * Stores the password hashed the way create() does, with PHP's current default.
      */
-    public function setPassword(int $id, string $password): void
+    public function setPassword(int $id, #[\SensitiveParameter] string $password): void
     {
         $this->db->execute('UPDATE admins SET password_hash = ? WHERE id = ?', [password_hash($password, PASSWORD_DEFAULT), $id]);
     }

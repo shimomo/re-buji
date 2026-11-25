@@ -2,7 +2,7 @@
 
 services:
   app:
-    image: ghcr.io/shimomo/re-buji:${REBUJI_VERSION:-0.4.1}
+    image: ghcr.io/shimomo/re-buji:${REBUJI_VERSION:-0.4.2}
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -21,7 +21,7 @@ services:
 
   # cron は app と同じイメージ（作るのは app だけ）。
   cron:
-    image: ghcr.io/shimomo/re-buji:${REBUJI_VERSION:-0.4.1}
+    image: ghcr.io/shimomo/re-buji:${REBUJI_VERSION:-0.4.2}
     command: cron
     # 止めるときは、流している回（メールの送信など）が終わってから抜ける。init は終わった子プロセスを片づける。
     init: true

@@ -265,6 +265,31 @@ final class ConsoleExposureTest extends TestCase
     }
 
     #[Test]
+    public function showsTheTimeLeftWhileWaitingForTheBrowser(): void
+    {
+        $root = $this->root();
+
+        try {
+            $slept = 0;
+            $opens = $this->browserOpens($root);
+            $io = ConsoleIo::memory("y\n");
+            $exposure = $this->exposure($root, new FakeHttpClient(new FakeNetworkException('timed out'), [], false), static function (int $seconds) use (&$slept, $opens): void {
+                $slept += $seconds;
+
+                if ($slept > 70) {
+                    $opens($seconds);
+                }
+            });
+
+            $this->assertTrue($this->through($exposure, $io));
+            $this->assertSame(1, substr_count($io->output(), '  まだ開かれていません（あと 9 分待ちます）'));
+            $this->assertStringNotContainsString('あと 8 分待ちます', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function stopsWhenTheBrowserNeverOpensIt(): void
     {
         $root = $this->root();

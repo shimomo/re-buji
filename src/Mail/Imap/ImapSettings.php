@@ -20,6 +20,7 @@ final readonly class ImapSettings
         public int $port,
         public string $encryption,
         public string $username,
+        #[\SensitiveParameter]
         public string $password,
         public string $caFile = '',
     ) {

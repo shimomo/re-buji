@@ -95,7 +95,8 @@ final class InstallCommandTest extends TestCase
             $this->assertStringContainsString('✓ 返信を読めました', $io->output());
             $this->assertStringContainsString('✓ 設置を終えました（しきい値は震度5弱、1 時間に送る上限は 100 通。設定の画面で変えられます）', $io->output());
             $this->assertStringContainsString('✓ cron に足しました', $io->output());
-            $this->assertStringContainsString('見張りの URL：https://example.jp/status/' . $token, $io->output());
+            $this->assertStringContainsString('状態の URL：https://example.jp/status/' . $token, $io->output());
+            $this->assertStringNotContainsString('見張りの URL', $io->output());
             $this->assertStringContainsString('ログイン：https://example.jp/', $io->output());
         } finally {
             TemporaryDirectory::remove($root);
@@ -210,6 +211,60 @@ final class InstallCommandTest extends TestCase
             $this->assertSame(0, $code, $io->errors());
             $this->assertSame(1, substr_count($io->output(), 'もう少し待ちますか？'));
             $this->assertSame(2, substr_count($io->output(), 'テストメールに返信してください。返信を待っています（5 分まで）…'));
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function showsTheTimeLeftWhileWaitingForTheReply(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $mailbox = new AnsweringMailbox($sender);
+            $mailbox->answering = false;
+            $answerLater = static function (int $slept) use ($mailbox): void {
+                if ($slept > 130) {
+                    $mailbox->answering = true;
+                }
+            };
+            [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS, $sender, $mailbox, onSleep: $answerLater);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertStringContainsString('  まだ届いていません（あと 4 分待ちます）', $io->output());
+            $this->assertStringContainsString('  まだ届いていません（あと 3 分待ちます）', $io->output());
+            $this->assertStringNotContainsString('あと 2 分待ちます', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function startsTheTimeLeftAgainOnEveryRound(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $mailbox = new AnsweringMailbox($sender);
+            $mailbox->answering = false;
+            // The first five minutes pass without a reply; it comes 70 seconds into the second round.
+            $answerLater = static function (int $slept) use ($mailbox): void {
+                if ($slept > 370) {
+                    $mailbox->answering = true;
+                }
+            };
+            [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS . "\n", $sender, $mailbox, onSleep: $answerLater);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertSame(2, substr_count($io->output(), '  まだ届いていません（あと 4 分待ちます）'));
+            $this->assertStringNotContainsString('あと 0 分', $io->output());
         } finally {
             TemporaryDirectory::remove($root);
             TemporaryDirectory::remove($dir);
@@ -496,7 +551,8 @@ final class InstallCommandTest extends TestCase
             $this->assertStringNotContainsString('cron を何分ごとに', $io->output());
             $this->assertStringContainsString('cron に次の行を登録してください（サーバーの管理画面か crontab -e で）：', $io->output());
             $this->assertStringContainsString('  */5 * * * * ' . self::PHP . ' ' . $root . '/bin/cron.php', $io->output());
-            $this->assertStringContainsString('  1 分ごとにできるサーバーなら、1 分ごとにしてください。', $io->output());
+            $this->assertStringContainsString('  間隔は、管理画面で選べるいちばん短いものにしてください。', $io->output());
+            $this->assertStringNotContainsString('1 分ごとにできるサーバーなら、1 分ごとにしてください。', $io->output());
         } finally {
             TemporaryDirectory::remove($root);
             TemporaryDirectory::remove($dir);

@@ -80,7 +80,7 @@ final class AdminStep implements InstallStep
      *
      * @return list<string>
      */
-    public static function validate(string $name, string $email, string $password, string $confirmation): array
+    public static function validate(string $name, string $email, #[\SensitiveParameter] string $password, #[\SensitiveParameter] string $confirmation): array
     {
         $errors = [];
 
