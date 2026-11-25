@@ -541,12 +541,15 @@ final class InstallCommand implements Command
     /**
      * Asks how often cron runs and whether to add its line at the end of the setup; nothing is written yet.
      *
-     * @return array{line: string, asked: bool, add: bool}|null null when no interval was accepted
+     * @return array{line: string, asked: bool, add: bool, reason: ?string}|null null when no interval was accepted; reason is
+     *     why crontab cannot be used, shown with the line to register by hand
      */
     private function askCron(string $php, ConsoleIo $io): ?array
     {
-        if ($this->crontab->problem() !== null) {
-            return ['line' => Crontab::line(self::CRON_MINUTES, $php, $this->cronPath()), 'asked' => false, 'add' => false];
+        $problem = $this->crontab->problem();
+
+        if ($problem !== null) {
+            return ['line' => Crontab::line(self::CRON_MINUTES, $php, $this->cronPath()), 'asked' => false, 'add' => false, 'reason' => $problem];
         }
 
         for ($try = 0; $try < self::TRIES; $try++) {
@@ -560,7 +563,7 @@ final class InstallCommand implements Command
                 $io->line('  ' . $line);
                 $add = in_array(strtolower(trim($io->ask('設置を終えたら、この行を cron に足しますか？ [y/N] '))), ['y', 'yes'], true);
 
-                return ['line' => $line, 'asked' => true, 'add' => $add];
+                return ['line' => $line, 'asked' => true, 'add' => $add, 'reason' => null];
             }
 
             $io->error('1〜10 の数を入れてください。');
@@ -637,7 +640,7 @@ final class InstallCommand implements Command
     }
 
     /**
-     * @param array{line: string, asked: bool, add: bool} $cron
+     * @param array{line: string, asked: bool, add: bool, reason: ?string} $cron
      */
     private function writeCron(array $cron, ConsoleIo $io): void
     {
@@ -654,6 +657,10 @@ final class InstallCommand implements Command
             } catch (RuntimeException $exception) {
                 $io->line('✕ cron に足せませんでした：' . $exception->getMessage());
             }
+        }
+
+        if ($cron['reason'] !== null) {
+            $io->line('✕ cron に足せませんでした：' . $cron['reason']);
         }
 
         $io->line('cron に次の行を登録してください（サーバーの管理画面か crontab -e で）：');

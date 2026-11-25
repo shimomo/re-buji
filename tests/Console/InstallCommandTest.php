@@ -561,23 +561,33 @@ final class InstallCommandTest extends TestCase
     }
 
     #[Test]
-    public function tellsHowToRegisterCronWhenPhpCannotRunCommands(): void
+    public function tellsWhyCrontabCannotBeUsed(): void
     {
-        $root = $this->root();
-        $dir = TemporaryDirectory::create();
+        $cases = [
+            '✕ cron に足せませんでした：この PHP では proc_open が止められているため、crontab を動かせません。' => ['crontabRuns' => false],
+            '✕ cron に足せませんでした：crontab が見つかりません。' => ['listed' => [127, '', '']],
+        ];
 
-        try {
-            // No cron question comes, so only the admin and the mail are answered.
-            $sender = new RecordingMailSender();
-            [$code, $io, $calls] = $this->install($root, $this->args($dir), self::ADMIN . self::MAIL, $sender, new AnsweringMailbox($sender), crontabRuns: false);
+        foreach ($cases as $reason => $crontab) {
+            $root = $this->root();
+            $dir = TemporaryDirectory::create();
 
-            $this->assertSame(0, $code, $io->errors());
-            $this->assertSame([], $calls);
-            $this->assertStringNotContainsString('cron を何分ごとに', $io->output());
-            $this->assertStringContainsString('cron に次の行を登録してください', $io->output());
-        } finally {
-            TemporaryDirectory::remove($root);
-            TemporaryDirectory::remove($dir);
+            try {
+                // No cron question comes, so only the admin and the mail are answered.
+                $sender = new RecordingMailSender();
+                [$code, $io, $calls] = $this->install($root, $this->args($dir), self::ADMIN . self::MAIL, $sender, new AnsweringMailbox($sender), ...$crontab);
+                $manual = strpos($io->output(), 'cron に次の行を登録してください');
+
+                $this->assertSame(0, $code, $io->errors());
+                $this->assertStringNotContainsString('cron を何分ごとに', $io->output());
+                $this->assertNotFalse($manual, $reason);
+                $this->assertStringContainsString($reason, $io->output());
+                $this->assertLessThan($manual, (int) strpos($io->output(), $reason));
+                $this->assertSame([], $this->written($calls), $reason);
+            } finally {
+                TemporaryDirectory::remove($root);
+                TemporaryDirectory::remove($dir);
+            }
         }
     }
 
