@@ -82,6 +82,33 @@ final class CrontabTest extends TestCase
     }
 
     #[Test]
+    public function addsTheLineBesideALongerPathOrAPathInAComment(): void
+    {
+        $others = [
+            '*/5 * * * * /usr/bin/php /home/you/re-buji/bin/cron.php.bak',
+            '*/5 * * * * /usr/bin/php /other/cron.php # was /home/you/re-buji/bin/cron.php',
+        ];
+
+        foreach ($others as $other) {
+            $calls = [];
+            $crontab = new Crontab($this->runner($calls, [0, $other . "\n", ''], [0, '', '']));
+
+            self::assertTrue($crontab->add(self::LINE, self::CRON), $other);
+            self::assertSame([['crontab', '-'], $other . "\n" . self::LINE . "\n"], $calls[1], $other);
+        }
+    }
+
+    #[Test]
+    public function findsTheLineFollowedByARedirect(): void
+    {
+        $calls = [];
+        $crontab = new Crontab($this->runner($calls, [0, self::LINE . " >/dev/null 2>&1\n", ''], [0, '', '']));
+
+        self::assertFalse($crontab->add(self::LINE, self::CRON));
+        self::assertCount(1, $calls);
+    }
+
+    #[Test]
     public function saysWhyItCannotBeUsed(): void
     {
         $calls = [];

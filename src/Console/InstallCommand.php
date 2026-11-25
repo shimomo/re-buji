@@ -197,12 +197,19 @@ final class InstallCommand implements Command
         $done = '✓ 設置を終えました（しきい値は' . $settings->threshold()->label() . '、1 時間に送る上限は ' . $settings->get('hourly_limit') . ' 通。設定の画面で変えられます）';
         // Before the copy is marked installed, which bin/cron.php waits for: once marked, only lines are left to print,
         // so a dropped connection cannot leave an installed copy without its cron.
-        $this->writeCron($cron, $io);
+        $inCrontab = $this->writeCron($cron, $io);
         $finished = $finish->submit($context, []);
 
         if (!$finished->ok()) {
-            // FinishStep's words are the web setup's; the console says how to go on from here.
-            self::errors($io, [...$finished->errors, 'まだ設置を終えていません。直してから同じコマンドをもう一度流すと、続きから進みます。', 'cron の行は、設置を終えるまで何もしません。もう一度流しても、二重には足しません。']);
+            // FinishStep's words are the web setup's; the console says how to go on from here, and speaks of the cron line
+            // only when the crontab holds one.
+            $next = ['まだ設置を終えていません。直してから同じコマンドをもう一度流すと、続きから進みます。'];
+
+            if ($inCrontab) {
+                $next[] = 'cron の行は、設置を終えるまで何もしません。もう一度流しても、二重には足しません。';
+            }
+
+            self::errors($io, [...$finished->errors, ...$next]);
 
             return 1;
         }
@@ -641,9 +648,11 @@ final class InstallCommand implements Command
     }
 
     /**
+     * Adds the cron line, or shows it to register by hand. Returns whether the crontab now holds a line for this copy.
+     *
      * @param array{line: string, asked: bool, add: bool, reason: ?string} $cron
      */
-    private function writeCron(array $cron, ConsoleIo $io): void
+    private function writeCron(array $cron, ConsoleIo $io): bool
     {
         if ($cron['add']) {
             try {
@@ -654,7 +663,7 @@ final class InstallCommand implements Command
                     $io->line('✓ cron には、もう ' . $this->cronPath() . ' の行があります。足していません。');
                 }
 
-                return;
+                return true;
             } catch (RuntimeException $exception) {
                 $io->line('✕ cron に足せませんでした：' . $exception->getMessage());
             }
@@ -670,6 +679,8 @@ final class InstallCommand implements Command
         if (!$cron['asked']) {
             $io->line('  間隔は、管理画面で選べるいちばん短いものにしてください。');
         }
+
+        return false;
     }
 
     private function cronPath(): string

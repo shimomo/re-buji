@@ -697,14 +697,39 @@ final class InstallCommandTest extends TestCase
                 $this->assertSame(1, $code, $sql);
                 $this->assertNull($this->config($root)->get('installed_at'), $sql);
                 $this->assertCount(1, $this->written($calls), $sql);
-                $this->assertStringContainsString($failure, $io->errors());
-                $this->assertStringContainsString('まだ設置を終えていません。直してから同じコマンドをもう一度流すと、続きから進みます。', $io->errors());
-                $this->assertStringContainsString('cron の行は、設置を終えるまで何もしません。もう一度流しても、二重には足しません。', $io->errors());
+                $this->assertStringContainsString($failure, $io->errors(), $sql);
+                $this->assertStringContainsString('まだ設置を終えていません。直してから同じコマンドをもう一度流すと、続きから進みます。', $io->errors(), $sql);
+                $this->assertStringContainsString('cron の行は、設置を終えるまで何もしません。もう一度流しても、二重には足しません。', $io->errors(), $sql);
+                // After FinishStep's own words, which name what to fix.
+                $this->assertLessThan((int) strpos($io->errors(), 'まだ設置を終えていません'), (int) strpos($io->errors(), $failure), $sql);
                 $this->assertStringNotContainsString('✓ 設置を終えました', $io->output());
             } finally {
                 TemporaryDirectory::remove($root);
                 TemporaryDirectory::remove($dir);
             }
+        }
+    }
+
+    #[Test]
+    public function saysNothingOfTheCronLineWhenNoneWasAdded(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $onWrite = function () use ($root): void {
+                Database::fromConfig($this->config($root), new Paths($root))->execute('DELETE FROM admins');
+            };
+            [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS, $sender, new AnsweringMailbox($sender), written: [1, '', 'crontab: permission denied'], onWrite: $onWrite);
+
+            $this->assertSame(1, $code);
+            $this->assertStringContainsString('✕ cron に足せませんでした：crontab: permission denied', $io->output());
+            $this->assertStringContainsString('まだ設置を終えていません。直してから同じコマンドをもう一度流すと、続きから進みます。', $io->errors());
+            $this->assertStringNotContainsString('cron の行は、設置を終えるまで何もしません', $io->errors());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
         }
     }
 

@@ -69,11 +69,7 @@ final class Crontab
         $current = $this->read();
 
         foreach (explode("\n", $current) as $existing) {
-            if (str_starts_with(ltrim($existing), '#')) {
-                continue;
-            }
-
-            if (str_contains($existing, $cronPath) || str_contains($existing, self::quote($cronPath))) {
+            if (self::runs($existing, $cronPath)) {
                 return false;
             }
         }
@@ -116,6 +112,48 @@ final class Crontab
         $error = trim($error);
 
         throw new RuntimeException($error !== '' ? $error : 'crontab -l が状態 ' . $status . ' で終わりました。');
+    }
+
+    /**
+     * Whether $line runs $cronPath: the path as written or as line() quotes it, standing alone (not part of a longer path)
+     * and before any shell comment, so a commented-out line or a note naming the path does not count.
+     */
+    private static function runs(string $line, string $cronPath): bool
+    {
+        $command = self::withoutComment($line);
+
+        foreach (array_unique([$cronPath, self::quote($cronPath)]) as $form) {
+            if (preg_match('/(?<![^\s\'"=])' . preg_quote($form, '/') . '(?![^\s\'";|&>)])/', $command) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The line up to the # that starts a shell comment: outside quotes, and at the start or after a space.
+     */
+    private static function withoutComment(string $line): string
+    {
+        $quote = null;
+        $length = strlen($line);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $line[$i];
+
+            if ($char === '\\' && $quote !== "'") {
+                $i++;
+            } elseif ($quote !== null) {
+                $quote = $char === $quote ? null : $quote;
+            } elseif ($char === "'" || $char === '"') {
+                $quote = $char;
+            } elseif ($char === '#' && ($i === 0 || ctype_space($line[$i - 1]))) {
+                return substr($line, 0, $i);
+            }
+        }
+
+        return $line;
     }
 
     private static function quote(string $value): string
