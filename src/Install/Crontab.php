@@ -59,7 +59,8 @@ final class Crontab
     }
 
     /**
-     * Adds $line unless a line already holds $cronPath. Returns whether it was added.
+     * Adds $line unless a line that is not a comment already runs $cronPath, as written or quoted as line() writes it.
+     * Returns whether it was added. A commented-out line stays, with the new one below it.
      *
      * @throws RuntimeException With the reason when the crontab cannot be read or written
      */
@@ -68,7 +69,11 @@ final class Crontab
         $current = $this->read();
 
         foreach (explode("\n", $current) as $existing) {
-            if (str_contains($existing, $cronPath)) {
+            if (str_starts_with(ltrim($existing), '#')) {
+                continue;
+            }
+
+            if (str_contains($existing, $cronPath) || str_contains($existing, self::quote($cronPath))) {
                 return false;
             }
         }

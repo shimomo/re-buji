@@ -58,6 +58,30 @@ final class CrontabTest extends TestCase
     }
 
     #[Test]
+    public function addsTheLineWhenTheOldOneIsCommentedOut(): void
+    {
+        $calls = [];
+        $old = '  # */5 * * * * /usr/bin/php /home/you/re-buji/bin/cron.php';
+        $crontab = new Crontab($this->runner($calls, [0, $old . "\n", ''], [0, '', '']));
+
+        self::assertTrue($crontab->add(self::LINE, self::CRON));
+        self::assertSame([['crontab', '-'], $old . "\n" . self::LINE . "\n"], $calls[1]);
+    }
+
+    #[Test]
+    public function findsTheLineItAddedForAPathWithAPercentOrAQuote(): void
+    {
+        foreach (['/home/you/re 100%/bin/cron.php', "/home/o'neil/re-buji/bin/cron.php"] as $path) {
+            $calls = [];
+            $line = Crontab::line(5, '/usr/bin/php', $path);
+            $crontab = new Crontab($this->runner($calls, [0, $line . "\n", ''], [0, '', '']));
+
+            self::assertFalse($crontab->add($line, $path), $path);
+            self::assertCount(1, $calls, $path);
+        }
+    }
+
+    #[Test]
     public function saysWhyItCannotBeUsed(): void
     {
         $calls = [];
