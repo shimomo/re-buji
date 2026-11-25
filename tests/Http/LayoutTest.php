@@ -92,9 +92,23 @@ final class LayoutTest extends TestCase
         $this->assertFileExists($file);
         $css = (string) file_get_contents($file);
 
-        foreach (['#f4f6f8', '#ffffff', '#26323a', '#5f6b74', '#e3e7eb', '#2b6cb0', '#c0392b', '#9a5800', '#237356'] as $color) {
+        foreach (['#eef1f4', '#d5dbe1', '#7d8892', '#ffffff', '#26323a', '#5f6b74', '#e3e7eb', '#2b6cb0', '#c0392b', '#9a5800', '#237356'] as $color) {
             $this->assertStringContainsString($color, $css);
         }
+
+        $this->assertStringNotContainsString('#f4f6f8', $css);
+    }
+
+    #[Test]
+    public function flattensBoxesInsideACard(): void
+    {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/app.css');
+
+        // A box inside a card would read as a card inside a card.
+        $this->assertMatchesRegularExpression('/\.card fieldset\s*\{[^}]*border:0/', $css);
+        $this->assertMatchesRegularExpression('/\.card details\s*\{[^}]*box-shadow:none/', $css);
+        $this->assertMatchesRegularExpression('/\.card table\.stack tr\s*\{[^}]*box-shadow:none/', $css);
+        $this->assertMatchesRegularExpression('/input,select,textarea\s*\{[^}]*border:1px solid var\(--field\)/', $css);
     }
 
     #[Test]
