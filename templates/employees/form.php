@@ -23,8 +23,10 @@ $this->layout('layout', ['title' => $title]);
 <?php endif ?>
 <form method="post" action="<?= $this->e($this->url($action)) ?>">
     <?= $this->csrf() ?>
+    <div class="card">
     <label>名前 <input name="name" value="<?= $this->e($values['name']) ?>" maxlength="100" required></label>
     <label>所属 <input name="department" value="<?= $this->e($values['department']) ?>" maxlength="100"></label>
+    </div>
     <fieldset>
         <legend>メールアドレス（1〜<?= count($values['emails']) ?> 件。全部に送ります）</legend>
 <?php foreach ($values['emails'] as $i => $email): ?>
@@ -61,17 +63,21 @@ $this->layout('layout', ['title' => $title]);
         </div>
 <?php endforeach ?>
     </fieldset>
+    <div class="card">
     <label>メモ <textarea name="memo" rows="3" maxlength="2000"><?= $this->e($values['memo']) ?></textarea></label>
     <label><input type="checkbox" name="active" value="1"<?= $values['active'] ? ' checked' : '' ?>> 有効（外すと連絡を送りません）</label>
+    </div>
     <button type="submit">保存する</button>
 </form>
 <?php if ($id !== null): ?>
+<section class="card">
 <form method="post" action="<?= $this->e($this->url('/employees/' . $id . '/delete')) ?>" data-confirm="<?= $this->e($values['name'] . ' さんを削除しますか？') ?>" onsubmit="return confirm(this.dataset.confirm)">
     <?= $this->csrf() ?>
     <button type="submit" class="btn-danger">削除する</button>
 </form>
+</section>
 <?php endif ?>
-<p><a href="<?= $this->e($this->url('/employees')) ?>">一覧へ戻る</a></p>
+<p class="back"><a href="<?= $this->e($this->url('/employees')) ?>">一覧へ戻る</a></p>
 <script type="application/json" id="rebuji-cities"><?= $cityData ?></script>
 <script>
 (function () {

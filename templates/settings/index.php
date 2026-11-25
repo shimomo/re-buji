@@ -109,15 +109,19 @@ $note = fn(string $field): string => isset($locked[$field]) ? '<small class="mut
     </fieldset>
     <button type="submit">保存する</button>
 </form>
+<section class="card">
 <h2>受信の確認</h2>
 <p>保存した設定で、返信を受けるメールボックスにログインできるかを確かめます。</p>
 <form method="post" action="<?= $this->e($this->url('/settings/test-imap')) ?>">
     <?= $this->csrf() ?>
     <button type="submit">受信を確かめる</button>
 </form>
+</section>
+<section class="card">
 <h2>テストメール</h2>
 <p>保存した設定で、あなた（<?= $this->e($admin['email']) ?>）にテストメールを送ります。1 時間の上限に数えます。</p>
 <form method="post" action="<?= $this->e($this->url('/settings/test-mail')) ?>">
     <?= $this->csrf() ?>
     <button type="submit">テストメールを送る</button>
 </form>
+</section>

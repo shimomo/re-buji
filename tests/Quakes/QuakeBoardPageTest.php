@@ -141,8 +141,10 @@ final class QuakeBoardPageTest extends TestCase
             $notice = 'この地震の連絡を送った後に、照合できなかったメールが 1 通届いています。返信なしの人からのメールかもしれません。';
             $this->assertStringContainsString($notice, $page);
             $this->assertStringContainsString('href="/mail/unmatched">一覧</a>', $page);
-            $this->assertGreaterThan((int) strpos($page, '<h2>返信なし'), (int) strpos($page, $notice));
-            $this->assertLessThan((int) strpos($page, '<h2>要確認'), (int) strpos($page, $notice));
+            // Above the no-reply card, so it is read before working through the list and phoning people.
+            $this->assertStringContainsString('<h2>返信なし', $page);
+            $this->assertGreaterThan((int) strpos($page, '<span class="tile-label">対象</span>'), (int) strpos($page, $notice));
+            $this->assertLessThan((int) strpos($page, '<h2>返信なし'), (int) strpos($page, $notice));
         } finally {
             TemporaryDirectory::remove($root);
         }

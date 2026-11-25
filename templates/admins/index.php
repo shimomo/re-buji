@@ -18,6 +18,7 @@ $this->layout('layout', ['title' => $title]);
 </ul>
 </div>
 <?php endif ?>
+<section class="card">
 <p class="muted">管理者は全員が同じことをできます（従業員の登録、地震の確認、設定）。</p>
 <table class="stack">
     <thead><tr><th>名前</th><th>メールアドレス</th><th>追加した日</th><th></th></tr></thead>
@@ -41,6 +42,8 @@ $this->layout('layout', ['title' => $title]);
 <?php endforeach ?>
     </tbody>
 </table>
+</section>
+<section class="card">
 <h2>管理者を加える</h2>
 <form method="post" action="<?= $this->e($this->url('/admins')) ?>">
     <?= $this->csrf() ?>
@@ -50,3 +53,4 @@ $this->layout('layout', ['title' => $title]);
     <label>パスワード（確認） <input type="password" name="password_confirmation" autocomplete="new-password" required></label>
     <button type="submit">加える</button>
 </form>
+</section>

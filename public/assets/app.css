@@ -1,9 +1,10 @@
-/* Re:無事 stylesheet: a soft look (light gray ground, white rounded cards). Colors live in :root only. */
+/* Re:無事 stylesheet: a soft look (light gray ground, white rounded cards with a thin edge). Colors live in :root only. */
 :root{
---bg:#f4f6f8;--surface:#ffffff;--text:#26323a;--muted:#5f6b74;--line:#e3e7eb;
+--bg:#eef1f4;--surface:#ffffff;--text:#26323a;--muted:#5f6b74;--line:#e3e7eb;
 --accent:#2b6cb0;--danger:#c0392b;--warn:#9a5800;--ok:#237356;
 --ok-bg:#eaf5f0;--on-accent:#ffffff;
---radius:12px;--shadow:0 1px 3px rgba(0,0,0,.08);
+--edge:#d5dbe1;--field:#7d8892;
+--radius:12px;--shadow:0 1px 2px rgba(16,24,40,.04);
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -11,8 +12,10 @@ body{margin:0 auto;max-width:760px;padding:16px;background:var(--bg);color:var(-
 a{color:var(--accent)}
 h1{font-size:20px;font-weight:700;margin:0 0 1rem}
 h2{font-size:17px;font-weight:700;margin:1.5rem 0 .5rem}
-header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:1.5rem;min-height:44px}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--edge);margin-bottom:1.5rem;min-height:44px}
 header a{display:inline-block;padding:10px 6px}
+.brand{display:inline-flex;align-items:center;gap:8px}
+.brand img{display:block;width:28px;height:28px}
 .muted{color:var(--muted);font-size:14px}
 code{overflow-wrap:anywhere;word-break:break-all}
 /* Links in text get a 44px touch target from vertical padding, which leaves the lines where they are */
@@ -21,7 +24,7 @@ p>a{white-space:nowrap}
 .card-head>a{display:inline-flex;align-items:center;min-height:44px}
 
 /* Card */
-.card,fieldset{background:var(--surface);border:0;border-radius:14px;box-shadow:var(--shadow);padding:16px;margin:0 0 16px;min-width:0}
+.card,fieldset{background:var(--surface);border:1px solid var(--edge);border-radius:14px;box-shadow:var(--shadow);padding:16px;margin:0 0 16px;min-width:0}
 .card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 8px;font-weight:700}
 .calm{background:var(--ok-bg);border:1px solid var(--ok);border-radius:14px;box-shadow:var(--shadow);padding:16px;margin:0 0 16px;color:var(--ok)}
 .card>:first-child{margin-top:0}
@@ -31,17 +34,24 @@ p>a{white-space:nowrap}
 legend{float:left;width:100%;padding:0;margin:0 0 8px;font-weight:700}
 legend~*{clear:both}
 label+fieldset{margin-top:16px}
-details{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);margin:0 0 16px}
+details{background:var(--surface);border:1px solid var(--edge);border-radius:var(--radius);box-shadow:var(--shadow);margin:0 0 16px}
 summary{cursor:pointer;min-height:44px;padding:10px 16px;display:flex;align-items:center;gap:8px;list-style:none;font-weight:700}
 summary::-webkit-details-marker{display:none}
 summary::before{content:"\25B8";color:var(--muted)}
 details[open]>summary::before{content:"\25BE"}
 details>*:not(summary){margin-left:16px;margin-right:16px}
 details>*:last-child{margin-bottom:16px}
+/* Boxes inside a card lie flat, so a card never holds a card */
+.card fieldset{border:0;box-shadow:none;background:none;padding:0;border-radius:0;margin:16px 0 0}
+.card details{border:0;box-shadow:none;border-radius:0;border-top:1px solid var(--line);margin:0}
+.card details>summary{padding-left:0;padding-right:0}
+.card details>*:not(summary){margin-left:0;margin-right:0}
+.card details>*:last-child{margin-bottom:0}
+.card .person+details{border-top:0}
 
 /* Forms */
 label{display:block;margin-top:1rem}
-input,select,textarea{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-height:44px;width:100%;max-width:420px}
+input,select,textarea{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--field);border-radius:8px;padding:10px 12px;min-height:44px;width:100%;max-width:420px}
 input[type=checkbox],input[type=radio]{width:auto;min-height:0;margin-right:6px}
 /* Fields sit under their label text even when the label is short */
 label>:is(input:not([type=checkbox],[type=radio]),select,textarea){display:block;margin-top:4px}
@@ -49,19 +59,20 @@ label>:is(input:not([type=checkbox],[type=radio]),select,textarea){display:block
 .row label{flex:1;min-width:140px}
 
 /* Buttons */
-button,a:where(.btn){display:inline-flex;align-items:center;justify-content:center;font:inherit;min-height:44px;padding:8px 18px;margin-top:1rem;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:10px;cursor:pointer;text-decoration:none}
+button,a:where(.btn){display:inline-flex;align-items:center;justify-content:center;font:inherit;min-height:44px;padding:8px 18px;margin-top:1rem;background:var(--surface);color:var(--text);border:1px solid var(--field);border-radius:10px;cursor:pointer;text-decoration:none}
 .btn-primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .btn-danger{background:var(--surface);border-color:var(--danger);color:var(--danger)}
 form button{width:100%}
 @media (min-width:600px){form button{width:auto}}
 
 /* Alerts (a mark and the wording both carry the state, never color alone) */
-.alert{display:block;position:relative;margin:0 0 12px;padding:12px 16px 12px 40px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);border-left-width:5px}
+.alert{display:block;position:relative;margin:0 0 12px;padding:12px 16px 12px 40px;border-radius:var(--radius);border:1px solid var(--edge);background:var(--surface);box-shadow:var(--shadow);border-left-width:5px}
 .alert::before{position:absolute;left:16px;top:12px;font-weight:700}
 .alert>:first-child{margin-top:0}
 .alert>:last-child{margin-bottom:0}
 .alert+form>button{margin-top:0}
 form+.alert{margin-top:16px}
+form+.card,form+.calm{margin-top:16px}
 .alert-stop{border-left-color:var(--danger);color:var(--danger)}
 .alert-stop::before{content:"\2715"}
 .alert-act{border-left-color:var(--warn);color:var(--warn)}
@@ -75,7 +86,7 @@ form+.alert{margin-top:16px}
 
 /* Count tiles */
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 16px}
-.tile{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px;text-align:center}
+.tile{background:var(--surface);border:1px solid var(--edge);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px;text-align:center}
 .tile-n{display:block;font-size:28px;font-weight:700;line-height:1.3}
 .tile-label{display:block;font-size:14px;color:var(--muted)}
 .tile-sub{display:block;font-size:12px;color:var(--muted)}
@@ -98,13 +109,15 @@ td button{white-space:nowrap}
 @media (max-width:599px){
 table.stack,table.stack tbody,table.stack tr,table.stack td{display:block;width:100%}
 table.stack thead{position:absolute;left:-9999px}
-table.stack tr{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:8px 12px;margin:0 0 12px}
+table.stack tr{background:var(--surface);border:1px solid var(--edge);border-radius:var(--radius);box-shadow:var(--shadow);padding:8px 12px;margin:0 0 12px}
 table.stack td{border:0;padding:4px 0}
 table.stack td::before{content:attr(data-label);display:block;font-size:12px;color:var(--muted)}
+.card table.stack tr{background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;padding:8px 0;margin:0}
+.card table.stack tr:last-child{border-bottom:0}
 }
 
 /* Navigation: tabs at the bottom on phones, one row at the top from 768px */
-.nav{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;background:var(--surface);border-top:1px solid var(--edge);padding-bottom:env(safe-area-inset-bottom)}
 .nav .pc-only,.nav .pc-link{display:none}
 .nav a.tab{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:56px;padding:6px 2px;color:var(--muted);text-decoration:none;font-size:12px;line-height:1.3}
 .nav a.tab[aria-current=page]{color:var(--accent);font-weight:700}
@@ -133,7 +146,10 @@ body.has-nav{padding-bottom:16px}
 
 /* Bare pages (login, install, error) and the install progress */
 body.bare{max-width:520px}
+header.brand-big{flex-direction:column;justify-content:center;gap:6px;border-bottom:0;margin:8px 0 20px}
+.brand-big img{display:block;width:56px;height:56px}
+.brand-big strong{font-size:18px}
 .progress{margin:0 0 4px;font-weight:700}
 .dots{display:flex;gap:6px;margin:0 0 16px}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--field)}
 .dot-on{background:var(--accent)}

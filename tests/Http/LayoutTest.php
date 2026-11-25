@@ -92,9 +92,44 @@ final class LayoutTest extends TestCase
         $this->assertFileExists($file);
         $css = (string) file_get_contents($file);
 
-        foreach (['#f4f6f8', '#ffffff', '#26323a', '#5f6b74', '#e3e7eb', '#2b6cb0', '#c0392b', '#9a5800', '#237356'] as $color) {
+        foreach (['#eef1f4', '#d5dbe1', '#7d8892', '#ffffff', '#26323a', '#5f6b74', '#e3e7eb', '#2b6cb0', '#c0392b', '#9a5800', '#237356'] as $color) {
             $this->assertStringContainsString($color, $css);
         }
+
+        $this->assertStringNotContainsString('#f4f6f8', $css);
+    }
+
+    #[Test]
+    public function flattensBoxesInsideACard(): void
+    {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/app.css');
+
+        // A box inside a card would read as a card inside a card.
+        $this->assertMatchesRegularExpression('/\.card fieldset\s*\{[^}]*border:0/', $css);
+        $this->assertMatchesRegularExpression('/\.card details\s*\{[^}]*box-shadow:none/', $css);
+        $this->assertMatchesRegularExpression('/\.card table\.stack tr\s*\{[^}]*box-shadow:none/', $css);
+        $this->assertMatchesRegularExpression('/input,select,textarea\s*\{[^}]*border:1px solid var\(--field\)/', $css);
+        // One line between the last person and the list that opens below them, and no doubled space at a card's foot.
+        $this->assertMatchesRegularExpression('/\.card \.person\+details\s*\{[^}]*border-top:0/', $css);
+        $this->assertMatchesRegularExpression('/\.card details>\*:last-child\s*\{[^}]*margin-bottom:0/', $css);
+    }
+
+    #[Test]
+    public function showsTheStepsStillToComeAgainstTheGround(): void
+    {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/app.css');
+
+        // The setup's step dots sit on the ground; the field gray stays visible there, the line gray melts in.
+        $this->assertMatchesRegularExpression('/\.dot\s*\{[^}]*background:var\(--field\)/', $css);
+    }
+
+    #[Test]
+    public function spacesACardAfterAFormOnTheGround(): void
+    {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/app.css');
+
+        // A form has no bottom margin, so a button on the ground would touch the card below it.
+        $this->assertMatchesRegularExpression('/form\+\.card,form\+\.calm\s*\{[^}]*margin-top:16px/', $css);
     }
 
     #[Test]
@@ -143,6 +178,54 @@ final class LayoutTest extends TestCase
     }
 
     #[Test]
+    public function showsTheIconBesideTheNameOnPagesWithANav(): void
+    {
+        [$app, $container, $root] = TestApp::installed();
+
+        try {
+            TestApp::logIn($app, $container);
+            $body = (string) $app->handle(TestApp::request('GET', '/employees'))->getBody();
+
+            $this->assertStringContainsString('<header><span class="brand"><img src="/assets/favicon.svg?v=' . Version::CURRENT . '" alt="" width="28" height="28"><strong>Re:無事</strong></span>', $body);
+            $this->assertStringNotContainsString('brand-big', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function showsTheSmallIconWhenAPageIsNotBare(): void
+    {
+        [, $container, $root] = TestApp::create();
+
+        try {
+            $engine = $container->get(Engine::class);
+            $this->assertInstanceOf(Engine::class, $engine);
+            // No nav section, as on the database update page while a change is pending.
+            $body = $engine->render('layout', ['title' => 'x', 'bare' => false]);
+
+            $this->assertStringContainsString('<header><span class="brand"><img src="/assets/favicon.svg?v=' . Version::CURRENT . '" alt="" width="28" height="28"><strong>Re:無事</strong></span></header>', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function showsTheIconUnderASubdirectory(): void
+    {
+        $root = TestApp::root();
+
+        try {
+            [$app] = TestApp::build($root, [Url::class => new Url('/re-buji')]);
+            $body = (string) $app->handle(TestApp::request('GET', '/install/environment'))->getBody();
+
+            $this->assertStringContainsString('<img src="/re-buji/assets/favicon.svg?v=', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function aBarePageKeepsTheBrandButDropsTheNav(): void
     {
         [, $container, $root] = TestApp::create();
@@ -155,7 +238,8 @@ final class LayoutTest extends TestCase
 
             $body = $engine->render('layout', ['title' => 'x', 'bare' => true]);
 
-            $this->assertStringContainsString('<header><strong>Re:無事</strong>', $body);
+            $this->assertStringContainsString('<header class="brand-big"><img src="/assets/favicon.svg?v=' . Version::CURRENT . '" alt="" width="56" height="56"><strong>Re:無事</strong></header>', $body);
+            $this->assertStringNotContainsString('class="brand"', $body);
             $this->assertStringContainsString('class="bare"', $body);
             $this->assertStringNotContainsString('<nav', $body);
         } finally {

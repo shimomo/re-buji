@@ -8,6 +8,7 @@ $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'employees']) ?><?php $this->stop() ?>
 <?= $this->insert('employees/unknown-cities', ['unknownCities' => $unknownCities]) ?>
+<section class="card">
 <p>
     <a href="<?= $this->e($this->url('/employees/new')) ?>">従業員を追加する</a>　
     <a href="<?= $this->e($this->url('/employees/import')) ?>">CSV を取り込む</a>　
@@ -32,3 +33,4 @@ $this->layout('layout', ['title' => $title]);
     </tbody>
 </table>
 <?php endif ?>
+</section>

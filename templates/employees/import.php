@@ -17,6 +17,7 @@ $this->layout('layout', ['title' => $title]);
     </ul>
 </div>
 <?php endif ?>
+<section class="card">
 <p>1 行目は次の見出しにします。<a href="<?= $this->e($this->url('/employees/export')) ?>">いまの一覧を書き出す</a>と、この形のファイルができます。</p>
 <p><code><?= $this->e(implode(',', $header)) ?></code></p>
 <ul class="muted">
@@ -30,4 +31,5 @@ $this->layout('layout', ['title' => $title]);
     <label>CSV ファイル <input type="file" name="file" accept=".csv,text/csv"></label>
     <button type="submit">取り込む</button>
 </form>
-<p><a href="<?= $this->e($this->url('/employees')) ?>">一覧へ戻る</a></p>
+</section>
+<p class="back"><a href="<?= $this->e($this->url('/employees')) ?>">一覧へ戻る</a></p>
