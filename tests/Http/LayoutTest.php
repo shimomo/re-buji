@@ -140,6 +140,10 @@ final class LayoutTest extends TestCase
         // Each link in a row or a list of links is its own 44px box, so a wrapped row does not overlap the next.
         $this->assertMatchesRegularExpression('/\.links\s*\{[^}]*display:flex/', $css);
         $this->assertMatchesRegularExpression('/\.links>a,\.link-list>li>a\s*\{[^}]*min-height:44px[^}]*padding:0/', $css);
+        // A list of people holds names of up to 100 characters: they must wrap, or the page scrolls sideways on a phone.
+        $this->assertSame(1, preg_match('/\.links>a,\.link-list>li>a\s*\{([^}]*)\}/', $css, $rule));
+        $this->assertStringNotContainsString('nowrap', $rule[1]);
+        $this->assertMatchesRegularExpression('/\.links>a\s*\{[^}]*white-space:nowrap/', $css);
     }
 
     #[Test]
