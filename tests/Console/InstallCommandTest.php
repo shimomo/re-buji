@@ -561,6 +561,27 @@ final class InstallCommandTest extends TestCase
     }
 
     #[Test]
+    public function tellsHowToRegisterCronWhenPhpCannotRunCommands(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            // No cron question comes, so only the admin and the mail are answered.
+            $sender = new RecordingMailSender();
+            [$code, $io, $calls] = $this->install($root, $this->args($dir), self::ADMIN . self::MAIL, $sender, new AnsweringMailbox($sender), crontabRuns: false);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertSame([], $calls);
+            $this->assertStringNotContainsString('cron を何分ごとに', $io->output());
+            $this->assertStringContainsString('cron に次の行を登録してください', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
     public function leavesCrontabAloneWhenAnsweredNo(): void
     {
         $root = $this->root();
@@ -869,6 +890,7 @@ final class InstallCommandTest extends TestCase
      * @param array{int, string, string} $written what crontab - answers
      * @param (Closure(int): void)|null $onSleep told the seconds slept so far, after each sleep
      * @param (Closure(): void)|null $onWrite called when crontab - runs, before it answers
+     * @param bool $crontabRuns whether PHP may start crontab (false: proc_open is disabled)
      *
      * @return array{int, ConsoleIo, list<array{list<string>, string}>, int} the status, the streams, the crontab commands run with their input, and the seconds slept
      */
@@ -884,6 +906,7 @@ final class InstallCommandTest extends TestCase
         ?Closure $onSleep = null,
         Environment $env = new Environment([]),
         ?Closure $onWrite = null,
+        bool $crontabRuns = true,
     ): array {
         $paths = new Paths($root);
         $container = Container::build($paths, $overrides + [
@@ -904,7 +927,7 @@ final class InstallCommandTest extends TestCase
             }
 
             return $command === ['crontab', '-l'] ? $listed : $written;
-        });
+        }, $crontabRuns);
         $sleep = static function (int $seconds) use (&$slept, $onSleep): void {
             $slept += $seconds;
 
