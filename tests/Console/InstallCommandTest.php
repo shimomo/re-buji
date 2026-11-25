@@ -645,6 +645,30 @@ final class InstallCommandTest extends TestCase
     }
 
     #[Test]
+    public function readsNothingFromTheDatabaseOnceTheCopyIsMarked(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            // Gone after the cron line is written: the end must already hold what it prints.
+            $sender = new RecordingMailSender();
+            $onWrite = function () use ($root): void {
+                Database::fromConfig($this->config($root), new Paths($root))->execute('DROP TABLE settings');
+            };
+            [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS, $sender, new AnsweringMailbox($sender), onWrite: $onWrite);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertIsString($this->config($root)->get('installed_at'));
+            $this->assertStringContainsString('✓ 設置を終えました（しきい値は震度5弱、1 時間に送る上限は 100 通。設定の画面で変えられます）', $io->output());
+            $this->assertStringContainsString('状態の URL：https://example.jp/status/', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
     public function leavesTheCopyUnfinishedWhenTheLastStepFailsAfterCron(): void
     {
         $root = $this->root();

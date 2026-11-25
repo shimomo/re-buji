@@ -192,7 +192,9 @@ final class InstallCommand implements Command
         $finish = new FinishStep(new InstallKey($this->paths), $this->clock());
         $statusUrl = $finish->viewData($context)['statusUrl'];
         assert(is_string($statusUrl));
+        // Read now: Settings asks the database on every call, and nothing may be read once the copy is marked.
         $settings = $this->settings($context);
+        $done = '✓ 設置を終えました（しきい値は' . $settings->threshold()->label() . '、1 時間に送る上限は ' . $settings->get('hourly_limit') . ' 通。設定の画面で変えられます）';
         // Before the copy is marked installed, which bin/cron.php waits for: once marked, only lines are left to print,
         // so a dropped connection cannot leave an installed copy without its cron.
         $this->writeCron($cron, $io);
@@ -204,7 +206,7 @@ final class InstallCommand implements Command
             return 1;
         }
 
-        $io->line('✓ 設置を終えました（しきい値は' . $settings->threshold()->label() . '、1 時間に送る上限は ' . $settings->get('hourly_limit') . ' 通。設定の画面で変えられます）');
+        $io->line($done);
         $io->line('状態の URL：' . $statusUrl);
         $io->line('  UptimeRobot などの監視サービスに登録してください。cron が止まると、この URL が 503 を返します。');
         $io->line('ログイン：' . $context->baseUrl() . '/');
