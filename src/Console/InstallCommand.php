@@ -197,11 +197,19 @@ final class InstallCommand implements Command
         $done = '✓ 設置を終えました（しきい値は' . $settings->threshold()->label() . '、1 時間に送る上限は ' . $settings->get('hourly_limit') . ' 通。設定の画面で変えられます）';
         // Before the copy is marked installed, which bin/cron.php waits for: once marked, only lines are left to print,
         // so a dropped connection cannot leave an installed copy without its cron.
-        $this->writeCron($cron, $io);
+        $inCrontab = $this->writeCron($cron, $io);
         $finished = $finish->submit($context, []);
 
         if (!$finished->ok()) {
-            self::errors($io, $finished->errors);
+            // FinishStep's words are the web setup's; the console says how to go on from here, and speaks of the cron line
+            // only when the crontab holds one.
+            $next = ['まだ設置を終えていません。直してから同じコマンドをもう一度流すと、続きから進みます。'];
+
+            if ($inCrontab) {
+                $next[] = 'cron の行は、設置を終えるまで何もしません。もう一度流しても、二重には足しません。';
+            }
+
+            self::errors($io, [...$finished->errors, ...$next]);
 
             return 1;
         }
@@ -541,12 +549,15 @@ final class InstallCommand implements Command
     /**
      * Asks how often cron runs and whether to add its line at the end of the setup; nothing is written yet.
      *
-     * @return array{line: string, asked: bool, add: bool}|null null when no interval was accepted
+     * @return array{line: string, asked: bool, add: bool, reason: ?string}|null null when no interval was accepted; reason is
+     *     why crontab cannot be used, shown with the line to register by hand
      */
     private function askCron(string $php, ConsoleIo $io): ?array
     {
-        if ($this->crontab->problem() !== null) {
-            return ['line' => Crontab::line(self::CRON_MINUTES, $php, $this->cronPath()), 'asked' => false, 'add' => false];
+        $problem = $this->crontab->problem();
+
+        if ($problem !== null) {
+            return ['line' => Crontab::line(self::CRON_MINUTES, $php, $this->cronPath()), 'asked' => false, 'add' => false, 'reason' => $problem];
         }
 
         for ($try = 0; $try < self::TRIES; $try++) {
@@ -560,7 +571,7 @@ final class InstallCommand implements Command
                 $io->line('  ' . $line);
                 $add = in_array(strtolower(trim($io->ask('設置を終えたら、この行を cron に足しますか？ [y/N] '))), ['y', 'yes'], true);
 
-                return ['line' => $line, 'asked' => true, 'add' => $add];
+                return ['line' => $line, 'asked' => true, 'add' => $add, 'reason' => null];
             }
 
             $io->error('1〜10 の数を入れてください。');
@@ -637,9 +648,11 @@ final class InstallCommand implements Command
     }
 
     /**
-     * @param array{line: string, asked: bool, add: bool} $cron
+     * Adds the cron line, or shows it to register by hand. Returns whether the crontab now holds a line for this copy.
+     *
+     * @param array{line: string, asked: bool, add: bool, reason: ?string} $cron
      */
-    private function writeCron(array $cron, ConsoleIo $io): void
+    private function writeCron(array $cron, ConsoleIo $io): bool
     {
         if ($cron['add']) {
             try {
@@ -650,10 +663,14 @@ final class InstallCommand implements Command
                     $io->line('✓ cron には、もう ' . $this->cronPath() . ' の行があります。足していません。');
                 }
 
-                return;
+                return true;
             } catch (RuntimeException $exception) {
                 $io->line('✕ cron に足せませんでした：' . $exception->getMessage());
             }
+        }
+
+        if ($cron['reason'] !== null) {
+            $io->line('✕ cron に足せませんでした：' . $cron['reason']);
         }
 
         $io->line('cron に次の行を登録してください（サーバーの管理画面か crontab -e で）：');
@@ -662,6 +679,8 @@ final class InstallCommand implements Command
         if (!$cron['asked']) {
             $io->line('  間隔は、管理画面で選べるいちばん短いものにしてください。');
         }
+
+        return false;
     }
 
     private function cronPath(): string

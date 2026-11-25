@@ -21,6 +21,10 @@ code{overflow-wrap:anywhere;word-break:break-all}
 /* Links in text get a 44px touch target from vertical padding, which leaves the lines where they are */
 p>a,li>a,td>a{padding:14px 0}
 p>a{white-space:nowrap}
+/* A row of links, or a list whose items start with one: each link its own 44px box, so wrapped rows do not overlap */
+.links{display:flex;flex-wrap:wrap;column-gap:16px}
+.links>a,.link-list>li>a{display:inline-flex;align-items:center;min-height:44px;padding:0}
+.links>a{white-space:nowrap}
 .card-head>a{display:inline-flex;align-items:center;min-height:44px}
 
 /* Card */

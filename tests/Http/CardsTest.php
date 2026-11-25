@@ -145,6 +145,26 @@ final class CardsTest extends TestCase
         }
     }
 
+    #[Test]
+    public function separatesTheFinishPagesBackLinks(): void
+    {
+        [, $container, $root] = TestApp::create();
+
+        try {
+            $engine = $container->get(Engine::class);
+            $this->assertInstanceOf(Engine::class, $engine);
+            $body = $engine->render('install/finish', ['title' => '仕上げ', 'steps' => [['key' => 'finish', 'title' => '仕上げ']], 'step' => 'finish', 'errors' => ['例'], 'cronPath' => '/home/you/re-buji/bin/cron.php', 'statusUrl' => 'https://example.jp/status/x']);
+
+            $this->assertSame([], self::misplaced($body));
+            $this->assertSame(1, preg_match('/<p class="back links">(.*?)<\/p>/su', $body, $match));
+            // Spaced by the stylesheet; without it, the two links would run together.
+            $this->assertMatchesRegularExpression('/<\/a>\s+<a /', $match[1]);
+            $this->assertStringNotContainsString('　', $match[1]);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
     /**
      * Opens each page and checks nothing on it is out of place; returns the last page's body.
      *

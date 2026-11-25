@@ -561,23 +561,33 @@ final class InstallCommandTest extends TestCase
     }
 
     #[Test]
-    public function tellsHowToRegisterCronWhenPhpCannotRunCommands(): void
+    public function tellsWhyCrontabCannotBeUsed(): void
     {
-        $root = $this->root();
-        $dir = TemporaryDirectory::create();
+        $cases = [
+            '✕ cron に足せませんでした：この PHP では proc_open が止められているため、crontab を動かせません。' => ['crontabRuns' => false],
+            '✕ cron に足せませんでした：crontab が見つかりません。' => ['listed' => [127, '', '']],
+        ];
 
-        try {
-            // No cron question comes, so only the admin and the mail are answered.
-            $sender = new RecordingMailSender();
-            [$code, $io, $calls] = $this->install($root, $this->args($dir), self::ADMIN . self::MAIL, $sender, new AnsweringMailbox($sender), crontabRuns: false);
+        foreach ($cases as $reason => $crontab) {
+            $root = $this->root();
+            $dir = TemporaryDirectory::create();
 
-            $this->assertSame(0, $code, $io->errors());
-            $this->assertSame([], $calls);
-            $this->assertStringNotContainsString('cron を何分ごとに', $io->output());
-            $this->assertStringContainsString('cron に次の行を登録してください', $io->output());
-        } finally {
-            TemporaryDirectory::remove($root);
-            TemporaryDirectory::remove($dir);
+            try {
+                // No cron question comes, so only the admin and the mail are answered.
+                $sender = new RecordingMailSender();
+                [$code, $io, $calls] = $this->install($root, $this->args($dir), self::ADMIN . self::MAIL, $sender, new AnsweringMailbox($sender), ...$crontab);
+                $manual = strpos($io->output(), 'cron に次の行を登録してください');
+
+                $this->assertSame(0, $code, $io->errors());
+                $this->assertStringNotContainsString('cron を何分ごとに', $io->output());
+                $this->assertNotFalse($manual, $reason);
+                $this->assertStringContainsString($reason, $io->output());
+                $this->assertLessThan($manual, (int) strpos($io->output(), $reason));
+                $this->assertSame([], $this->written($calls), $reason);
+            } finally {
+                TemporaryDirectory::remove($root);
+                TemporaryDirectory::remove($dir);
+            }
         }
     }
 
@@ -669,7 +679,39 @@ final class InstallCommandTest extends TestCase
     }
 
     #[Test]
-    public function leavesTheCopyUnfinishedWhenTheLastStepFailsAfterCron(): void
+    public function tellsHowToContinueWhenTheLastStepFails(): void
+    {
+        $cases = ['DELETE FROM admins' => '管理者がいません', 'DROP TABLE admins' => 'データベースにつなげません'];
+
+        foreach ($cases as $sql => $failure) {
+            $root = $this->root();
+            $dir = TemporaryDirectory::create();
+
+            try {
+                $sender = new RecordingMailSender();
+                $onWrite = function () use ($root, $sql): void {
+                    Database::fromConfig($this->config($root), new Paths($root))->execute($sql);
+                };
+                [$code, $io, $calls] = $this->install($root, $this->args($dir), self::ANSWERS, $sender, new AnsweringMailbox($sender), onWrite: $onWrite);
+
+                $this->assertSame(1, $code, $sql);
+                $this->assertNull($this->config($root)->get('installed_at'), $sql);
+                $this->assertCount(1, $this->written($calls), $sql);
+                $this->assertStringContainsString($failure, $io->errors(), $sql);
+                $this->assertStringContainsString('まだ設置を終えていません。直してから同じコマンドをもう一度流すと、続きから進みます。', $io->errors(), $sql);
+                $this->assertStringContainsString('cron の行は、設置を終えるまで何もしません。もう一度流しても、二重には足しません。', $io->errors(), $sql);
+                // After FinishStep's own words, which name what to fix.
+                $this->assertLessThan((int) strpos($io->errors(), 'まだ設置を終えていません'), (int) strpos($io->errors(), $failure), $sql);
+                $this->assertStringNotContainsString('✓ 設置を終えました', $io->output());
+            } finally {
+                TemporaryDirectory::remove($root);
+                TemporaryDirectory::remove($dir);
+            }
+        }
+    }
+
+    #[Test]
+    public function saysNothingOfTheCronLineWhenNoneWasAdded(): void
     {
         $root = $this->root();
         $dir = TemporaryDirectory::create();
@@ -679,13 +721,12 @@ final class InstallCommandTest extends TestCase
             $onWrite = function () use ($root): void {
                 Database::fromConfig($this->config($root), new Paths($root))->execute('DELETE FROM admins');
             };
-            [$code, $io, $calls] = $this->install($root, $this->args($dir), self::ANSWERS, $sender, new AnsweringMailbox($sender), onWrite: $onWrite);
+            [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS, $sender, new AnsweringMailbox($sender), written: [1, '', 'crontab: permission denied'], onWrite: $onWrite);
 
             $this->assertSame(1, $code);
-            $this->assertNull($this->config($root)->get('installed_at'));
-            $this->assertCount(1, $this->written($calls));
-            $this->assertStringContainsString('管理者がいません', $io->errors());
-            $this->assertStringNotContainsString('✓ 設置を終えました', $io->output());
+            $this->assertStringContainsString('✕ cron に足せませんでした：crontab: permission denied', $io->output());
+            $this->assertStringContainsString('まだ設置を終えていません。直してから同じコマンドをもう一度流すと、続きから進みます。', $io->errors());
+            $this->assertStringNotContainsString('cron の行は、設置を終えるまで何もしません', $io->errors());
         } finally {
             TemporaryDirectory::remove($root);
             TemporaryDirectory::remove($dir);

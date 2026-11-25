@@ -98,6 +98,9 @@ final class ConsoleExposure
             case ProbeOutcome::Refused:
                 $io->error('サーバーから ' . $publicUrl . ' を開きましたが、この Re:無事 に届きませんでした（' . $answer->detail . '）。');
                 $io->error('その URL が ' . $directory . ' を開くか、ウェブの PHP が 8.3 以上かを確かめてください。');
+                // The status alone cannot tell these apart (a 404 or a 500 either way), so all of them are named.
+                $io->error($directory . ' の .htaccess が効いているか（.htaccess と mod_rewrite が使えるサーバーか）も確かめてください。');
+                $io->error('ウェブの PHP が SSH とは別の利用者で動く（モジュール版の PHP など）と、storage/ を読めずに届きません。サーバーの管理画面で、CGI 版の PHP を選べるか確かめてください。');
 
                 return false;
             case ProbeOutcome::Redirected:

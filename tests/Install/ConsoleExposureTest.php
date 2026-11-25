@@ -68,6 +68,26 @@ final class ConsoleExposureTest extends TestCase
     }
 
     #[Test]
+    public function namesTheThreeCausesWhenAnotherAnswerComes(): void
+    {
+        foreach ([404, 500] as $status) {
+            $root = $this->root();
+
+            try {
+                $io = ConsoleIo::memory();
+
+                $this->assertFalse($this->exposure($root, new FakeHttpClient($status, [], false))->reach(self::URL, self::DIR, $io));
+                $this->assertStringContainsString('（状態 ' . $status . '）', $io->errors());
+                $this->assertStringContainsString('その URL が /home/u/www/anpi を開くか、ウェブの PHP が 8.3 以上かを確かめてください。', $io->errors());
+                $this->assertStringContainsString('/home/u/www/anpi の .htaccess が効いているか（.htaccess と mod_rewrite が使えるサーバーか）も確かめてください。', $io->errors());
+                $this->assertStringContainsString('ウェブの PHP が SSH とは別の利用者で動く（モジュール版の PHP など）と、storage/ を読めずに届きません。サーバーの管理画面で、CGI 版の PHP を選べるか確かめてください。', $io->errors());
+            } finally {
+                TemporaryDirectory::remove($root);
+            }
+        }
+    }
+
+    #[Test]
     public function namesTheDirectoryWhenAnotherAnswerComes(): void
     {
         $root = $this->root();
