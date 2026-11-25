@@ -520,6 +520,7 @@ final class InstallCommandTest extends TestCase
 
             $this->assertSame(1, $code);
             $this->assertStringContainsString("sh '" . $root . "/bin/upgrade.sh'", $io->errors());
+            $this->assertStringContainsString('状態の URL は、ログインしたホーム画面の「見張り（状態の URL）」に出ています。', $io->errors());
 
             $docker = new Environment(['REBUJI_ENV_CONFIG' => '1']);
             [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS, new RecordingMailSender(), new FakeMailbox(), env: $docker);
@@ -592,6 +593,54 @@ final class InstallCommandTest extends TestCase
             $this->assertIsString($this->config($root)->get('installed_at'));
             $this->assertStringContainsString('✕ cron に足せませんでした：errors in crontab file', $io->output());
             $this->assertStringContainsString('cron に次の行を登録してください', $io->output());
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function addsTheCronLineBeforeMarkingTheCopyInstalled(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            /** @var list<bool> $marked whether the copy was marked installed, each time crontab - ran */
+            $marked = [];
+            $onWrite = function () use (&$marked, $root): void {
+                $marked[] = $this->config($root)->get('installed_at') !== null;
+            };
+            [$code, $io] = $this->install($root, $this->args($dir), self::ANSWERS, $sender, new AnsweringMailbox($sender), onWrite: $onWrite);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertSame([false], $marked);
+            $this->assertIsString($this->config($root)->get('installed_at'));
+        } finally {
+            TemporaryDirectory::remove($root);
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
+    #[Test]
+    public function leavesTheCopyUnfinishedWhenTheLastStepFailsAfterCron(): void
+    {
+        $root = $this->root();
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $sender = new RecordingMailSender();
+            $onWrite = function () use ($root): void {
+                Database::fromConfig($this->config($root), new Paths($root))->execute('DELETE FROM admins');
+            };
+            [$code, $io, $calls] = $this->install($root, $this->args($dir), self::ANSWERS, $sender, new AnsweringMailbox($sender), onWrite: $onWrite);
+
+            $this->assertSame(1, $code);
+            $this->assertNull($this->config($root)->get('installed_at'));
+            $this->assertCount(1, $this->written($calls));
+            $this->assertStringContainsString('管理者がいません', $io->errors());
+            $this->assertStringNotContainsString('✓ 設置を終えました', $io->output());
         } finally {
             TemporaryDirectory::remove($root);
             TemporaryDirectory::remove($dir);
@@ -819,6 +868,7 @@ final class InstallCommandTest extends TestCase
      * @param array{int, string, string} $listed what crontab -l answers
      * @param array{int, string, string} $written what crontab - answers
      * @param (Closure(int): void)|null $onSleep told the seconds slept so far, after each sleep
+     * @param (Closure(): void)|null $onWrite called when crontab - runs, before it answers
      *
      * @return array{int, ConsoleIo, list<array{list<string>, string}>, int} the status, the streams, the crontab commands run with their input, and the seconds slept
      */
@@ -833,6 +883,7 @@ final class InstallCommandTest extends TestCase
         array $written = [0, '', ''],
         ?Closure $onSleep = null,
         Environment $env = new Environment([]),
+        ?Closure $onWrite = null,
     ): array {
         $paths = new Paths($root);
         $container = Container::build($paths, $overrides + [
@@ -845,8 +896,12 @@ final class InstallCommandTest extends TestCase
         /** @var list<array{list<string>, string}> $calls */
         $calls = [];
         $slept = 0;
-        $crontab = new Crontab(static function (array $command, string $stdin) use (&$calls, $listed, $written): array {
+        $crontab = new Crontab(static function (array $command, string $stdin) use (&$calls, $listed, $written, $onWrite): array {
             $calls[] = [$command, $stdin];
+
+            if ($command === ['crontab', '-'] && $onWrite !== null) {
+                $onWrite();
+            }
 
             return $command === ['crontab', '-l'] ? $listed : $written;
         });

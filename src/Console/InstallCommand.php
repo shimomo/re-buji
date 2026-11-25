@@ -146,6 +146,7 @@ final class InstallCommand implements Command
 
         if ($config->get('installed_at') !== null) {
             $io->error('設置を終えています。上げるときは sh \'' . $this->paths->root() . '/bin/upgrade.sh\' を流してください。');
+            $io->error('状態の URL は、ログインしたホーム画面の「見張り（状態の URL）」に出ています。');
 
             return 1;
         }
@@ -191,6 +192,10 @@ final class InstallCommand implements Command
         $finish = new FinishStep(new InstallKey($this->paths), $this->clock());
         $statusUrl = $finish->viewData($context)['statusUrl'];
         assert(is_string($statusUrl));
+        $settings = $this->settings($context);
+        // Before the copy is marked installed, which bin/cron.php waits for: once marked, only lines are left to print,
+        // so a dropped connection cannot leave an installed copy without its cron.
+        $this->writeCron($cron, $io);
         $finished = $finish->submit($context, []);
 
         if (!$finished->ok()) {
@@ -199,9 +204,7 @@ final class InstallCommand implements Command
             return 1;
         }
 
-        $settings = $this->settings($context);
         $io->line('✓ 設置を終えました（しきい値は' . $settings->threshold()->label() . '、1 時間に送る上限は ' . $settings->get('hourly_limit') . ' 通。設定の画面で変えられます）');
-        $this->writeCron($cron, $io);
         $io->line('状態の URL：' . $statusUrl);
         $io->line('  UptimeRobot などの監視サービスに登録してください。cron が止まると、この URL が 503 を返します。');
         $io->line('ログイン：' . $context->baseUrl() . '/');
@@ -534,7 +537,7 @@ final class InstallCommand implements Command
     }
 
     /**
-     * Asks how often cron runs and whether to add its line once installed; nothing is written yet.
+     * Asks how often cron runs and whether to add its line at the end of the setup; nothing is written yet.
      *
      * @return array{line: string, asked: bool, add: bool}|null null when no interval was accepted
      */
