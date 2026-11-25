@@ -46,6 +46,8 @@ details>*:last-child{margin-bottom:16px}
 .card details{border:0;box-shadow:none;border-radius:0;border-top:1px solid var(--line);margin:0}
 .card details>summary{padding-left:0;padding-right:0}
 .card details>*:not(summary){margin-left:0;margin-right:0}
+.card details>*:last-child{margin-bottom:0}
+.card .person+details{border-top:0}
 
 /* Forms */
 label{display:block;margin-top:1rem}
@@ -149,5 +151,5 @@ header.brand-big{flex-direction:column;justify-content:center;gap:6px;border-bot
 .brand-big strong{font-size:18px}
 .progress{margin:0 0 4px;font-weight:700}
 .dots{display:flex;gap:6px;margin:0 0 16px}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--field)}
 .dot-on{background:var(--accent)}

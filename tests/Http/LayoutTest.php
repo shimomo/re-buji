@@ -109,6 +109,18 @@ final class LayoutTest extends TestCase
         $this->assertMatchesRegularExpression('/\.card details\s*\{[^}]*box-shadow:none/', $css);
         $this->assertMatchesRegularExpression('/\.card table\.stack tr\s*\{[^}]*box-shadow:none/', $css);
         $this->assertMatchesRegularExpression('/input,select,textarea\s*\{[^}]*border:1px solid var\(--field\)/', $css);
+        // One line between the last person and the list that opens below them, and no doubled space at a card's foot.
+        $this->assertMatchesRegularExpression('/\.card \.person\+details\s*\{[^}]*border-top:0/', $css);
+        $this->assertMatchesRegularExpression('/\.card details>\*:last-child\s*\{[^}]*margin-bottom:0/', $css);
+    }
+
+    #[Test]
+    public function showsTheStepsStillToComeAgainstTheGround(): void
+    {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/app.css');
+
+        // The setup's step dots sit on the ground; the field gray stays visible there, the line gray melts in.
+        $this->assertMatchesRegularExpression('/\.dot\s*\{[^}]*background:var\(--field\)/', $css);
     }
 
     #[Test]
