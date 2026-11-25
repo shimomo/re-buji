@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use ReBuji\Auth\AdminRepository;
+use ReBuji\Auth\LoginHashes;
 use ReBuji\Config\Config;
 use ReBuji\Config\Environment;
 use ReBuji\Database\Database;
@@ -112,6 +113,37 @@ final class LoginTest extends TestCase
             }
 
             $this->assertNull(TestApp::session($container)->get('admin_id'));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function comparesAnUnknownEmailWithTheDummyHash(): void
+    {
+        /** @var list<string> $compared */
+        $compared = [];
+        $verify = static function (string $password, string $hash) use (&$compared): bool {
+            $compared[] = $hash;
+
+            return password_verify($password, $hash);
+        };
+        [$app, $container, $root] = TestApp::installed([
+            LoginHashes::class => static function (ContainerInterface $c) use ($verify): LoginHashes {
+                $admins = $c->get(AdminRepository::class);
+                assert($admins instanceof AdminRepository);
+
+                return new LoginHashes($admins, null, $verify);
+            },
+        ]);
+
+        try {
+            TestApp::logIn($app, $container, TestApp::ADMIN_PASSWORD, 'nobody@example.com');
+            TestApp::logIn($app, $container, 'wrong-password-123');
+
+            $hashes = $container->get(LoginHashes::class);
+            assert($hashes instanceof LoginHashes);
+            $this->assertSame([$hashes->dummy(), self::hash($container)], $compared);
         } finally {
             TemporaryDirectory::remove($root);
         }

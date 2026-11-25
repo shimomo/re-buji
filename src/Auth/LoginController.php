@@ -62,7 +62,7 @@ final class LoginController
         }
 
         $admin = $this->admins->findByEmail($email);
-        $valid = password_verify($password, $admin['password_hash'] ?? $this->hashes->dummy()) && $admin !== null;
+        $valid = $this->hashes->verify($password, $admin['password_hash'] ?? null) && $admin !== null;
         $this->throttle->record($email, $ip, $valid, $now);
 
         if (!$valid) {

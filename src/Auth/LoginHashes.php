@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace ReBuji\Auth;
 
+use Closure;
+
 /**
- * The admins' password hashes at log-in: the dummy an unknown email is compared against, and whether a hash is made
- * again. Today's default cost comes in from outside, so the choice can be checked as on an older PHP.
+ * The admins' password hashes at log-in: comparing a password, against a dummy for an unknown email, and whether a hash
+ * is made again. Today's default cost comes in from outside, so the choice can be checked as on an older PHP.
  *
  * @author shimomo
  */
@@ -22,12 +24,29 @@ final class LoginHashes
 
     private readonly int $defaultCost;
 
+    /** @var Closure(string, string): bool */
+    private readonly Closure $verify;
+
     /**
      * @param int|null $defaultCost the bcrypt cost password_hash() uses today; null reads it from PHP
+     * @param (Closure(string, string): bool)|null $verify compares a password with a hash; null is password_verify()
      */
-    public function __construct(private readonly AdminRepository $admins, ?int $defaultCost = null)
+    public function __construct(private readonly AdminRepository $admins, ?int $defaultCost = null, ?Closure $verify = null)
     {
         $this->defaultCost = $defaultCost ?? (defined('PASSWORD_BCRYPT_DEFAULT_COST') ? PASSWORD_BCRYPT_DEFAULT_COST : 10);
+        $this->verify = $verify ?? password_verify(...);
+    }
+
+    /**
+     * Whether the password matches the admin's hash. With no admin (null), it is compared against dummy() all the same,
+     * so an unknown email takes as long as a wrong password, and the answer is false whatever the comparison says.
+     */
+    public function verify(#[\SensitiveParameter] string $password, ?string $hash): bool
+    {
+        // Compared first: checking for null first would skip the comparison for an unknown email and tell it by time.
+        $matches = ($this->verify)($password, $hash ?? $this->dummy());
+
+        return $matches && $hash !== null;
     }
 
     /**

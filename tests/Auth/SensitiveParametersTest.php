@@ -8,6 +8,7 @@ use PDOException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReBuji\Auth\AdminRepository;
+use ReBuji\Auth\LoginHashes;
 use ReBuji\Auth\PasswordPolicy;
 use ReBuji\Database\Database;
 use ReBuji\Install\Steps\AdminStep;
@@ -33,6 +34,7 @@ final class SensitiveParametersTest extends TestCase
             [AdminRepository::class, 'create', 'password'],
             [AdminRepository::class, 'setPassword', 'password'],
             [PasswordPolicy::class, 'validate', 'password'],
+            [LoginHashes::class, 'verify', 'password'],
             [AdminStep::class, 'validate', 'password'],
             [AdminStep::class, 'validate', 'confirmation'],
         ];
