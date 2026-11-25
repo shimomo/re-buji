@@ -112,6 +112,15 @@ final class LayoutTest extends TestCase
     }
 
     #[Test]
+    public function spacesACardAfterAFormOnTheGround(): void
+    {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/app.css');
+
+        // A form has no bottom margin, so a button on the ground would touch the card below it.
+        $this->assertMatchesRegularExpression('/form\+\.card,form\+\.calm\s*\{[^}]*margin-top:16px/', $css);
+    }
+
+    #[Test]
     public function shipsTheIcons(): void
     {
         $assets = dirname(__DIR__, 2) . '/public/assets/';

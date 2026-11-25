@@ -19,13 +19,13 @@ $this->layout('layout', ['title' => $title]);
 <form method="post" action="<?= $this->e($this->url('/earthquakes/' . $quake->id . '/dismiss')) ?>" data-confirm="この地震の連絡を送らないことにしますか？" onsubmit="return confirm(this.dataset.confirm)"><?= $this->csrf() ?><button type="submit" class="btn-danger">送らない</button></form>
 <?php endif ?>
 
+<?php if ($unmatchedMails > 0 && $board['noReply'] !== []): ?>
+<p class="alert alert-act">この地震の連絡を送った後に、照合できなかったメールが <?= $unmatchedMails ?> 通届いています。返信なしの人からのメールかもしれません。<a href="<?= $this->e($this->url('/mail/unmatched')) ?>">一覧</a></p>
+<?php endif ?>
 <section class="card">
 <h2>返信なし（<?= count($board['noReply']) ?> 人）</h2>
 <?= $this->insert('quakes/people', ['rows' => $board['noReply'], 'limit' => 20, 'detail' => 'reason', 'check' => false, 'from' => '']) ?>
 </section>
-<?php if ($unmatchedMails > 0 && $board['noReply'] !== []): ?>
-<p class="alert alert-act">この地震の連絡を送った後に、照合できなかったメールが <?= $unmatchedMails ?> 通届いています。返信なしの人からのメールかもしれません。<a href="<?= $this->e($this->url('/mail/unmatched')) ?>">一覧</a></p>
-<?php endif ?>
 
 <section class="card">
 <h2>要確認（<?= count($board['needsCheck']) ?> 人）</h2>

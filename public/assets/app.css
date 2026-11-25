@@ -70,6 +70,7 @@ form button{width:100%}
 .alert>:last-child{margin-bottom:0}
 .alert+form>button{margin-top:0}
 form+.alert{margin-top:16px}
+form+.card,form+.calm{margin-top:16px}
 .alert-stop{border-left-color:var(--danger);color:var(--danger)}
 .alert-stop::before{content:"\2715"}
 .alert-act{border-left-color:var(--warn);color:var(--warn)}
