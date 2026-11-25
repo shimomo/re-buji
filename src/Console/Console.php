@@ -7,6 +7,7 @@ namespace ReBuji\Console;
 use Psr\Container\ContainerInterface;
 use ReBuji\Config\Environment;
 use ReBuji\Paths;
+use Throwable;
 
 /**
  * bin/console: runs the named command. Services come from the container, which builds them only when a command asks.
@@ -53,7 +54,13 @@ final class Console
 
         foreach ($this->commands() as $command) {
             if ($command->name() === $name) {
-                return $command->run(array_slice($argv, 1), $io);
+                try {
+                    return $command->run(array_slice($argv, 1), $io);
+                } catch (Throwable $exception) {
+                    $this->explain($exception, $io);
+
+                    return 1;
+                }
             }
         }
 
@@ -72,6 +79,21 @@ final class Console
             fn(string $class): Command => new $class($this->paths, $this->environment, $this->container),
             self::COMMANDS,
         );
+    }
+
+    /**
+     * An error no command expected, in two lines instead of PHP's stack trace: what went wrong, then its kind and place
+     * to copy into a report. No trace, and nothing logged: the logger may fail for the same reason (storage/ cannot be
+     * written), and the two lines on the screen are enough to report.
+     */
+    private function explain(Throwable $exception, ConsoleIo $io): void
+    {
+        $root = $this->paths->root() . '/';
+        $file = $exception->getFile();
+        $place = str_starts_with($file, $root) ? substr($file, strlen($root)) : $file;
+
+        $io->error('✕ 思わぬエラーで止まりました：' . $exception->getMessage());
+        $io->error('  （' . $exception::class . '、' . $place . ':' . $exception->getLine() . '）');
     }
 
     private function help(ConsoleIo $io): void

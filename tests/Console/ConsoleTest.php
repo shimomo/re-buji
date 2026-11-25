@@ -58,4 +58,26 @@ final class ConsoleTest extends TestCase
             TemporaryDirectory::remove($root);
         }
     }
+
+    #[Test]
+    public function explainsAnUnexpectedErrorInTwoLines(): void
+    {
+        $root = TemporaryDirectory::create();
+
+        try {
+            // status-url requires the config file, so a broken one is a ParseError, like a broken rebuji-root.php.
+            mkdir($root . '/storage');
+            file_put_contents($root . '/storage/config.php', '<?php return [1 2];');
+            $io = ConsoleIo::memory();
+            $console = new Console(new Paths($root), new Environment([]), Container::build(new Paths($root)));
+
+            $this->assertSame(1, $console->run(['status-url', 'https://example.jp'], $io));
+            $this->assertStringContainsString('✕ 思わぬエラーで止まりました：syntax error', $io->errors());
+            $this->assertStringContainsString('  （ParseError、storage/config.php:', $io->errors());
+            $this->assertStringNotContainsString($root, $io->errors());
+            $this->assertStringNotContainsString('#0 ', $io->errors());
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
 }
