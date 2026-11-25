@@ -163,7 +163,25 @@ final class EmployeePagesTest extends TestCase
                 $this->assertStringContainsString('判定に使えない市町村が登録されています。', $body, $path);
                 $this->assertStringContainsString('2213100', $body, $path);
                 $this->assertStringContainsString('安否 花子', $body, $path);
+                $this->assertStringContainsString('<ul class="link-list">', $body, $path);
             }
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function rowsTheListLinksAsSeparateTargets(): void
+    {
+        [$app, , $root] = $this->loggedIn();
+
+        try {
+            $body = (string) $app->handle(TestApp::request('GET', '/employees'))->getBody();
+
+            // The row of links is spaced by the stylesheet, so a full-width space left between them would wrap as a link.
+            $this->assertSame(1, preg_match('/<p class="links">(.*?)<\/p>/su', $body, $match));
+            $this->assertStringContainsString('従業員を追加する', $match[1]);
+            $this->assertStringNotContainsString('　', $match[1]);
         } finally {
             TemporaryDirectory::remove($root);
         }

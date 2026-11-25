@@ -9,10 +9,10 @@ $this->layout('layout', ['title' => $title]);
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'employees']) ?><?php $this->stop() ?>
 <?= $this->insert('employees/unknown-cities', ['unknownCities' => $unknownCities]) ?>
 <section class="card">
-<p>
-    <a href="<?= $this->e($this->url('/employees/new')) ?>">従業員を追加する</a>　
-    <a href="<?= $this->e($this->url('/employees/import')) ?>">CSV を取り込む</a>　
-    <a href="<?= $this->e($this->url('/employees/export')) ?>">CSV に書き出す</a>　
+<p class="links">
+    <a href="<?= $this->e($this->url('/employees/new')) ?>">従業員を追加する</a>
+    <a href="<?= $this->e($this->url('/employees/import')) ?>">CSV を取り込む</a>
+    <a href="<?= $this->e($this->url('/employees/export')) ?>">CSV に書き出す</a>
     <a href="<?= $this->e($this->url('/employees/cities.csv')) ?>">市町村コードの一覧</a>
 </p>
 <?php if ($employees === []): ?>
