@@ -6,11 +6,13 @@ namespace ReBuji\Tests\Http;
 
 use DateTimeImmutable;
 use DOMDocument;
+use DOMNode;
 use DOMXPath;
 use LogicException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
+use Psr\Container\ContainerInterface;
 use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\Notification;
 use ReBuji\Tests\Support\FrozenClock;
@@ -74,6 +76,8 @@ final class CardsTest extends TestCase
 
     /**
      * Opens each page and checks nothing on it is out of place; returns the last page's body.
+     *
+     * @param App<ContainerInterface> $app
      */
     private function assertInCards(App $app, string ...$paths): string
     {
@@ -122,7 +126,9 @@ final class CardsTest extends TestCase
                 throw new LogicException('Bad query: ' . $query);
             }
 
-            foreach ($nodes as $node) {
+            for ($i = 0; $i < $nodes->length; $i++) {
+                $node = $nodes->item($i);
+                assert($node instanceof DOMNode);
                 $lines[] = $node->nodeName . ': ' . trim((string) preg_replace('/\s+/u', ' ', $node->textContent));
             }
         }
