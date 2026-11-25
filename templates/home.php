@@ -55,16 +55,20 @@ $this->layout('layout', ['title' => $title]);
 <?php /* 2. The quakes being followed, or the calm card. */ ?>
 <?php foreach ($active as $followed): ?>
 <?= $this->insert('quakes/summary', ['quake' => $followed['quake'], 'heading' => $followed['heading'], 'basis' => $followed['basis'], 'board' => $followed['board'], 'link' => true]) ?>
+<section class="card">
 <h2>⚠ 要確認</h2>
 <?= $this->insert('quakes/people', ['rows' => $followed['board']['needsCheck'], 'limit' => 20, 'detail' => 'replied', 'check' => true, 'from' => 'home']) ?>
+</section>
+<section class="card">
 <h2>✕ 返信なし</h2>
 <?= $this->insert('quakes/people', ['rows' => $followed['board']['noReply'], 'limit' => 20, 'detail' => 'reason', 'check' => false, 'from' => 'home']) ?>
+</section>
 <?php endforeach ?>
 <?php if ($active === []): ?>
 <?php if (!$stopped && !$waitingDecision): ?>
 <div class="calm"><strong>✓ 異常なし</strong> 気象庁の情報を <?= $minutesAgo ?> 分前に確認</div>
 <?php else: ?>
-<p class="muted">対応中の地震はありません</p>
+<div class="card"><p class="muted">対応中の地震はありません</p></div>
 <?php endif ?>
 <?php endif ?>
 <?php /* 3. Things only a person can decide. */ ?>
@@ -96,16 +100,21 @@ $this->layout('layout', ['title' => $title]);
 <p class="alert alert-info">前回の cron で失敗した処理があります：<?= $this->e($lastError) ?></p>
 <?php endif ?>
 <?php /* 5. Employees and the watch. */ ?>
+<section class="card">
 <h2>従業員</h2>
 <?php if ($employeeCounts['all'] === 0): ?>
 <p>従業員がまだ登録されていません。<a href="<?= $this->e($this->url('/employees/new')) ?>">従業員を追加する</a></p>
 <?php else: ?>
 <p>従業員：<?= $employeeCounts['all'] ?> 人（停止中 <?= $employeeCounts['all'] - $employeeCounts['active'] ?> 人）　<a href="<?= $this->e($this->url('/employees')) ?>">一覧</a></p>
 <?php endif ?>
+</section>
 <?php if ($lastCheck !== null && !$stale): ?>
+<section class="card">
 <h2>気象庁の情報</h2>
 <p>最後に気象庁の情報を確かめたのは <?= $this->e($lastCheck) ?> です。</p>
+</section>
 <?php endif ?>
+<section class="card">
 <h2>見張り（状態の URL）</h2>
 <p>外部の監視サービスに、次の URL を登録してください。cron が止まったときと、送信のメールのアカウントにログインできない状態が 30 分続いたときに、503 を返します。</p>
 <p><code><?= $this->e($statusUrl) ?></code></p>
@@ -113,3 +122,4 @@ $this->layout('layout', ['title' => $title]);
     <?= $this->csrf() ?>
     <button type="submit" class="btn-danger">URL を作り直す（古い URL は使えなくなります）</button>
 </form>
+</section>

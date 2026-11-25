@@ -20,6 +20,7 @@ $this->layout('layout', ['title' => $title]);
 </ul>
 </div>
 <?php endif ?>
+<section class="card">
 <p><?= $this->e($contact->employeeName) ?> さん（<?= $this->e($quake?->title ?? '') ?>）</p>
 <p><?= $this->e($record) ?></p>
 <p class="muted">電話などで確かめた状態を、本人の代わりに記録します。記録したのが誰かも残ります。記録すると、まだ送っていない連絡と再送は止まります。</p>
@@ -33,8 +34,9 @@ $this->layout('layout', ['title' => $title]);
     <label>メモ（けが、出社できないなどの事情） <textarea name="note" rows="4" maxlength="2000"><?= $this->e($values['note']) ?></textarea></label>
     <button type="submit">記録する</button>
 </form>
+</section>
 <?php if ($from === 'home'): ?>
-<p><a href="<?= $this->e($this->url('/')) ?>">ホームに戻る</a></p>
+<p class="back"><a href="<?= $this->e($this->url('/')) ?>">ホームに戻る</a></p>
 <?php else: ?>
-<p><a href="<?= $this->e($this->url('/earthquakes/' . $contact->earthquakeId)) ?>">地震の画面に戻る</a></p>
+<p class="back"><a href="<?= $this->e($this->url('/earthquakes/' . $contact->earthquakeId)) ?>">地震の画面に戻る</a></p>
 <?php endif ?>

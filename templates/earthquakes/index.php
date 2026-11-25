@@ -6,6 +6,7 @@
 $this->layout('layout', ['title' => $title]);
 ?>
 <?php $this->start('nav') ?><?= $this->insert('nav', ['admin' => $admin, 'current' => 'earthquakes']) ?><?php $this->stop() ?>
+<section class="card">
 <?php if ($rows === []): ?>
 <p>まだ地震の連絡はありません。登録した市町村が基準の震度になると、ここに出ます。</p>
 <?php else: ?>
@@ -39,3 +40,4 @@ $this->layout('layout', ['title' => $title]);
     </tbody>
 </table>
 <?php endif ?>
+</section>
