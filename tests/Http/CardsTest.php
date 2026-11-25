@@ -8,13 +8,18 @@ use DateTimeImmutable;
 use DOMDocument;
 use DOMNode;
 use DOMXPath;
+use League\Plates\Engine;
 use LogicException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
+use ReBuji\Employees\EmployeeCity;
+use ReBuji\Employees\EmployeeInput;
+use ReBuji\Employees\EmployeeRepository;
 use ReBuji\Quakes\Earthquake;
 use ReBuji\Quakes\Notification;
+use ReBuji\Replies\ReplyRepository;
 use ReBuji\Tests\Support\FrozenClock;
 use ReBuji\Tests\Support\QuakeRecords;
 use ReBuji\Tests\Support\TemporaryDirectory;
@@ -69,6 +74,72 @@ final class CardsTest extends TestCase
             $held = $records->quake('20261106090000', '千葉県東方沖・最大震度5弱', '2026-11-06T00:00:00Z', Earthquake::HELD);
 
             $this->assertInCards($app, '/earthquakes', '/earthquakes/' . $quake, '/earthquakes/' . $held, '/contacts/' . $check . '/proxy');
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function putsTheEmployeeAndDrillPagesInCards(): void
+    {
+        [$app, $container, $root] = TestApp::installed();
+
+        try {
+            TestApp::logIn($app, $container);
+            $this->assertInCards($app, '/employees', '/drills/new');
+
+            $employees = $container->get(EmployeeRepository::class);
+            $this->assertInstanceOf(EmployeeRepository::class, $employees);
+            $id = $employees->create(new EmployeeInput('青木 一郎', '総務部', ['aoki@example.com'], [new EmployeeCity('2221300', '')], '', true));
+
+            $this->assertInCards($app, '/employees', '/employees/new', '/employees/' . $id, '/employees/import', '/drills/new');
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function putsTheOtherPagesInCards(): void
+    {
+        [$app, $container, $root] = TestApp::installed();
+
+        try {
+            TestApp::logIn($app, $container);
+            $replies = $container->get(ReplyRepository::class);
+            $this->assertInstanceOf(ReplyRepository::class, $replies);
+            $replies->record(null, 'reply', null, 'private@example.net', '無事です', '無事です', null, new DateTimeImmutable('2026-11-05T03:05:00Z'));
+
+            $this->assertInCards($app, '/mail/unmatched', '/admins', '/settings', '/admin/database', '/more');
+
+            $engine = $container->get(Engine::class);
+            $this->assertInstanceOf(Engine::class, $engine);
+            $admin = ['id' => 1, 'name' => '安否 太郎', 'email' => TestApp::ADMIN_EMAIL];
+            $pending = $engine->render('admin/database-update', ['title' => 'DB の更新', 'admin' => $admin, 'version' => '0.4.4', 'applied' => null, 'busy' => false, 'pending' => [['version' => '20261125000000', 'description' => '例']]]);
+
+            $this->assertSame([], self::misplaced($pending));
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function keepsTheBarePagesInCards(): void
+    {
+        [$app, $container, $root] = TestApp::installed();
+
+        try {
+            $this->assertInCards($app, '/login');
+            $engine = $container->get(Engine::class);
+            $this->assertInstanceOf(Engine::class, $engine);
+            $this->assertSame([], self::misplaced($engine->render('error', ['title' => 'エラー', 'message' => '例'])));
+
+            [$fresh, , $freshRoot] = TestApp::create();
+
+            try {
+                $this->assertInCards($fresh, '/install/environment');
+            } finally {
+                TemporaryDirectory::remove($freshRoot);
+            }
         } finally {
             TemporaryDirectory::remove($root);
         }

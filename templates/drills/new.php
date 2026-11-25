@@ -16,10 +16,13 @@ $this->layout('layout', ['title' => $title]);
 </ul>
 </div>
 <?php endif ?>
+<section class="card">
 <p>訓練の連絡を送ります。件名に【訓練】が付き、本文の先頭に「これは訓練です。」と入ります。返信や再送は本番と同じで、結果は「地震」の一覧に訓練として出ます。停止中の人には送りません。</p>
 <?php if ($people === []): ?>
 <p>送れる従業員がいません。<a href="<?= $this->e($this->url('/employees/new')) ?>">従業員を追加する</a></p>
-<?php else: ?>
+<?php endif ?>
+</section>
+<?php if ($people !== []): ?>
 <form method="post" action="<?= $this->e($this->url('/drills')) ?>">
     <?= $this->csrf() ?>
     <fieldset>
