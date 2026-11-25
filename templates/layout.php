@@ -5,6 +5,8 @@
 $bare ??= false;
 $nav = $bare ? '' : trim((string) $this->section('nav'));
 $classes = array_filter([$bare ? 'bare' : '', $nav !== '' ? 'has-nav' : '']);
+// The favicon's drawing, beside the name; large above the title where there is no nav to make room for.
+$icon = $this->e($this->url('/assets/favicon.svg')) . '?v=' . $this->e(ReBuji\Version::CURRENT);
 ?><!doctype html>
 <html lang="ja">
 <head>
@@ -18,7 +20,11 @@ $classes = array_filter([$bare ? 'bare' : '', $nav !== '' ? 'has-nav' : '']);
 <link rel="stylesheet" href="<?= $this->e($this->url('/assets/app.css')) ?>?v=<?= $this->e(ReBuji\Version::CURRENT) ?>">
 </head>
 <body<?= $classes === [] ? '' : ' class="' . implode(' ', $classes) . '"' ?>>
-<header><strong>Re:無事</strong><?= $nav ?></header>
+<?php if ($bare): ?>
+<header class="brand-big"><img src="<?= $icon ?>" alt="" width="56" height="56"><strong>Re:無事</strong></header>
+<?php else: ?>
+<header><span class="brand"><img src="<?= $icon ?>" alt="" width="28" height="28"><strong>Re:無事</strong></span><?= $nav ?></header>
+<?php endif ?>
 <h1><?= $this->e($title) ?></h1>
 <?php $notice = $this->flash(); ?>
 <?php if ($notice !== null): ?>

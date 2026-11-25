@@ -157,6 +157,54 @@ final class LayoutTest extends TestCase
     }
 
     #[Test]
+    public function showsTheIconBesideTheNameOnPagesWithANav(): void
+    {
+        [$app, $container, $root] = TestApp::installed();
+
+        try {
+            TestApp::logIn($app, $container);
+            $body = (string) $app->handle(TestApp::request('GET', '/employees'))->getBody();
+
+            $this->assertStringContainsString('<header><span class="brand"><img src="/assets/favicon.svg?v=' . Version::CURRENT . '" alt="" width="28" height="28"><strong>Re:無事</strong></span>', $body);
+            $this->assertStringNotContainsString('brand-big', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function showsTheSmallIconWhenAPageIsNotBare(): void
+    {
+        [, $container, $root] = TestApp::create();
+
+        try {
+            $engine = $container->get(Engine::class);
+            $this->assertInstanceOf(Engine::class, $engine);
+            // No nav section, as on the database update page while a change is pending.
+            $body = $engine->render('layout', ['title' => 'x', 'bare' => false]);
+
+            $this->assertStringContainsString('<header><span class="brand"><img src="/assets/favicon.svg?v=' . Version::CURRENT . '" alt="" width="28" height="28"><strong>Re:無事</strong></span></header>', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
+    public function showsTheIconUnderASubdirectory(): void
+    {
+        $root = TestApp::root();
+
+        try {
+            [$app] = TestApp::build($root, [Url::class => new Url('/re-buji')]);
+            $body = (string) $app->handle(TestApp::request('GET', '/install/environment'))->getBody();
+
+            $this->assertStringContainsString('<img src="/re-buji/assets/favicon.svg?v=', $body);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function aBarePageKeepsTheBrandButDropsTheNav(): void
     {
         [, $container, $root] = TestApp::create();
@@ -169,7 +217,8 @@ final class LayoutTest extends TestCase
 
             $body = $engine->render('layout', ['title' => 'x', 'bare' => true]);
 
-            $this->assertStringContainsString('<header><strong>Re:無事</strong>', $body);
+            $this->assertStringContainsString('<header class="brand-big"><img src="/assets/favicon.svg?v=' . Version::CURRENT . '" alt="" width="56" height="56"><strong>Re:無事</strong></header>', $body);
+            $this->assertStringNotContainsString('class="brand"', $body);
             $this->assertStringContainsString('class="bare"', $body);
             $this->assertStringNotContainsString('<nav', $body);
         } finally {
