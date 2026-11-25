@@ -679,26 +679,32 @@ final class InstallCommandTest extends TestCase
     }
 
     #[Test]
-    public function leavesTheCopyUnfinishedWhenTheLastStepFailsAfterCron(): void
+    public function tellsHowToContinueWhenTheLastStepFails(): void
     {
-        $root = $this->root();
-        $dir = TemporaryDirectory::create();
+        $cases = ['DELETE FROM admins' => '管理者がいません', 'DROP TABLE admins' => 'データベースにつなげません'];
 
-        try {
-            $sender = new RecordingMailSender();
-            $onWrite = function () use ($root): void {
-                Database::fromConfig($this->config($root), new Paths($root))->execute('DELETE FROM admins');
-            };
-            [$code, $io, $calls] = $this->install($root, $this->args($dir), self::ANSWERS, $sender, new AnsweringMailbox($sender), onWrite: $onWrite);
+        foreach ($cases as $sql => $failure) {
+            $root = $this->root();
+            $dir = TemporaryDirectory::create();
 
-            $this->assertSame(1, $code);
-            $this->assertNull($this->config($root)->get('installed_at'));
-            $this->assertCount(1, $this->written($calls));
-            $this->assertStringContainsString('管理者がいません', $io->errors());
-            $this->assertStringNotContainsString('✓ 設置を終えました', $io->output());
-        } finally {
-            TemporaryDirectory::remove($root);
-            TemporaryDirectory::remove($dir);
+            try {
+                $sender = new RecordingMailSender();
+                $onWrite = function () use ($root, $sql): void {
+                    Database::fromConfig($this->config($root), new Paths($root))->execute($sql);
+                };
+                [$code, $io, $calls] = $this->install($root, $this->args($dir), self::ANSWERS, $sender, new AnsweringMailbox($sender), onWrite: $onWrite);
+
+                $this->assertSame(1, $code, $sql);
+                $this->assertNull($this->config($root)->get('installed_at'), $sql);
+                $this->assertCount(1, $this->written($calls), $sql);
+                $this->assertStringContainsString($failure, $io->errors());
+                $this->assertStringContainsString('まだ設置を終えていません。直してから同じコマンドをもう一度流すと、続きから進みます。', $io->errors());
+                $this->assertStringContainsString('cron の行は、設置を終えるまで何もしません。もう一度流しても、二重には足しません。', $io->errors());
+                $this->assertStringNotContainsString('✓ 設置を終えました', $io->output());
+            } finally {
+                TemporaryDirectory::remove($root);
+                TemporaryDirectory::remove($dir);
+            }
         }
     }
 

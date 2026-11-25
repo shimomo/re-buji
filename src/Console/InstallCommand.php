@@ -201,7 +201,8 @@ final class InstallCommand implements Command
         $finished = $finish->submit($context, []);
 
         if (!$finished->ok()) {
-            self::errors($io, $finished->errors);
+            // FinishStep's words are the web setup's; the console says how to go on from here.
+            self::errors($io, [...$finished->errors, 'まだ設置を終えていません。直してから同じコマンドをもう一度流すと、続きから進みます。', 'cron の行は、設置を終えるまで何もしません。もう一度流しても、二重には足しません。']);
 
             return 1;
         }
