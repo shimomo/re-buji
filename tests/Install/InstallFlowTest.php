@@ -42,6 +42,8 @@ final class InstallFlowTest extends TestCase
             $this->post($app, $container, '/install/exposure', ['base_url' => 'https://example.com']);
             $finish = $app->handle(TestApp::request('GET', '/install/finish'));
             $this->assertStringContainsString($root . '/bin/cron.php', (string) $finish->getBody());
+            $this->assertStringContainsString('間隔は、選べるいちばん短いものにしてください（5 分ごとだと、最初の連絡が届くまで最大 5 分ほど遅れます）。', (string) $finish->getBody());
+            $this->assertStringNotContainsString('できれば 1 分ごと', (string) $finish->getBody());
             $this->assertStringContainsString('https://example.com/status/', (string) $finish->getBody());
             $done = $this->post($app, $container, '/install/finish');
 
