@@ -9,15 +9,19 @@ use RuntimeException;
 
 /**
  * Adds the line that runs bin/cron.php to the user's crontab through the crontab command, keeping every other line
- * as it is and never adding a second line for the same cron.php. The command is run through a closure so tests never
- * touch a real crontab. A PHP that stops proc_open or escapeshellarg (disable_functions) still gets the line to register
- * by hand, not a crash.
+ * as it is and never adding a second line for the same cron.php. A crontab is changed only when its new contents were
+ * handed over whole. The command is run through a closure so tests never touch a real crontab. A PHP that stops
+ * proc_open or escapeshellarg (disable_functions) still gets the line to register by hand, not a crash.
  *
  * @author shimomo
  */
 final class Crontab
 {
     private const string CANNOT_RUN = 'この PHP では proc_open が止められているため、crontab を動かせません。';
+
+    private const string CUT_OFF = 'crontab に新しい中身を最後まで渡せなかったので、途中で止めました。';
+
+    private const string NO_TEMPORARY_FILE = 'crontab の出力を受ける一時ファイルを作れません。';
 
     /** @var Closure(list<string>, string): array{int, string, string} */
     private readonly Closure $run;
@@ -30,7 +34,7 @@ final class Crontab
      */
     public function __construct(?Closure $run = null, ?bool $canRun = null)
     {
-        $this->run = $run ?? self::proc(...);
+        $this->run = $run ?? self::runCommand(...);
         $this->canRun = $canRun ?? function_exists('proc_open');
     }
 
@@ -165,24 +169,51 @@ final class Crontab
     }
 
     /**
+     * The default runner: runs $command with $input on its standard input. The error output goes to a temporary file, so
+     * a command that writes much of it never waits on a pipe nobody reads. When the input cannot be handed over whole, the
+     * command is stopped before it reads the end of its input: crontab installs only what it read up to the end, so a
+     * cut-short crontab is never installed.
+     *
      * @param list<string> $command
      * @return array{int, string, string}
      */
-    private static function proc(array $command, string $input): array
+    public static function runCommand(array $command, string $input): array
     {
-        $process = @proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $errors = tmpfile();
+
+        if ($errors === false) {
+            return [1, '', self::NO_TEMPORARY_FILE];
+        }
+
+        $process = @proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => $errors], $pipes);
 
         if (!is_resource($process)) {
+            fclose($errors);
+
             return [127, '', ''];
         }
 
-        fwrite($pipes[0], $input);
+        $whole = @fwrite($pipes[0], $input) === strlen($input);
+
+        if (!$whole && function_exists('proc_terminate')) {
+            proc_terminate($process);
+        }
+
         fclose($pipes[0]);
         $output = (string) stream_get_contents($pipes[1]);
-        $error = (string) stream_get_contents($pipes[2]);
         fclose($pipes[1]);
-        fclose($pipes[2]);
+        $status = proc_close($process);
 
-        return [proc_close($process), $output, $error];
+        if (!$whole) {
+            fclose($errors);
+
+            return [1, $output, self::CUT_OFF];
+        }
+
+        rewind($errors);
+        $error = (string) stream_get_contents($errors);
+        fclose($errors);
+
+        return [$status, $output, $error];
     }
 }
