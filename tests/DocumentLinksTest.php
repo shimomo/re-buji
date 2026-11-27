@@ -67,6 +67,19 @@ final class DocumentLinksTest extends TestCase
         $this->assertSame([], $lost);
     }
 
+    #[Test]
+    public function guidesTheInstallOnTheServerItWasTriedOn(): void
+    {
+        $guide = (string) file_get_contents(self::root() . '/docs/install.md');
+        $upgrade = (string) file_get_contents(self::root() . '/docs/upgrade.md');
+
+        // Only Sakura's rental server has been tried: the guides name no other host's steps or folders, and cite Sakura's help.
+        $this->assertStringNotContainsString('ロリポップ', $guide);
+        $this->assertStringNotContainsString('public_html', $guide . $upgrade);
+        $this->assertStringContainsString('[SSH を利用したい](https://help.sakura.ad.jp/rs/2247/)', $guide);
+        $this->assertStringContainsString('「スクリプト」→「CRON設定」で「スケジュールの追加」を押し', $guide);
+    }
+
     private static function root(): string
     {
         return dirname(__DIR__);
