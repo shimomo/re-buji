@@ -156,9 +156,7 @@ final readonly class PublicDir
 
     private function copyTree(string $from, string $to): void
     {
-        if (!is_dir($to) && !mkdir($to, 0755)) {
-            throw new RuntimeException('Cannot create ' . $to);
-        }
+        $this->makeDirectory($to, 0755);
 
         $items = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($from, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
 
@@ -167,9 +165,7 @@ final readonly class PublicDir
             $path = $to . substr($item->getPathname(), strlen($from));
 
             if ($item->isDir()) {
-                if (!is_dir($path) && !mkdir($path, $item->getPerms() & 0777)) {
-                    throw new RuntimeException('Cannot create ' . $path);
-                }
+                $this->makeDirectory($path, $item->getPerms() & 0777);
 
                 continue;
             }

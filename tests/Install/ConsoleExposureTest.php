@@ -331,6 +331,33 @@ final class ConsoleExposureTest extends TestCase
     }
 
     #[Test]
+    public function stopsWhenTheBrowsersAnswerCannotBeRead(): void
+    {
+        $root = $this->root();
+
+        try {
+            $slept = 0;
+            $opens = $this->browserOpens($root);
+            $io = ConsoleIo::memory("y\n");
+            // A web PHP running as another user leaves an answer the SSH user cannot read.
+            $exposure = $this->exposure($root, new FakeHttpClient(new FakeNetworkException('timed out'), [], false), static function (int $seconds) use (&$slept, $opens, $root): void {
+                $slept += $seconds;
+                $opens($seconds);
+                chmod($root . '/storage/' . ProbeVisit::FILE, 0000);
+            });
+
+            $this->assertFalse($this->through($exposure, $io));
+            $this->assertSame(2, $slept);
+            $this->assertStringContainsString('ブラウザで開かれましたが、ウェブの PHP が書いた ' . $root . '/storage/install-probe-visit.json を読めません。', $io->errors());
+            $this->assertStringContainsString('CGI 版の PHP を選べるか確かめてください。', $io->errors());
+            $this->assertStringNotContainsString('10 分のあいだに', $io->errors());
+            $this->assertFilesAreGone($root);
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+    }
+
+    #[Test]
     public function stopsWhenTheOwnerDoesNotConfirm(): void
     {
         $root = $this->root();

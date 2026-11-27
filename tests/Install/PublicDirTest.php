@@ -225,6 +225,37 @@ final class PublicDirTest extends TestCase
         }
     }
 
+    #[Test]
+    public function keepsTheAssetsReadableWhateverTheUmask(): void
+    {
+        $dir = TemporaryDirectory::create();
+
+        try {
+            $root = $this->copy($dir);
+            mkdir($root . '/public/assets/icons');
+            chmod($root . '/public/assets/icons', 0755);
+            file_put_contents($root . '/public/assets/icons/a.svg', '<svg/>');
+            chmod($root . '/public/assets/icons/a.svg', 0644);
+            $public = $dir . '/www';
+            // An SSH session may have 077: the web server must still read assets/ where it reads files as another user.
+            $umask = umask(077);
+
+            try {
+                (new PublicDir(new Paths($root)))->place($public, new ConfigFile($root . '/storage/config.php'));
+            } finally {
+                umask($umask);
+            }
+
+            foreach (['', '/assets', '/assets/icons'] as $sub) {
+                $this->assertSame('0755', substr(sprintf('%o', (int) fileperms($public . $sub)), -4), $sub);
+            }
+
+            $this->assertSame('0644', substr(sprintf('%o', (int) fileperms($public . '/assets/icons/a.svg')), -4));
+        } finally {
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
     /**
      * @return string the root of a copy made inside $dir
      */

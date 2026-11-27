@@ -11,14 +11,14 @@ sh ~/re-buji/bin/upgrade.sh
 ```
 
 - 上げる版と DB の更新の有無を示し、「上げますか？」と聞いてから進みます。`--yes` を付けると聞きません
-- 上書きの前に、今の中身（`storage/` を除く）と `database.sqlite` を `storage/upgrade-backups/` に写します。戻し方は、終わったときに出ます。上げ終わると、前に上げたときの写しは消し、今回の写しだけを残します。問題なく動いていれば、今回の写しも消して構いません。MySQL の DB は写さないので、先に `mysqldump` で取ってください
+- 上書きの前に、今の中身（`storage/` を除く）と `database.sqlite` を `storage/upgrade-backups/` に写します。戻し方は、終わったときに出ます。上げ終わると、前に上げたときの写し（`0.4.5-20261126-093000` のように、版と日時の名前のフォルダ）は消し、今回の写しだけを残します。ほかの名前のファイルやフォルダは残します。問題なく動いていれば、今回の写しも消して構いません。MySQL の DB は写さないので、先に `mysqldump` で取ってください
 - 上げているあいだ cron は止まります（動いている途中なら、終わるのを待ってから始めます）
 - 「上げますか？」に答えたあとは、SSH が切れても Ctrl-C を押しても、最後まで進みます（途中で止まって、古いファイルと新しいファイルが混ざらないように）。やめるときは、問いに `n` と答えてください
 - `install.sh` で入れたものは、公開ディレクトリを覚えているので、`--public` は要りません
 - `public/` の中身だけを公開ディレクトリに置いている場合は、初回だけ `--public` で公開ディレクトリを渡します。`index.php` と `assets/` を置き換えます（`.htaccess` と `rebuji-root.php` はそのまま）。2 回目からは覚えています
 
   ```bash
-  sh ~/re-buji/bin/upgrade.sh --public ~/public_html/anpi
+  sh ~/re-buji/bin/upgrade.sh --public ~/www/anpi
   ```
 - `php` が 8.3 より古いサーバーでは、cron と同じように版を指定した php を渡します：`env PHP=/usr/local/php/8.3/bin/php sh ~/re-buji/bin/upgrade.sh`
 - 特定の版を入れるときは `--version 0.3.1`、サーバーに置いた zip から入れるときは `--zip re-buji-0.3.1.zip` を付けます
@@ -27,7 +27,7 @@ sh ~/re-buji/bin/upgrade.sh
 
 ```bash
 curl -fsSL -o ~/rebuji-upgrade.sh https://raw.githubusercontent.com/shimomo/re-buji/v0.3.1/bin/upgrade.sh
-sh ~/rebuji-upgrade.sh --root ~/re-buji --public ~/public_html/anpi   # 全体を公開ディレクトリに置いているなら --public は付けない
+sh ~/rebuji-upgrade.sh --root ~/re-buji --public ~/www/anpi   # 全体を公開ディレクトリに置いているなら --public は付けない
 rm ~/rebuji-upgrade.sh
 ```
 

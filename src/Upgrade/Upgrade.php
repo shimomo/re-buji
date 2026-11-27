@@ -128,8 +128,8 @@ final class Upgrade
 
     /**
      * Removes the copies kept by earlier upgrades, once this one has finished: each holds the employees' addresses
-     * (design 6.5). Only directories named like a copy ({version}-{Ymd-His}) go; anything else in storage/upgrade-backups/
-     * is left alone, and a link is never followed.
+     * (design 6.5). Only directories named exactly like a copy ({version}-{Ymd-His}, the version as X.Y.Z) go; anything
+     * else in storage/upgrade-backups/ is left alone, and a link is never followed.
      *
      * @param string $keep the full path of the copy this upgrade made
      *
@@ -147,7 +147,7 @@ final class Upgrade
         foreach ($names as $name) {
             $path = $this->target . '/storage/' . self::BACKUPS . '/' . $name;
 
-            if (preg_match('/-\d{8}-\d{6}$/', $name) !== 1 || $path === $keep || is_link($path) || !is_dir($path)) {
+            if (preg_match('/\A\d+\.\d+\.\d+-\d{8}-\d{6}\z/', $name) !== 1 || $path === $keep || is_link($path) || !is_dir($path)) {
                 continue;
             }
 

@@ -60,12 +60,26 @@ final class ProbeVisit
         return true;
     }
 
+    /**
+     * What the browser's visit recorded for $nonce, or null while there is no record for it.
+     *
+     * @throws RuntimeException when the record is there but cannot be read
+     */
     public function seen(string $nonce): ?WebSide
     {
         $file = $this->paths->storage(self::FILE);
-        $body = is_file($file) ? file_get_contents($file) : false;
 
-        return $body === false ? null : WebSide::fromAnswer($body, $nonce);
+        if (!is_file($file)) {
+            return null;
+        }
+
+        $body = @file_get_contents($file);
+
+        if ($body === false) {
+            throw new RuntimeException('ウェブの PHP が書いた ' . $file . ' を読めません');
+        }
+
+        return WebSide::fromAnswer($body, $nonce);
     }
 
     public function close(): void

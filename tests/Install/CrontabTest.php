@@ -182,6 +182,40 @@ final class CrontabTest extends TestCase
         );
     }
 
+    #[Test]
+    public function takesALongErrorOutputWithoutWaiting(): void
+    {
+        // The child writes 200,000 bytes of errors without blocking and gives up after 3 seconds if nobody reads them.
+        $code = <<<'PHP'
+            stream_set_blocking(STDERR, false);
+            $left = str_repeat('e', 200000);
+            $until = microtime(true) + 3;
+            while ($left !== '' && microtime(true) < $until) {
+                $written = (int) fwrite(STDERR, $left);
+                $left = substr($left, $written);
+                if ($written === 0) {
+                    usleep(10000);
+                }
+            }
+            echo $left === '' ? 'all' : 'stuck';
+            PHP;
+
+        [$status, $output, $error] = Crontab::runCommand([PHP_BINARY, '-n', '-r', $code], '');
+
+        self::assertSame([0, 'all', 200000], [$status, $output, strlen($error)]);
+    }
+
+    #[Test]
+    public function stopsACommandThatDoesNotTakeTheWholeInput(): void
+    {
+        // Like a crontab that would install what it has read: it stops reading, and would go on to install a second later.
+        $code = 'fread(STDIN, 10); fclose(STDIN); sleep(1); echo "installed";';
+
+        [$status, $output, $error] = Crontab::runCommand([PHP_BINARY, '-n', '-r', $code], str_repeat("x\n", 500000));
+
+        self::assertSame([1, '', 'crontab に新しい中身を最後まで渡せなかったので、途中で止めました。'], [$status, $output, $error]);
+    }
+
     /**
      * @param list<array{list<string>, string}> $calls
      * @param array{int, string, string} $read
