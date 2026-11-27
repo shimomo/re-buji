@@ -7,6 +7,7 @@ namespace ReBuji\Install;
 use Closure;
 use ReBuji\Console\ConsoleIo;
 use ReBuji\Console\TimeLeft;
+use RuntimeException;
 
 /**
  * The console's version of the web setup's exposure check: confirms that the public URL reaches this copy and that the
@@ -182,7 +183,13 @@ final class ConsoleExposure
             $waited = 0;
 
             while (true) {
-                $web = $this->visit->seen($nonce);
+                try {
+                    $web = $this->visit->seen($nonce);
+                } catch (RuntimeException $e) {
+                    $io->error('ブラウザで開かれましたが、' . $e->getMessage() . '。ウェブの PHP が SSH とは別の利用者で動く（モジュール版の PHP など）と、こうなります。サーバーの管理画面で、CGI 版の PHP を選べるか確かめてください。');
+
+                    return null;
+                }
 
                 if ($web !== null) {
                     $io->line('✓ ブラウザで開かれました');
