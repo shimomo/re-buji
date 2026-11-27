@@ -209,6 +209,29 @@ final class UpgradeInstallCommandTest extends TestCase
         }
     }
 
+    #[Test]
+    public function keepsTheOwnersFoldersThatOnlyEndLikeACopy(): void
+    {
+        $dir = TemporaryDirectory::create();
+
+        try {
+            [$source, $target] = $this->copies($dir, appliedMigrations: 3);
+            $backups = $target . '/storage/' . Upgrade::BACKUPS;
+            mkdir($backups . '/0.0.9-20261101-090000', 0700, true);
+            mkdir($backups . '/mine-20261101-120000');
+            mkdir($backups . '/keep 0.0.9-20261101-090000');
+
+            [$code, $io] = $this->install($source, ['--target=' . $target, '--yes']);
+
+            $this->assertSame(0, $code, $io->errors());
+            $this->assertDirectoryDoesNotExist($backups . '/0.0.9-20261101-090000');
+            $this->assertDirectoryExists($backups . '/mine-20261101-120000');
+            $this->assertDirectoryExists($backups . '/keep 0.0.9-20261101-090000');
+        } finally {
+            TemporaryDirectory::remove($dir);
+        }
+    }
+
     /**
      * A folder the owner cannot open (made by root, say): the upgrade has still finished, so it says so and how to go
      * back, and names what is left to remove by hand.
